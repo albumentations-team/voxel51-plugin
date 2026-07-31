@@ -10,3 +10,4 @@ fiftyone:
 operators:
   - augment_with_albumentationsx
   - view_albumentationsx_run
+  - delete_albumentationsx_run

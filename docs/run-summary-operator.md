@@ -23,6 +23,9 @@ The current dataset state is not used to guess counters. The only filesystem
 state derived during summary is whether manifest-listed output files still
 exist. Missing output files mark the run as `stale`.
 
+Runs cleaned by `delete_albumentationsx_run` may still appear in this operator
+because cleanup retains `manifest.json` as an audit trail.
+
 ## Failure Modes
 
 The operator must not mutate samples, files, manifests, or FiftyOne custom runs.

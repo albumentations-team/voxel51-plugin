@@ -23,6 +23,8 @@ these files hold development workflow, review, and release notes.
   replay records, and FiftyOne custom run registration.
 - [Run summary operator](run-summary-operator.md): read-only FiftyOne run
   inspection and stale manifest handling.
+- [Run cleanup operator](run-cleanup-operator.md): confirmed cleanup for
+  generated samples, manifest-listed files, and custom runs.
 - [PR checklist](pr-checklist.md): required checks before review and merge.
 - [Verification](verification.md): local gate, targeted tests, and manual checks.
 - [Design document](../DESIGN.md): implementation contract for the plugin.

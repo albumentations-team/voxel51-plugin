@@ -66,6 +66,14 @@ availability, output fields, and errors from `manifest.json`. If the manifest is
 missing or malformed, the operator returns a clear status instead of mutating the
 dataset or crashing. Details live in [Run summary operator](run-summary-operator.md).
 
+## Run Cleanup
+
+VOX-17 adds the confirmed `delete_albumentationsx_run` operator. Cleanup uses
+the manifest as its allowlist, deletes only `created_sample_ids` and
+manifest-listed `output_paths`, and removes the matching FiftyOne custom run.
+The manifest file is retained for auditability and idempotent repeated cleanup.
+Details live in [Run cleanup operator](run-cleanup-operator.md).
+
 ## Verification
 
 Use the complete local gate in [Verification](verification.md). Focused checks:
