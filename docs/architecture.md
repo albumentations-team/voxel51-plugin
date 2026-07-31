@@ -49,7 +49,7 @@ Expected modules:
 
 - `albumentationsx_plugin/albumentations_backend/interfaces.py` for backend
   protocol exports
-- `albumentationsx_plugin/albumentations_backend/catalog.py`
+- `albumentationsx_plugin/albumentations_backend/catalog/`
 - `albumentationsx_plugin/albumentations_backend/form_schema.py`
 - `albumentationsx_plugin/albumentations_backend/pipeline.py`
 - `albumentationsx_plugin/albumentations_backend/replay.py`
@@ -193,6 +193,10 @@ composition point that wires the FiftyOne sample adapter, storage helpers, and
 fixed AlbumentationsX backend together. Later catalog work should replace this
 with explicit backend service injection so host operators depend on backend
 interfaces instead of concrete fixed-slice modules.
+
+The VOX-11 albu-spec catalog is documented in `docs/albu-spec-catalog.md`. It
+is the source for normal transform choices, capability reports, and version
+drift checks.
 
 ## Extension Points
 

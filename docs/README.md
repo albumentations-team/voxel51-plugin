@@ -11,6 +11,8 @@ these files hold development workflow, review, and release notes.
 - [Demo dataset](demo-dataset.md): deterministic local dataset workflow.
 - [Fixed transform slice](fixed-transform-slice.md): temporary executable
   transform allowlist and output behavior.
+- [albu-spec catalog](albu-spec-catalog.md): version-aware transform capability
+  registry and review report.
 - [PR checklist](pr-checklist.md): required checks before review and merge.
 - [Verification](verification.md): local gate, targeted tests, and manual checks.
 - [Design document](../DESIGN.md): implementation contract for the plugin.
