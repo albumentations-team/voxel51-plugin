@@ -35,6 +35,7 @@ creates validated AlbumentationsX pipelines, and extracts replay data.
 
 Expected modules:
 
+- `albumentationsx_plugin/albumentations_backend/interfaces.py`
 - `albumentationsx_plugin/albumentations_backend/catalog.py`
 - `albumentationsx_plugin/albumentations_backend/form_schema.py`
 - `albumentationsx_plugin/albumentations_backend/pipeline.py`
@@ -78,8 +79,8 @@ Allowed dependencies:
   serialization helpers already accepted by the project.
 - `albumentations_backend` may import `core`, `albumentations`, and `albu-spec`.
 - `storage` may import `core` and standard filesystem/JSON helpers.
-- `hosts/fiftyone` may import `core`, `storage`, backend interfaces, and
-  `fiftyone`.
+- `hosts/fiftyone` may import `core`, `storage`,
+  `albumentations_backend.interfaces`, and `fiftyone`.
 - Operator modules may compose services, but should not own catalog parsing,
   pipeline construction, or cleanup path validation.
 
@@ -93,6 +94,23 @@ Forbidden dependencies:
   user-provided names.
 - Cleanup must not use broad globs or delete files outside the plugin-owned run
   directory.
+
+## Boundary Enforcement
+
+Dependency rules should be checked as soon as the corresponding packages exist.
+Start with small unit tests that import modules and assert forbidden dependencies
+are not loaded by neutral layers:
+
+- importing `albumentationsx_plugin.core` must not import `fiftyone`,
+  `albumentations`, or `albu-spec`;
+- importing `albumentationsx_plugin.albumentations_backend.interfaces` must not
+  import `fiftyone`;
+- importing `albumentationsx_plugin.storage` must not import FiftyOne operator
+  modules.
+
+When the package layout stabilizes, add an import-boundary tool such as
+`import-linter` to encode the same rules in configuration. That check should run
+inside the complete local gate documented in `docs/verification.md`.
 
 ## Core Contracts
 
