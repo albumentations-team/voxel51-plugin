@@ -5,7 +5,7 @@
 This repository will contain a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and previewing [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
 
 > [!IMPORTANT]
-> The project is in the design and repository-setup phase. There is no installable plugin yet.
+> The project is in the early implementation phase. The plugin metadata and Python package skeleton exist, but no user-facing operators are registered yet.
 
 ## What the plugin will do
 
@@ -23,14 +23,15 @@ Transform names, parameter types, default values, constraints, and descriptions 
 
 ## Current status
 
-The implementation has not started. The repository currently contains:
+The implementation has started with the plugin scaffold. The repository currently contains:
 
 - the [design document](DESIGN.md), written in Russian for the project owner and coding agents;
 - the `AGPL-3.0-only` license text;
 - a `pyproject.toml` that defines the development tools and the test groups;
-- a `pre-commit` configuration that runs file checks, Ruff, and Pyrefly.
+- a `pre-commit` configuration that runs file checks, Ruff, and Pyrefly;
+- `fiftyone.yml` and a Python package skeleton for the plugin.
 
-The first implementation pull request will create the FiftyOne plugin structure and register one empty operator. See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for the complete sequence and acceptance criteria.
+The next implementation pull request will register the first empty operator. See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for the complete sequence and acceptance criteria.
 
 ## Implementation rules
 
@@ -53,7 +54,7 @@ Additional development documentation lives in [`docs/`](docs/README.md):
 
 ## Prepare a development checkout
 
-The runtime dependencies will be added with the first implementation pull request. Today, contributors need Python 3.11 or 3.12, [uv](https://docs.astral.sh/uv/getting-started/installation/), and Git. The upper bound matches [FiftyOne's current Python support](https://docs.voxel51.com/installation/index.html).
+Contributors need Python 3.11 or 3.12, [uv](https://docs.astral.sh/uv/getting-started/installation/), and Git. The upper bound matches [FiftyOne's current Python support](https://docs.voxel51.com/installation/index.html).
 
 ```bash
 git clone https://github.com/albumentations-team/voxel51-plugin.git
@@ -65,6 +66,15 @@ uv run pre-commit run --all-files
 ```
 
 `uv` creates and manages the local `.venv`; manual activation is optional.
+
+For local FiftyOne plugin discovery from this checkout, point FiftyOne at the parent directory that contains this repository:
+
+```bash
+export FIFTYONE_PLUGINS_DIR="$(dirname "$PWD")"
+uv run fiftyone operators list
+```
+
+The scaffold has no operators yet, so operator registration starts with the next implementation pull request.
 
 ## What the automated tests cover
 
