@@ -18,6 +18,9 @@ htmlcov/
 .pytest_cache/
 .ruff_cache/
 
+# Local demo data
+sample_data/generated/
+
 # Local configuration and secrets
 .env
 .env.*
