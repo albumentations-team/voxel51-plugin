@@ -44,7 +44,8 @@ operator. The repository currently contains:
   parameters;
 - a catalog-driven AlbumentationsX image pipeline factory that validates
   transform parameters, constructs runtime transforms, and records JSON-safe
-  replay data.
+  replay data;
+- saved run manifests and FiftyOne custom run records for non-dry executions.
 
 The next implementation pull requests will replace the temporary execution
 allowlist with ordered catalog-driven pipeline editing and broaden annotation
@@ -74,6 +75,7 @@ Additional development documentation lives in [`docs/`](docs/README.md):
 - [Parameter schema](docs/parameter-schema.md) describes host-neutral parameter fields generated from albu-spec metadata;
 - [Dynamic FiftyOne forms](docs/dynamic-fiftyone-forms.md) describes catalog-backed operator rendering;
 - [Pipeline factory](docs/pipeline-factory.md) describes catalog-driven transform construction and replay execution;
+- [Run manifest](docs/run-manifest.md) describes saved run metadata, replay records, and custom run registration;
 - [PR checklist](docs/pr-checklist.md) lists required scope, safety, documentation, and verification checks;
 - [Verification](docs/verification.md) centralizes local gate commands, targeted tests, and manual checks.
 
@@ -132,7 +134,8 @@ are database-generated.
 In the App, select one or more samples, run `Augment with AlbumentationsX`, and
 choose one of the fixed transforms. New output samples are written under the
 plugin-owned storage directory and tagged with the run key; source samples and
-source files remain unchanged.
+source files remain unchanged. Non-dry runs also save `manifest.json` under the
+run output directory and register the manifest in FiftyOne's custom run store.
 
 Clean up the dataset and generated images with:
 

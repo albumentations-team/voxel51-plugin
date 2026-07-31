@@ -67,6 +67,11 @@ Each created FiftyOne sample is tagged with `albumentationsx-output` and
 `albumentationsx-run:<run-key>`. It also stores provenance fields for the source
 sample ID, run key, output tag, and transform summary.
 
+VOX-15 saves each non-dry execution under the run directory as `manifest.json`
+and registers a FiftyOne custom run. The manifest records versions, source IDs,
+created sample IDs, relative output paths, replay records, counters, and
+structured errors. Dry runs still avoid writing output files or run metadata.
+
 Static parameter errors fail before writing output files when possible. Runtime
 per-sample errors, such as a `RandomCrop` larger than one selected image, are
 reported in the operator summary while allowing other selected samples to

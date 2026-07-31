@@ -16,6 +16,7 @@ from albumentationsx_plugin.hosts.fiftyone.samples import (
     SOURCE_SAMPLE_ID_FIELD,
     build_run_tag,
 )
+from albumentationsx_plugin.storage import FileRunStore
 from albumentationsx_plugin.storage.images import load_rgb_image, write_rgb_image
 
 
@@ -82,6 +83,8 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
         assert result.skipped_count == 0
         assert result.error_count == 0
         assert result.output_dir.startswith(str(tmp_path / "plugin-storage"))
+        assert result.manifest_path == str(Path(result.output_dir) / "manifest.json")
+        assert result.fiftyone_run_key in dataset.list_runs()
         assert len(dataset) == 4
         assert _load_sample(dataset, first_id).filepath == source_filepaths[first_id]
         assert _load_sample(dataset, second_id).filepath == source_filepaths[second_id]
@@ -97,6 +100,26 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
             source_image = load_rgb_image(source_filepaths[source_id]).data
             output_image = load_rgb_image(sample.filepath).data
             np.testing.assert_array_equal(output_image, source_image[:, ::-1, :])
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        assert manifest.run_key == result.run_key
+        assert set(manifest.created_sample_ids) == {str(sample.id) for sample in created}
+        assert set(manifest.output_paths) == {
+            Path(sample.filepath).relative_to(Path(result.output_dir)).as_posix() for sample in created
+        }
+        assert manifest.counters == {"processed": 2, "created": 2, "skipped": 0, "errors": 0, "outputs": 2}
+        assert set(manifest.dependency_versions) == {"albumentationsx", "albu-spec", "fiftyone"}
+        assert len(manifest.replay_records) == 2
+        first_replay = manifest.replay_records[0]
+        assert first_replay["source_sample_id"] in {first_id, second_id}
+        assert first_replay["output_path"] in manifest.output_paths
+        assert isinstance(first_replay["replay"], dict)
+
+        run_results = dataset.load_run_results(result.fiftyone_run_key, load_view=False)
+        assert run_results is not None
+        assert run_results.plugin_run_key == result.run_key
+        assert run_results.manifest["run_key"] == result.run_key
+        assert run_results.manifest_path == result.manifest_path
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)
@@ -124,6 +147,8 @@ def test_fixed_augmentation_executor_dry_run_does_not_write_outputs(tmp_path) ->
         assert result.error_count == 0
         assert len(dataset) == 1
         assert not Path(result.output_dir).exists()
+        assert result.manifest_path == ""
+        assert not dataset.has_run(result.fiftyone_run_key)
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)
@@ -188,6 +213,18 @@ def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_pat
         assert isinstance(error_context, dict)
         assert error_context["sample_id"] == small_id
         assert error_context["parameter_name"] == "height"
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        assert manifest.source_sample_ids == (large_id, small_id)
+        assert len(manifest.created_sample_ids) == 1
+        assert len(manifest.output_paths) == 1
+        assert manifest.counters == {"processed": 2, "created": 1, "skipped": 1, "errors": 1, "outputs": 1}
+        manifest_error = manifest.errors[0]
+        manifest_error_context = manifest_error["context"]
+        assert isinstance(manifest_error_context, dict)
+        assert manifest_error_context["sample_id"] == small_id
+        assert manifest_error_context["output_index"] == 0
+        assert result.fiftyone_run_key in dataset.list_runs()
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)

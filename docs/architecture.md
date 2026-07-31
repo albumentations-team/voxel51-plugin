@@ -214,6 +214,12 @@ resolves transform classes from albu-spec metadata, validates parameters through
 neutral schemas, and provides an image-only replay runner. Host-level media IO,
 output sample creation, and storage orchestration remain outside that runner.
 
+The VOX-15 run manifest layer is documented in `docs/run-manifest.md`. It stores
+`manifest.json` in the plugin-owned run directory and registers the same payload
+in FiftyOne's generic custom run store. The filesystem manifest remains the
+cleanup allowlist because it contains relative output paths that can be resolved
+and validated later.
+
 ## Extension Points
 
 ### New transform source
