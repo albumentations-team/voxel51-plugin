@@ -31,7 +31,7 @@ The implementation has started with the plugin scaffold. The repository currentl
 - a `pre-commit` configuration that runs file checks, Ruff, and Pyrefly;
 - `fiftyone.yml` and a Python package skeleton for the plugin.
 
-The next implementation pull request will register the first empty operator. See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for the complete sequence and acceptance criteria.
+The next documentation pull request records the maintainable architecture before adding more code. The next code pull request will register the first empty operator. See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for the complete sequence and acceptance criteria.
 
 ## Implementation rules
 
@@ -49,6 +49,7 @@ The [design document](DESIGN.md) is the implementation contract when this summar
 Additional development documentation lives in [`docs/`](docs/README.md):
 
 - [Gitflow](docs/gitflow.md) describes the `feature/* -> dev -> main -> release/*` workflow;
+- [Architecture](docs/architecture.md) describes the layered code boundaries and extension points;
 - [PR checklist](docs/pr-checklist.md) lists required scope, safety, documentation, and verification checks;
 - [Verification](docs/verification.md) centralizes local gate commands, targeted tests, and manual checks.
 
