@@ -49,8 +49,10 @@ For compatibility with the original fixed form, the runner also accepts
 `brightness_range_min`, `brightness_range_max`, `contrast_range_min`,
 `contrast_range_max`, `crop_width`, and `crop_height`.
 
-VOX-13 renders these fields from albu-spec schemas. Execution remains limited to
-the three fixed transforms until the dynamic pipeline factory is implemented.
+VOX-13 renders these fields from albu-spec schemas. VOX-14 moved transform
+construction and replay execution behind the shared catalog-driven pipeline
+factory, while the FiftyOne execution UI remains limited to the three fixed
+transforms.
 
 ## Output Behavior
 

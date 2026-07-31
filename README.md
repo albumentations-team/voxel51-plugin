@@ -5,7 +5,7 @@
 This repository contains a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and previewing [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
 
 > [!IMPORTANT]
-> The project is in the early implementation phase. The operator renders catalog-driven transform forms and can create image-only outputs with a temporary fixed transform set; catalog-wide execution and annotation transforms are still upcoming.
+> The project is in the early implementation phase. The operator renders catalog-driven transform forms and can create image-only outputs with a temporary fixed transform set backed by the shared pipeline factory; catalog-wide ordered execution and annotation transforms are still upcoming.
 
 ## What the plugin will do
 
@@ -41,10 +41,14 @@ operator. The repository currently contains:
 - host-neutral albu-spec parameter schemas for transforms exposed by the MVP
   catalog;
 - a dynamic FiftyOne operator form that renders catalog-backed transform
-  parameters.
+  parameters;
+- a catalog-driven AlbumentationsX image pipeline factory that validates
+  transform parameters, constructs runtime transforms, and records JSON-safe
+  replay data.
 
-The next implementation pull requests will replace the temporary transform
-allowlist with catalog-driven transform schemas and broaden annotation support.
+The next implementation pull requests will replace the temporary execution
+allowlist with ordered catalog-driven pipeline editing and broaden annotation
+support.
 See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for
 the complete sequence and acceptance criteria.
 
@@ -69,6 +73,7 @@ Additional development documentation lives in [`docs/`](docs/README.md):
 - [albu-spec catalog](docs/albu-spec-catalog.md) describes transform capability classification;
 - [Parameter schema](docs/parameter-schema.md) describes host-neutral parameter fields generated from albu-spec metadata;
 - [Dynamic FiftyOne forms](docs/dynamic-fiftyone-forms.md) describes catalog-backed operator rendering;
+- [Pipeline factory](docs/pipeline-factory.md) describes catalog-driven transform construction and replay execution;
 - [PR checklist](docs/pr-checklist.md) lists required scope, safety, documentation, and verification checks;
 - [Verification](docs/verification.md) centralizes local gate commands, targeted tests, and manual checks.
 

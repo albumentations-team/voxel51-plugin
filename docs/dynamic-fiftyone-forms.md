@@ -33,8 +33,10 @@ remain editable without inventing transform-specific UI code.
 
 ## Execution Scope
 
-This pull request changes the form layer. The execution path still uses the
-temporary fixed-transform runner until the dynamic pipeline factory lands.
+VOX-14 adds a catalog-driven backend pipeline factory. The execution path now
+uses that shared factory internally, but the FiftyOne operator still limits
+execution to the temporary fixed transform set until ordered pipeline editing is
+implemented.
 
 The fixed runner remains executable for:
 

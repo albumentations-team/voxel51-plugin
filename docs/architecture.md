@@ -51,8 +51,11 @@ Expected modules:
   protocol exports
 - `albumentationsx_plugin/albumentations_backend/catalog/`
 - `albumentationsx_plugin/albumentations_backend/parameters/`
-- `albumentationsx_plugin/albumentations_backend/pipeline.py`
-- `albumentationsx_plugin/albumentations_backend/replay.py`
+- `albumentationsx_plugin/albumentations_backend/pipeline/registry.py`
+- `albumentationsx_plugin/albumentations_backend/pipeline/coercion.py`
+- `albumentationsx_plugin/albumentations_backend/pipeline/factory.py`
+- `albumentationsx_plugin/albumentations_backend/pipeline/runner.py`
+- `albumentationsx_plugin/albumentations_backend/pipeline/replay.py`
 - `albumentationsx_plugin/albumentations_backend/fixed/pipeline.py` for the
   temporary fixed-transform vertical slice
 
@@ -205,6 +208,11 @@ host-neutral `FormFieldSchema` records without importing FiftyOne.
 The VOX-13 dynamic form layer is documented in
 `docs/dynamic-fiftyone-forms.md`. It keeps FiftyOne-specific rendering under
 `hosts/fiftyone/forms/` while consuming backend catalog and schema interfaces.
+
+The VOX-14 pipeline factory is documented in `docs/pipeline-factory.md`. It
+resolves transform classes from albu-spec metadata, validates parameters through
+neutral schemas, and provides an image-only replay runner. Host-level media IO,
+output sample creation, and storage orchestration remain outside that runner.
 
 ## Extension Points
 
