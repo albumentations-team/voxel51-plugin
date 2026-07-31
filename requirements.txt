@@ -1,1 +1,3 @@
 fiftyone>=1.19,<2
+numpy>=2.4,<3
+Pillow>=10,<13
