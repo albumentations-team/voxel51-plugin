@@ -66,6 +66,8 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert output_json["type"]["properties"]["processed_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["created_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["error_count"]["type"]["name"] == "Number"
+    assert output_json["type"]["properties"]["manifest_path"]["type"]["name"] == "String"
+    assert output_json["type"]["properties"]["fiftyone_run_key"]["type"]["name"] == "String"
 
 
 @pytest.mark.unit
@@ -139,6 +141,8 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
             dry_run=False,
             output_tag="albumentationsx-output",
             output_dir="/tmp/outputs",
+            manifest_path="/tmp/outputs/manifest.json",
+            fiftyone_run_key="albumentationsx_20260731T120000Z_test",
         )
 
     monkeypatch.setattr(augment_operator_module, "execute_fixed_augmentation", fake_execute_fixed_augmentation)
@@ -152,5 +156,7 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
         "dry_run": False,
         "output_tag": "albumentationsx-output",
         "output_dir": "/tmp/outputs",
+        "manifest_path": "/tmp/outputs/manifest.json",
+        "fiftyone_run_key": "albumentationsx_20260731T120000Z_test",
         "errors": [],
     }

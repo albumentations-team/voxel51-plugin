@@ -51,6 +51,8 @@ class AugmentWithAlbumentationsX(foo.Operator):
         outputs.bool("dry_run", label="Dry run")
         outputs.str("output_tag", label="Output tag")
         outputs.str("output_dir", label="Output directory")
+        outputs.str("manifest_path", label="Manifest path")
+        outputs.str("fiftyone_run_key", label="FiftyOne run key")
         outputs.list("errors", types.Object(), label="Errors")
         return types.Property(outputs)
 

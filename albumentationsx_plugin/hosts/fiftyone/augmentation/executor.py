@@ -9,7 +9,6 @@ from os import PathLike
 from pathlib import Path
 from typing import Any
 
-import albumentations as A
 import fiftyone as fo
 
 import albumentationsx_plugin
@@ -27,9 +26,11 @@ from albumentationsx_plugin.core import (
     PluginError,
     RunManifest,
 )
+from albumentationsx_plugin.hosts.fiftyone.runs import build_fiftyone_run_key, register_fiftyone_run
 from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, FiftyOneSampleAdapter
 from albumentationsx_plugin.storage.images import build_output_image_relative_path, load_rgb_image, write_rgb_image
-from albumentationsx_plugin.storage.paths import build_dataset_run_dir, build_run_key
+from albumentationsx_plugin.storage.manifest import FileRunStore
+from albumentationsx_plugin.storage.paths import build_run_key
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +45,8 @@ class FixedAugmentationExecutionResult:
     dry_run: bool
     output_tag: str
     output_dir: str
+    manifest_path: str = ""
+    fiftyone_run_key: str = ""
     errors: tuple[JSONDict, ...] = ()
 
     def to_dict(self) -> JSONDict:
@@ -58,6 +61,8 @@ class FixedAugmentationExecutionResult:
             "dry_run": self.dry_run,
             "output_tag": self.output_tag,
             "output_dir": self.output_dir,
+            "manifest_path": self.manifest_path,
+            "fiftyone_run_key": self.fiftyone_run_key,
             "errors": [dict(error) for error in self.errors],
         }
 
@@ -77,7 +82,8 @@ def execute_fixed_augmentation(
     pipeline = create_fixed_image_pipeline(config)
     dry_run = _bool_param(params, "dry_run", default=False)
     run_key = build_run_key()
-    run_dir = build_dataset_run_dir(dataset.name, run_key, storage_root=storage_root)
+    run_store = FileRunStore(dataset_name=dataset.name, storage_root=storage_root)
+    run_dir = run_store.run_dir(run_key)
     adapter = FiftyOneSampleAdapter(
         dataset=dataset,
         view=view,
@@ -95,6 +101,7 @@ def execute_fixed_augmentation(
             dry_run=True,
             output_tag=output_tag,
             output_dir=str(run_dir),
+            fiftyone_run_key=build_fiftyone_run_key(run_key),
         )
 
     created_sample_ids: list[str] = []
@@ -103,27 +110,91 @@ def execute_fixed_augmentation(
     errors: list[JSONDict] = []
     skipped_count = 0
     source_sample_ids = tuple(source.sample_id for source in source_inputs)
+    _save_current_manifest(
+        run_store=run_store,
+        run_key=run_key,
+        config=config,
+        source_sample_ids=source_sample_ids,
+        created_sample_ids=created_sample_ids,
+        output_paths=output_paths,
+        replay_records=replay_records,
+        processed_count=len(source_inputs),
+        skipped_count=skipped_count,
+        errors=errors,
+        output_dir=run_dir,
+    )
 
     for source in source_inputs:
         created_before_sample = len(created_sample_ids)
         for output_index in range(config.outputs_per_sample):
             try:
-                _create_one_output(
+                output = _prepare_one_output(
                     source=source,
                     pipeline=pipeline,
-                    config=config,
                     run_dir=run_dir,
-                    source_sample_ids=source_sample_ids,
                     output_index=output_index,
-                    adapter=adapter,
-                    created_sample_ids=created_sample_ids,
-                    output_paths=output_paths,
-                    replay_records=replay_records,
                 )
+                output_paths.append(output.relative_path)
+                replay_records.append(output.replay_record)
+                manifest = _manifest(
+                    run_key=run_key,
+                    config=config,
+                    source_sample_ids=source_sample_ids,
+                    created_sample_ids=tuple(created_sample_ids),
+                    output_paths=tuple(output_paths),
+                    replay_records=tuple(replay_records),
+                    processed_count=len(source_inputs),
+                    skipped_count=skipped_count,
+                    errors=tuple(errors),
+                    output_dir=run_dir,
+                )
+                created_sample_ids.append(adapter.create_output_sample(output.result, manifest))
             except PluginError as error:
                 errors.append(_sample_error(source, output_index, error.to_dict()))
+            _save_current_manifest(
+                run_store=run_store,
+                run_key=run_key,
+                config=config,
+                source_sample_ids=source_sample_ids,
+                created_sample_ids=created_sample_ids,
+                output_paths=output_paths,
+                replay_records=replay_records,
+                processed_count=len(source_inputs),
+                skipped_count=skipped_count,
+                errors=errors,
+                output_dir=run_dir,
+            )
         if len(created_sample_ids) == created_before_sample:
             skipped_count += 1
+            _save_current_manifest(
+                run_store=run_store,
+                run_key=run_key,
+                config=config,
+                source_sample_ids=source_sample_ids,
+                created_sample_ids=created_sample_ids,
+                output_paths=output_paths,
+                replay_records=replay_records,
+                processed_count=len(source_inputs),
+                skipped_count=skipped_count,
+                errors=errors,
+                output_dir=run_dir,
+            )
+
+    final_manifest = _save_current_manifest(
+        run_store=run_store,
+        run_key=run_key,
+        config=config,
+        source_sample_ids=source_sample_ids,
+        created_sample_ids=created_sample_ids,
+        output_paths=output_paths,
+        replay_records=replay_records,
+        processed_count=len(source_inputs),
+        skipped_count=skipped_count,
+        errors=errors,
+        output_dir=run_dir,
+    )
+    manifest_path = run_store.manifest_path(run_key)
+    fiftyone_run_key = register_fiftyone_run(dataset, final_manifest, manifest_path=manifest_path)
 
     return FixedAugmentationExecutionResult(
         run_key=run_key,
@@ -134,23 +205,56 @@ def execute_fixed_augmentation(
         dry_run=False,
         output_tag=output_tag,
         output_dir=str(run_dir),
+        manifest_path=str(manifest_path),
+        fiftyone_run_key=fiftyone_run_key,
         errors=tuple(errors),
     )
 
 
-def _create_one_output(
+def _save_current_manifest(
     *,
-    source: AugmentationInput,
-    pipeline: FixedImagePipeline,
+    run_store: FileRunStore,
+    run_key: str,
     config: PipelineConfig,
-    run_dir: Path,
     source_sample_ids: tuple[str, ...],
-    output_index: int,
-    adapter: FiftyOneSampleAdapter,
     created_sample_ids: list[str],
     output_paths: list[str],
     replay_records: list[JSONDict],
-) -> None:
+    processed_count: int,
+    skipped_count: int,
+    errors: list[JSONDict],
+    output_dir: Path,
+) -> RunManifest:
+    manifest = _manifest(
+        run_key=run_key,
+        config=config,
+        source_sample_ids=source_sample_ids,
+        created_sample_ids=tuple(created_sample_ids),
+        output_paths=tuple(output_paths),
+        replay_records=tuple(replay_records),
+        processed_count=processed_count,
+        skipped_count=skipped_count,
+        errors=tuple(errors),
+        output_dir=output_dir,
+    )
+    run_store.save_manifest(manifest)
+    return manifest
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedOutput:
+    result: AugmentationResult
+    relative_path: str
+    replay_record: JSONDict
+
+
+def _prepare_one_output(
+    *,
+    source: AugmentationInput,
+    pipeline: FixedImagePipeline,
+    run_dir: Path,
+    output_index: int,
+) -> _PreparedOutput:
     loaded = load_rgb_image(source.filepath)
     pipeline_result = pipeline.apply(loaded.data)
     relative_path = build_output_image_relative_path(
@@ -160,23 +264,22 @@ def _create_one_output(
     )
     written_path = write_rgb_image(pipeline_result.image, run_dir, relative_path)
     replay = pipeline_result.replay
-    manifest = _manifest(
-        run_key=run_dir.name,
-        config=config,
-        source_sample_ids=source_sample_ids,
-        created_sample_ids=tuple(created_sample_ids),
-        output_paths=(*output_paths, relative_path.as_posix()),
-        replay_records=(*replay_records, replay),
+    relative_path_text = relative_path.as_posix()
+    return _PreparedOutput(
+        result=AugmentationResult(
+            source_sample_id=source.sample_id,
+            output_filepath=str(written_path),
+            replay=replay,
+            metadata={"output_index": output_index, "output_relative_path": relative_path_text},
+        ),
+        relative_path=relative_path_text,
+        replay_record=_replay_record(
+            source=source,
+            output_index=output_index,
+            relative_path=relative_path_text,
+            replay=replay,
+        ),
     )
-    result = AugmentationResult(
-        source_sample_id=source.sample_id,
-        output_filepath=str(written_path),
-        replay=replay,
-        metadata={"output_index": output_index, "output_relative_path": relative_path.as_posix()},
-    )
-    created_sample_ids.append(adapter.create_output_sample(result, manifest))
-    output_paths.append(relative_path.as_posix())
-    replay_records.append(replay)
 
 
 def _manifest(
@@ -187,12 +290,24 @@ def _manifest(
     created_sample_ids: tuple[str, ...],
     output_paths: tuple[str, ...],
     replay_records: tuple[JSONDict, ...],
+    processed_count: int,
+    skipped_count: int,
+    errors: tuple[JSONDict, ...],
+    output_dir: Path,
 ) -> RunManifest:
+    counters = {
+        "processed": processed_count,
+        "created": len(created_sample_ids),
+        "skipped": skipped_count,
+        "errors": len(errors),
+        "outputs": len(output_paths),
+    }
     return RunManifest(
         run_key=run_key,
         plugin_version=albumentationsx_plugin.__version__,
         dependency_versions={
-            "albumentationsx": A.__version__,
+            "albumentationsx": _dependency_version("albumentationsx"),
+            "albu-spec": _dependency_version("albu-spec"),
             "fiftyone": _dependency_version("fiftyone"),
         },
         pipeline=config,
@@ -200,6 +315,13 @@ def _manifest(
         created_sample_ids=created_sample_ids,
         output_paths=output_paths,
         replay_records=replay_records,
+        counters=counters,
+        errors=errors,
+        metadata={
+            "output_dir": str(output_dir),
+            "manifest_filename": "manifest.json",
+            "fiftyone_run_key": build_fiftyone_run_key(run_key),
+        },
     )
 
 
@@ -228,3 +350,12 @@ def _sample_error(source: AugmentationInput, output_index: int, error: JSONDict)
         context["sample_id"] = source.sample_id
         context["output_index"] = output_index
     return error
+
+
+def _replay_record(*, source: AugmentationInput, output_index: int, relative_path: str, replay: JSONDict) -> JSONDict:
+    return {
+        "source_sample_id": source.sample_id,
+        "output_index": output_index,
+        "output_path": relative_path,
+        "replay": replay,
+    }
