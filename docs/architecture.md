@@ -23,7 +23,13 @@ knowing how FiftyOne renders forms or how AlbumentationsX names runtime classes.
 
 Expected modules:
 
-- `albumentationsx_plugin/core/models.py`
+- `albumentationsx_plugin/core/models.py` for compatibility exports
+- `albumentationsx_plugin/core/contracts/pipeline.py`
+- `albumentationsx_plugin/core/contracts/catalog.py`
+- `albumentationsx_plugin/core/contracts/forms.py`
+- `albumentationsx_plugin/core/contracts/augmentation.py`
+- `albumentationsx_plugin/core/contracts/runs.py`
+- `albumentationsx_plugin/core/serialization/`
 - `albumentationsx_plugin/core/errors.py`
 - `albumentationsx_plugin/core/interfaces.py`
 
