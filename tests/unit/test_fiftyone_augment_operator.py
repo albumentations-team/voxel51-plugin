@@ -46,9 +46,13 @@ def test_augment_operator_resolves_placeholder_input_and_output() -> None:
 
     input_json = operator.resolve_input(ctx=None).to_json()
     output_json = operator.resolve_output(ctx=None).to_json()
+    input_properties = input_json["type"]["properties"]
 
     assert input_json["view"]["label"] == "Augment with AlbumentationsX"
-    assert "status" in input_json["type"]["properties"]
+    assert input_properties["transform"]["type"] == {"name": "Enum", "values": ["HorizontalFlip"]}
+    assert input_properties["outputs_per_sample"]["type"]["name"] == "Number"
+    assert input_properties["dry_run"]["type"]["name"] == "Boolean"
+    assert "status" in input_properties
     assert output_json["type"]["properties"]["ready"]["type"]["name"] == "Boolean"
     assert output_json["type"]["properties"]["message"]["type"]["name"] == "String"
 

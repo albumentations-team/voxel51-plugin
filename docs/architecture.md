@@ -29,6 +29,7 @@ Expected modules:
 - `albumentationsx_plugin/core/contracts/forms.py`
 - `albumentationsx_plugin/core/contracts/augmentation.py`
 - `albumentationsx_plugin/core/contracts/runs.py`
+- `albumentationsx_plugin/core/form_schemas/augment.py`
 - `albumentationsx_plugin/core/serialization/`
 - `albumentationsx_plugin/core/errors.py`
 - `albumentationsx_plugin/core/interfaces/catalog.py`
@@ -64,7 +65,7 @@ Expected modules:
 - `albumentationsx_plugin/hosts/fiftyone/operators/augment.py`
 - `albumentationsx_plugin/hosts/fiftyone/operators/view_run.py`
 - `albumentationsx_plugin/hosts/fiftyone/operators/delete_run.py`
-- `albumentationsx_plugin/hosts/fiftyone/forms.py`
+- `albumentationsx_plugin/hosts/fiftyone/forms/renderer.py`
 - `albumentationsx_plugin/hosts/fiftyone/samples.py`
 
 `storage`

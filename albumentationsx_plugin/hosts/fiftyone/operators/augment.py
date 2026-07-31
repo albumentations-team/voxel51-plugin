@@ -13,6 +13,9 @@ import fiftyone.operators as foo
 import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
+from albumentationsx_plugin.core.form_schemas import build_augment_form_schema
+from albumentationsx_plugin.hosts.fiftyone.forms import render_form
+
 OPERATOR_NAME = "augment_with_albumentationsx"
 OPERATOR_LABEL = "Augment with AlbumentationsX"
 PLACEHOLDER_MESSAGE = (
@@ -39,7 +42,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_input(self, ctx: Any):
-        inputs = types.Object()
+        inputs = render_form(build_augment_form_schema())
         inputs.message(
             "status",
             label="Operator registered",
