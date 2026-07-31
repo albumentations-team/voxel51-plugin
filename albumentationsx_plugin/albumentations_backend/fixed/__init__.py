@@ -14,6 +14,9 @@ from albumentationsx_plugin.core import (
     DEFAULT_TRANSFORM_PROBABILITY,
     FIXED_TRANSFORM_NAMES,
     MAX_OUTPUTS_PER_SAMPLE,
+    MAX_PIPELINE_STEPS,
+    PIPELINE_STEP_COUNT_FIELD_NAME,
+    pipeline_step_field_name,
 )
 
 __all__ = [
@@ -24,8 +27,11 @@ __all__ = [
     "FIXED_TRANSFORM_NAMES",
     "FixedImagePipeline",
     "FixedImagePipelineResult",
+    "MAX_PIPELINE_STEPS",
     "MAX_OUTPUTS_PER_SAMPLE",
+    "PIPELINE_STEP_COUNT_FIELD_NAME",
     "build_fixed_pipeline_config",
     "create_fixed_image_pipeline",
+    "pipeline_step_field_name",
     "validate_fixed_pipeline_config",
 ]

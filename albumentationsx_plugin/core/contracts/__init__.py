@@ -9,6 +9,9 @@ from albumentationsx_plugin.core.contracts.fixed_slice import (
     DEFAULT_TRANSFORM_PROBABILITY,
     FIXED_TRANSFORM_NAMES,
     MAX_OUTPUTS_PER_SAMPLE,
+    MAX_PIPELINE_STEPS,
+    PIPELINE_STEP_COUNT_FIELD_NAME,
+    pipeline_step_field_name,
 )
 from albumentationsx_plugin.core.contracts.forms import FieldKind, FormFieldSchema
 from albumentationsx_plugin.core.contracts.pipeline import PipelineConfig, TransformConfig
@@ -25,9 +28,12 @@ __all__ = [
     "FieldKind",
     "FIXED_TRANSFORM_NAMES",
     "FormFieldSchema",
+    "MAX_PIPELINE_STEPS",
     "MAX_OUTPUTS_PER_SAMPLE",
+    "PIPELINE_STEP_COUNT_FIELD_NAME",
     "PipelineConfig",
     "RunManifest",
     "TransformCapability",
     "TransformConfig",
+    "pipeline_step_field_name",
 ]

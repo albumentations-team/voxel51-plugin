@@ -21,10 +21,13 @@ from albumentationsx_plugin.core import (
     DEFAULT_TRANSFORM_PROBABILITY,
     FIXED_TRANSFORM_NAMES,
     MAX_OUTPUTS_PER_SAMPLE,
+    MAX_PIPELINE_STEPS,
+    PIPELINE_STEP_COUNT_FIELD_NAME,
     InvalidParameterError,
     PipelineConfig,
     TransformConfig,
     UnsupportedTransformError,
+    pipeline_step_field_name,
 )
 from albumentationsx_plugin.core.serialization import JSONDict
 
@@ -62,70 +65,19 @@ class FixedImagePipeline:
 def build_fixed_pipeline_config(params: Mapping[str, object]) -> PipelineConfig:
     """Create the fixed-slice pipeline config from FiftyOne operator params."""
 
-    transform_name = _str_param(params, "transform", default=FIXED_TRANSFORM_NAMES[0])
     outputs_per_sample = _int_param(
         params,
         "outputs_per_sample",
         default=1,
         min_value=1,
         max_value=MAX_OUTPUTS_PER_SAMPLE,
-        transform_name=transform_name,
+        transform_name="<pipeline>",
     )
-    probability = _float_param(
-        params,
-        "p",
-        default=DEFAULT_TRANSFORM_PROBABILITY,
-        min_value=0.0,
-        max_value=1.0,
-        transform_name=transform_name,
-    )
-
-    transform_params: dict[str, object] = {"p": probability}
-    match transform_name:
-        case "HorizontalFlip":
-            pass
-        case "RandomBrightnessContrast":
-            transform_params["brightness_range"] = _range_param(
-                params,
-                "brightness_range",
-                default_lower=DEFAULT_BRIGHTNESS_RANGE[0],
-                default_upper=DEFAULT_BRIGHTNESS_RANGE[1],
-                transform_name=transform_name,
-            )
-            transform_params["contrast_range"] = _range_param(
-                params,
-                "contrast_range",
-                default_lower=DEFAULT_CONTRAST_RANGE[0],
-                default_upper=DEFAULT_CONTRAST_RANGE[1],
-                transform_name=transform_name,
-            )
-        case "RandomCrop":
-            transform_params["height"] = _int_param(
-                params,
-                "height",
-                default=DEFAULT_CROP_SIZE,
-                min_value=1,
-                max_value=None,
-                transform_name=transform_name,
-                aliases=("crop_height",),
-            )
-            transform_params["width"] = _int_param(
-                params,
-                "width",
-                default=DEFAULT_CROP_SIZE,
-                min_value=1,
-                max_value=None,
-                transform_name=transform_name,
-                aliases=("crop_width",),
-            )
-        case _:
-            raise UnsupportedTransformError(
-                transform_name,
-                context={"supported_transforms": list(FIXED_TRANSFORM_NAMES)},
-            )
+    step_count = _pipeline_step_count(params)
+    transforms = tuple(_step_transform_config(params, step_number) for step_number in range(1, step_count + 1))
 
     config = PipelineConfig(
-        transforms=(TransformConfig(name=transform_name, params=transform_params),),
+        transforms=transforms,
         outputs_per_sample=outputs_per_sample,
         use_replay=True,
         options={"source": "fixed_mvp_slice"},
@@ -145,12 +97,19 @@ def create_fixed_image_pipeline(config: PipelineConfig) -> FixedImagePipeline:
 def validate_fixed_pipeline_config(config: PipelineConfig, *, image_shape: _ImageShape | None = None) -> None:
     """Validate a pipeline config against the temporary fixed transform set."""
 
-    if len(config.transforms) != 1:
+    if not config.transforms:
         raise InvalidParameterError(
             transform_name="<pipeline>",
             parameter_name="transforms",
-            message="The fixed MVP slice supports exactly one transform.",
+            message="The fixed MVP slice requires at least one transform.",
             context={"transform_count": len(config.transforms)},
+        )
+    if len(config.transforms) > MAX_PIPELINE_STEPS:
+        raise InvalidParameterError(
+            transform_name="<pipeline>",
+            parameter_name="transforms",
+            message=f"The fixed MVP slice supports at most {MAX_PIPELINE_STEPS} transforms.",
+            context={"transform_count": len(config.transforms), "max_value": MAX_PIPELINE_STEPS},
         )
     if config.outputs_per_sample > MAX_OUTPUTS_PER_SAMPLE:
         raise InvalidParameterError(
@@ -160,7 +119,97 @@ def validate_fixed_pipeline_config(config: PipelineConfig, *, image_shape: _Imag
             context={"value": config.outputs_per_sample, "max_value": MAX_OUTPUTS_PER_SAMPLE},
         )
 
-    transform = config.transforms[0]
+    for transform in config.transforms:
+        _validate_fixed_transform_config(transform, image_shape=image_shape)
+
+
+def _step_transform_config(params: Mapping[str, object], step_number: int) -> TransformConfig:
+    transform_name = _str_param(
+        params,
+        pipeline_step_field_name(step_number, "transform"),
+        default=_default_transform_name(step_number),
+    )
+    probability = _float_param(
+        params,
+        pipeline_step_field_name(step_number, "p"),
+        default=DEFAULT_TRANSFORM_PROBABILITY,
+        min_value=0.0,
+        max_value=1.0,
+        transform_name=transform_name,
+        aliases=_legacy_step_aliases(step_number, "p"),
+    )
+
+    transform_params: dict[str, object] = {"p": probability}
+    match transform_name:
+        case "HorizontalFlip":
+            pass
+        case "RandomBrightnessContrast":
+            transform_params["brightness_range"] = _range_param(
+                params,
+                pipeline_step_field_name(step_number, "brightness_range"),
+                default_lower=DEFAULT_BRIGHTNESS_RANGE[0],
+                default_upper=DEFAULT_BRIGHTNESS_RANGE[1],
+                transform_name=transform_name,
+                aliases=_legacy_step_aliases(step_number, "brightness_range"),
+            )
+            transform_params["contrast_range"] = _range_param(
+                params,
+                pipeline_step_field_name(step_number, "contrast_range"),
+                default_lower=DEFAULT_CONTRAST_RANGE[0],
+                default_upper=DEFAULT_CONTRAST_RANGE[1],
+                transform_name=transform_name,
+                aliases=_legacy_step_aliases(step_number, "contrast_range"),
+            )
+        case "RandomCrop":
+            transform_params["height"] = _int_param(
+                params,
+                pipeline_step_field_name(step_number, "height"),
+                default=DEFAULT_CROP_SIZE,
+                min_value=1,
+                max_value=None,
+                transform_name=transform_name,
+                aliases=_legacy_step_aliases(step_number, "height", "crop_height"),
+            )
+            transform_params["width"] = _int_param(
+                params,
+                pipeline_step_field_name(step_number, "width"),
+                default=DEFAULT_CROP_SIZE,
+                min_value=1,
+                max_value=None,
+                transform_name=transform_name,
+                aliases=_legacy_step_aliases(step_number, "width", "crop_width"),
+            )
+        case _:
+            raise UnsupportedTransformError(
+                transform_name,
+                context={"supported_transforms": list(FIXED_TRANSFORM_NAMES)},
+            )
+    return TransformConfig(name=transform_name, params=transform_params)
+
+
+def _pipeline_step_count(params: Mapping[str, object]) -> int:
+    return _int_param(
+        params,
+        PIPELINE_STEP_COUNT_FIELD_NAME,
+        default=1,
+        min_value=1,
+        max_value=MAX_PIPELINE_STEPS,
+        transform_name="<pipeline>",
+    )
+
+
+def _default_transform_name(step_number: int) -> str:
+    try:
+        return FIXED_TRANSFORM_NAMES[step_number - 1]
+    except IndexError:
+        return FIXED_TRANSFORM_NAMES[0]
+
+
+def _legacy_step_aliases(step_number: int, *aliases: str) -> tuple[str, ...]:
+    return tuple(aliases) if step_number == 1 else ()
+
+
+def _validate_fixed_transform_config(transform: TransformConfig, *, image_shape: _ImageShape | None = None) -> None:
     if transform.name not in FIXED_TRANSFORM_NAMES:
         raise UnsupportedTransformError(
             transform.name,
@@ -300,8 +349,9 @@ def _range_param(
     default_lower: float,
     default_upper: float,
     transform_name: str,
+    aliases: tuple[str, ...] = (),
 ) -> list[float]:
-    direct_value = params.get(parameter_prefix)
+    direct_value = _optional_param_value(params, parameter_prefix, aliases=aliases)
     if direct_value is not None:
         return _direct_range_param(
             direct_value,
@@ -316,6 +366,7 @@ def _range_param(
         min_value=-1.0,
         max_value=1.0,
         transform_name=transform_name,
+        aliases=tuple(f"{alias}_min" for alias in aliases),
     )
     upper = _float_param(
         params,
@@ -324,6 +375,7 @@ def _range_param(
         min_value=-1.0,
         max_value=1.0,
         transform_name=transform_name,
+        aliases=tuple(f"{alias}_max" for alias in aliases),
     )
     if lower > upper:
         raise InvalidParameterError(
@@ -424,6 +476,20 @@ def _param_value(
     return default
 
 
+def _optional_param_value(
+    params: Mapping[str, object],
+    parameter_name: str,
+    *,
+    aliases: tuple[str, ...] = (),
+) -> object:
+    if parameter_name in params:
+        return params[parameter_name]
+    for alias in aliases:
+        if alias in params:
+            return params[alias]
+    return None
+
+
 def _float_param(
     params: Mapping[str, object],
     parameter_name: str,
@@ -432,8 +498,9 @@ def _float_param(
     min_value: float,
     max_value: float,
     transform_name: str,
+    aliases: tuple[str, ...] = (),
 ) -> float:
-    raw_value = params.get(parameter_name, default)
+    raw_value = _param_value(params, parameter_name, default=default, aliases=aliases)
     if not isinstance(raw_value, int | float) or isinstance(raw_value, bool):
         raise InvalidParameterError(
             transform_name=transform_name,

@@ -28,7 +28,7 @@ def test_readme_documents_mvp_limitations_without_overclaiming_annotation_suppor
     assert "## MVP limitations" in readme
     assert "image-only" in readme
     assert "Bounding boxes, segmentation masks, and keypoints are deferred" in readme
-    assert "Catalog-wide ordered execution is not enabled yet" in readme
+    assert "Catalog-wide execution is not enabled yet" in readme
     assert "Dynamic forms may use conservative schema fallbacks" in readme
 
 

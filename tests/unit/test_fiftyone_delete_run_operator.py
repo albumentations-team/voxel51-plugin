@@ -86,6 +86,7 @@ def test_delete_run_operator_resolves_samples_grid_placement() -> None:
     assert isinstance(view_json, dict)
     assert view_json["name"] == "Button"
     assert view_json["label"] == "Delete AlbumentationsX Run"
+    assert view_json["prompt"] is True
 
 
 @pytest.mark.unit

@@ -5,7 +5,7 @@
 This repository contains a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and previewing [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
 
 > [!IMPORTANT]
-> The project is in the early implementation phase. The plugin renders catalog-driven transform forms, can create image-only outputs with a temporary fixed transform set backed by the shared pipeline factory, can inspect saved run manifests, and can clean up generated runs; catalog-wide ordered execution and annotation transforms are still upcoming.
+> The project is in the early implementation phase. The plugin renders catalog-driven transform forms, can create image-only outputs with an ordered temporary fixed transform pipeline backed by the shared pipeline factory, can inspect saved run manifests, and can clean up generated runs; catalog-wide execution and annotation transforms are still upcoming.
 
 ## What the plugin will do
 
@@ -51,14 +51,13 @@ operator. The repository currently contains:
 ## MVP limitations
 
 - Execution is image-only. Bounding boxes, segmentation masks, and keypoints are deferred.
-- The executable App flow currently applies one transform at a time from the temporary fixed set: `HorizontalFlip`, `RandomBrightnessContrast`, and `RandomCrop`.
-- Catalog-wide ordered execution is not enabled yet; App choices are limited to the executable fixed slice even though the broader catalog can be inspected through reports.
+- The executable App flow currently applies an ordered chain of up to three transforms from the temporary fixed set: `HorizontalFlip`, `RandomBrightnessContrast`, and `RandomCrop`.
+- Catalog-wide execution is not enabled yet; App choices are limited to the executable fixed slice even though the broader catalog can be inspected through reports.
 - Dynamic forms may use conservative schema fallbacks when albu-spec metadata is incomplete; unsupported transforms remain visible in the capability report with exclusion reasons.
 - Cleanup deletes generated output samples, manifest-listed output files, and the FiftyOne custom run; it intentionally retains `manifest.json` as an audit trail.
 
 The next implementation pull requests will replace the temporary execution
-allowlist with ordered catalog-driven pipeline editing and broaden annotation
-support.
+allowlist with catalog-wide pipeline editing and broaden annotation support.
 See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for
 the complete sequence and acceptance criteria.
 
@@ -121,7 +120,7 @@ The operator list should include:
 @albumentations/albumentationsx/delete_albumentationsx_run
 ```
 
-Execution currently supports a temporary fixed transform set:
+Execution currently supports up to three ordered steps from the temporary fixed transform set:
 `HorizontalFlip`, `RandomBrightnessContrast`, and `RandomCrop`.
 
 Review the catalog-backed MVP transform capabilities with:
@@ -145,8 +144,8 @@ creates a persistent FiftyOne dataset named `albumentationsx-demo`. The dataset
 uses stable `demo_id` values for repeatable checks; FiftyOne internal sample IDs
 are database-generated.
 
-In the App, select one or more samples, run `Augment with AlbumentationsX`, and
-choose one of the fixed transforms. New output samples are written under the
+In the App, select one or more samples, run `Augment with AlbumentationsX`, set
+`Pipeline steps`, and choose the fixed transforms for each ordered step. New output samples are written under the
 plugin-owned storage directory and tagged with the run key; source samples and
 source files remain unchanged. Non-dry runs also save `manifest.json` under the
 run output directory and register the manifest in FiftyOne's custom run store.

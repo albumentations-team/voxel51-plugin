@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 import re
+import sys
 import tomllib
 from types import ModuleType
 from typing import Any
@@ -82,6 +83,22 @@ def test_root_entrypoint_registers_declared_operators() -> None:
         "ViewAlbumentationsXRun",
         "DeleteAlbumentationsXRun",
     ]
+
+
+def test_root_entrypoint_registration_does_not_import_backend_dependencies() -> None:
+    for module_name in ("albumentations", "albu_spec"):
+        sys.modules.pop(module_name, None)
+
+    module = _load_plugin_entrypoint()
+
+    class Registrar:
+        def register(self, cls: type[object]) -> None:
+            pass
+
+    module.register(Registrar())
+
+    assert "albumentations" not in sys.modules
+    assert "albu_spec" not in sys.modules
 
 
 def _requirement_name(requirement: str) -> str:

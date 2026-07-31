@@ -54,6 +54,64 @@ def test_horizontal_flip_pipeline_transforms_rgb_array_and_records_replay() -> N
 
 
 @pytest.mark.unit
+def test_fixed_pipeline_builds_ordered_transform_chain() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "pipeline_step_count": 3,
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            "step_2_transform": "RandomBrightnessContrast",
+            "step_2_brightness_range": [-0.1, 0.1],
+            "step_2_contrast_range": [-0.2, 0.2],
+            "step_2_p": 0.5,
+            "step_3_transform": "RandomCrop",
+            "step_3_height": 4,
+            "step_3_width": 5,
+            "step_3_p": 1.0,
+        }
+    )
+
+    assert config.transforms == (
+        TransformConfig(name="HorizontalFlip", params={"p": 1.0}),
+        TransformConfig(
+            name="RandomBrightnessContrast",
+            params={
+                "p": 0.5,
+                "brightness_range": [-0.1, 0.1],
+                "contrast_range": [-0.2, 0.2],
+            },
+        ),
+        TransformConfig(name="RandomCrop", params={"p": 1.0, "height": 4, "width": 5}),
+    )
+
+
+@pytest.mark.unit
+def test_fixed_pipeline_executes_ordered_transform_chain() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "pipeline_step_count": 2,
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            "step_2_transform": "HorizontalFlip",
+            "step_2_p": 1.0,
+        }
+    )
+    pipeline = create_fixed_image_pipeline(config)
+    source = _rgb_array()
+
+    result = pipeline.apply(source)
+
+    np.testing.assert_array_equal(result.image, source)
+    transforms = result.replay["transforms"]
+    assert isinstance(transforms, list)
+    transform_names: list[object] = []
+    for transform in transforms:
+        assert isinstance(transform, dict)
+        transform_names.append(transform["__class_fullname__"])
+    assert transform_names == ["HorizontalFlip", "HorizontalFlip"]
+
+
+@pytest.mark.unit
 def test_random_brightness_contrast_config_uses_albumentationsx_range_params() -> None:
     config = build_fixed_pipeline_config(
         {
@@ -126,6 +184,9 @@ def test_fixed_pipeline_rejects_unknown_transform_and_invalid_parameters() -> No
     with pytest.raises(InvalidParameterError) as output_count_error:
         build_fixed_pipeline_config({"outputs_per_sample": 4})
 
+    with pytest.raises(InvalidParameterError) as step_count_error:
+        build_fixed_pipeline_config({"pipeline_step_count": 4})
+
     with pytest.raises(InvalidParameterError) as range_error:
         build_fixed_pipeline_config(
             {
@@ -158,6 +219,7 @@ def test_fixed_pipeline_rejects_unknown_transform_and_invalid_parameters() -> No
         "RandomCrop",
     ]
     assert output_count_error.value.context["parameter_name"] == "outputs_per_sample"
+    assert step_count_error.value.context["parameter_name"] == "pipeline_step_count"
     assert range_error.value.context["parameter_name"] == "brightness_range"
     assert direct_range_error.value.context["min_value"] == -1.0
     assert unknown_param_error.value.context["unknown_parameters"] == ["legacy"]
