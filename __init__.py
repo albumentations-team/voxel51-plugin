@@ -1,6 +1,12 @@
 """FiftyOne plugin entrypoint."""
 
+import sys
+from pathlib import Path
 from typing import Protocol
+
+_PLUGIN_DIR = Path(__file__).resolve().parent
+if str(_PLUGIN_DIR) not in sys.path:
+    sys.path.insert(0, str(_PLUGIN_DIR))
 
 
 class PluginRegistrar(Protocol):
@@ -13,6 +19,10 @@ class PluginRegistrar(Protocol):
 def register(plugin: PluginRegistrar) -> None:
     """Register plugin operators and panels.
 
-    VOX-7 adds the first operator. This entrypoint intentionally stays small so
-    import-time side effects do not grow with the implementation.
+    This entrypoint intentionally stays small so import-time side effects do not
+    grow with the implementation.
     """
+
+    from albumentationsx_plugin.hosts.fiftyone.operators import AugmentWithAlbumentationsX
+
+    plugin.register(AugmentWithAlbumentationsX)

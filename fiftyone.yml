@@ -7,4 +7,5 @@ license: AGPL-3.0-only
 description: Build and preview AlbumentationsX augmentation pipelines on FiftyOne datasets.
 fiftyone:
   version: ">=1.19,<2"
-operators: []
+operators:
+  - augment_with_albumentationsx
