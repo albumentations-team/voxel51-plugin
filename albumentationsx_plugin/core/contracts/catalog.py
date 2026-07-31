@@ -22,7 +22,11 @@ class CapabilityStatus(StrEnum):
 
     SUPPORTED = "supported"
     SUPPORTED_WITH_DEFAULTS = "supported_with_defaults"
+    HIDDEN = "hidden"
+    REQUIRES_MANUAL_SCHEMA = "requires_manual_schema"
     REQUIRES_EXTERNAL_DATA = "requires_external_data"
+    BLOCKED_MEDIA_TARGET = "blocked_media_target"
+    UNSUPPORTED = "unsupported"
     UNSUPPORTED_OUTPUT = "unsupported_output"
     UNSUPPORTED_TARGET = "unsupported_target"
     UNSUPPORTED_SCHEMA = "unsupported_schema"

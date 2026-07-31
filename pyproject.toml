@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = "AGPL-3.0-only"
 dependencies = [
+  "albu-spec>=0.0.6,<1",
   "albumentationsx>=2.3,<3",
   "fiftyone>=1.19,<2",
   "numpy>=2.4,<3",

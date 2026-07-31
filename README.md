@@ -33,8 +33,11 @@ operator. The repository currently contains:
 - a `pre-commit` configuration that runs file checks, Ruff, and Pyrefly;
 - `fiftyone.yml`, a Python package skeleton, and a registered operator that can
   create augmented image samples from selected FiftyOne samples or views;
-- a direct dependency on `albumentationsx>=2.3,<3`, installed as
-  `albumentationsx` and imported at runtime as `albumentations`.
+- direct dependencies on `albumentationsx>=2.3,<3` and `albu-spec>=0.0.6,<1`;
+  AlbumentationsX is installed as `albumentationsx` and imported at runtime as
+  `albumentations`;
+- a version-aware albu-spec capability catalog that classifies supported and
+  excluded transforms before dynamic form generation.
 
 The next implementation pull requests will replace the temporary transform
 allowlist with catalog-driven transform schemas and broaden annotation support.
@@ -59,6 +62,7 @@ Additional development documentation lives in [`docs/`](docs/README.md):
 - [Gitflow](docs/gitflow.md) describes the `feature/* -> dev -> main -> release/*` workflow;
 - [Architecture](docs/architecture.md) describes the layered code boundaries and extension points;
 - [Fixed transform slice](docs/fixed-transform-slice.md) describes the first executable image-only path;
+- [albu-spec catalog](docs/albu-spec-catalog.md) describes transform capability classification;
 - [PR checklist](docs/pr-checklist.md) lists required scope, safety, documentation, and verification checks;
 - [Verification](docs/verification.md) centralizes local gate commands, targeted tests, and manual checks.
 
@@ -92,6 +96,12 @@ The operator list should include:
 
 The operator currently supports a temporary fixed transform set:
 `HorizontalFlip`, `RandomBrightnessContrast`, and `RandomCrop`.
+
+Review the catalog-backed MVP transform capabilities with:
+
+```bash
+uv run python scripts/report_transform_capabilities.py
+```
 
 ## Create the local demo dataset
 
