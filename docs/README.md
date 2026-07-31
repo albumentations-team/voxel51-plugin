@@ -7,6 +7,7 @@ these files hold development workflow, review, and release notes.
 ## Documents
 
 - [Gitflow](gitflow.md): branch model and merge flow for MVP work.
+- [Architecture](architecture.md): layered code boundaries and extension points.
 - [PR checklist](pr-checklist.md): required checks before review and merge.
 - [Verification](verification.md): local gate, targeted tests, and manual checks.
 - [Design document](../DESIGN.md): implementation contract for the plugin.
