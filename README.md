@@ -86,6 +86,29 @@ The operator list should include:
 
 The operator is currently a no-op placeholder. It verifies discovery and registration but does not create output samples yet.
 
+## Create the local demo dataset
+
+Use the deterministic demo dataset for manual App checks and smoke tests:
+
+```bash
+uv run python scripts/create_demo_dataset.py create --overwrite
+uv run python scripts/create_demo_dataset.py list
+uv run fiftyone app launch albumentationsx-demo
+```
+
+The workflow generates three tiny PNG images under `sample_data/generated/` and
+creates a persistent FiftyOne dataset named `albumentationsx-demo`. The dataset
+uses stable `demo_id` values for repeatable checks; FiftyOne internal sample IDs
+are database-generated.
+
+Clean up the dataset and generated images with:
+
+```bash
+uv run python scripts/create_demo_dataset.py delete --delete-files
+```
+
+More details live in [the demo dataset workflow](docs/demo-dataset.md).
+
 ## What the automated tests cover
 
 The test contract lives in [`pyproject.toml`](pyproject.toml). Every pytest test must belong to one of these groups:
@@ -95,7 +118,7 @@ The test contract lives in [`pyproject.toml`](pyproject.toml). Every pytest test
 - `geometry` uses synthetic images with known coordinates to verify that boxes, masks, and keypoints stay aligned with transformed images;
 - `smoke` constructs every transform marked as supported and applies it to the target types claimed by the capability registry.
 
-The first implementation pull request will add the `tests/` directory. Until then, pytest has no tests to collect. Once the suite exists, run all tests with:
+Run all tests with:
 
 ```bash
 uv run pytest
