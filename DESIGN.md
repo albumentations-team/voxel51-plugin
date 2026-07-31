@@ -281,7 +281,7 @@ flowchart LR
 | `float` | число с `min`/`max`; для `p` slider от 0 до 1 | `p` |
 | `str` | строка | `metadata_key` |
 | список значений `Literal` | dropdown | `border_mode` |
-| фиксированная пара чисел | объект с полями `min` и `max` | `blur_limit` |
+| фиксированная пара чисел | объект с полями `min` и `max` | `blur_range` |
 | список однотипных значений | `inputs.list()` | `channel_order` |
 | optional-тип | пустое значение означает `None` | `max_size` |
 | сложный union или dict | JSON-поле с последующей валидацией | `noise_params` |
@@ -305,8 +305,8 @@ Pipeline factory получает уже разобранную конфигур
     {
       "name": "RandomBrightnessContrast",
       "params": {
-        "brightness_limit": [-0.2, 0.2],
-        "contrast_limit": [-0.2, 0.2],
+        "brightness_range": [-0.2, 0.2],
+        "contrast_range": [-0.2, 0.2],
         "p": 0.3
       }
     }
