@@ -41,13 +41,13 @@ def test_plugin_metadata_matches_package_version() -> None:
     assert manifest["fiftyone"]["version"] == ">=1.19,<2"
 
 
-def test_plugin_manifest_declares_augment_operator() -> None:
+def test_plugin_manifest_declares_registered_operators() -> None:
     manifest = _load_yaml(ROOT / "fiftyone.yml")
 
-    assert manifest["operators"] == ["augment_with_albumentationsx"]
+    assert manifest["operators"] == ["augment_with_albumentationsx", "view_albumentationsx_run"]
 
 
-def test_root_entrypoint_registers_augment_operator() -> None:
+def test_root_entrypoint_registers_declared_operators() -> None:
     module = _load_plugin_entrypoint()
 
     class Registrar:
@@ -60,4 +60,7 @@ def test_root_entrypoint_registers_augment_operator() -> None:
     registrar = Registrar()
 
     assert module.register(registrar) is None
-    assert [operator.__name__ for operator in registrar.registered] == ["AugmentWithAlbumentationsX"]
+    assert [operator.__name__ for operator in registrar.registered] == [
+        "AugmentWithAlbumentationsX",
+        "ViewAlbumentationsXRun",
+    ]

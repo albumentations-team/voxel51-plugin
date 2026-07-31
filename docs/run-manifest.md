@@ -32,7 +32,7 @@ provenance fields, and manifest lookups.
 - per-output replay records;
 - counters for processed, created, skipped, errors, and outputs;
 - structured per-sample errors;
-- metadata with output directory and FiftyOne run key.
+- metadata with output directory, output tag, and FiftyOne run key.
 
 Output paths must be relative to the run directory. Absolute paths and parent
 traversal are rejected before the manifest is saved. This makes the manifest the
@@ -57,6 +57,14 @@ The custom run stores:
 - pipeline config.
 
 Dry runs do not create output files, run directories, manifests, or custom runs.
+
+## Run Summary
+
+VOX-16 adds the read-only `view_albumentationsx_run` operator. It lists run keys
+for the active dataset and displays counters, versions, transform config, replay
+availability, output fields, and errors from `manifest.json`. If the manifest is
+missing or malformed, the operator returns a clear status instead of mutating the
+dataset or crashing. Details live in [Run summary operator](run-summary-operator.md).
 
 ## Verification
 

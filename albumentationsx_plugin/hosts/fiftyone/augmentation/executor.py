@@ -122,6 +122,7 @@ def execute_fixed_augmentation(
         skipped_count=skipped_count,
         errors=errors,
         output_dir=run_dir,
+        output_tag=output_tag,
     )
 
     for source in source_inputs:
@@ -147,6 +148,7 @@ def execute_fixed_augmentation(
                     skipped_count=skipped_count,
                     errors=tuple(errors),
                     output_dir=run_dir,
+                    output_tag=output_tag,
                 )
                 created_sample_ids.append(adapter.create_output_sample(output.result, manifest))
             except PluginError as error:
@@ -163,6 +165,7 @@ def execute_fixed_augmentation(
                 skipped_count=skipped_count,
                 errors=errors,
                 output_dir=run_dir,
+                output_tag=output_tag,
             )
         if len(created_sample_ids) == created_before_sample:
             skipped_count += 1
@@ -178,6 +181,7 @@ def execute_fixed_augmentation(
                 skipped_count=skipped_count,
                 errors=errors,
                 output_dir=run_dir,
+                output_tag=output_tag,
             )
 
     final_manifest = _save_current_manifest(
@@ -192,6 +196,7 @@ def execute_fixed_augmentation(
         skipped_count=skipped_count,
         errors=errors,
         output_dir=run_dir,
+        output_tag=output_tag,
     )
     manifest_path = run_store.manifest_path(run_key)
     fiftyone_run_key = register_fiftyone_run(dataset, final_manifest, manifest_path=manifest_path)
@@ -224,6 +229,7 @@ def _save_current_manifest(
     skipped_count: int,
     errors: list[JSONDict],
     output_dir: Path,
+    output_tag: str,
 ) -> RunManifest:
     manifest = _manifest(
         run_key=run_key,
@@ -236,6 +242,7 @@ def _save_current_manifest(
         skipped_count=skipped_count,
         errors=tuple(errors),
         output_dir=output_dir,
+        output_tag=output_tag,
     )
     run_store.save_manifest(manifest)
     return manifest
@@ -294,6 +301,7 @@ def _manifest(
     skipped_count: int,
     errors: tuple[JSONDict, ...],
     output_dir: Path,
+    output_tag: str,
 ) -> RunManifest:
     counters = {
         "processed": processed_count,
@@ -319,6 +327,7 @@ def _manifest(
         errors=errors,
         metadata={
             "output_dir": str(output_dir),
+            "output_tag": output_tag,
             "manifest_filename": "manifest.json",
             "fiftyone_run_key": build_fiftyone_run_key(run_key),
         },
