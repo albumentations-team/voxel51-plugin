@@ -49,6 +49,32 @@ def test_fiftyone_form_renderer_maps_supported_field_kinds() -> None:
                 default="fast",
                 choices=("fast", "accurate"),
             ),
+            FormFieldSchema(
+                name="optional_mode",
+                kind=FieldKind.ENUM,
+                label="Optional mode",
+                choices=("auto", None),
+            ),
+            FormFieldSchema(
+                name="crop_size",
+                kind=FieldKind.NUMBER_RANGE,
+                label="Crop size",
+                default=[32, 64],
+                item_schema={"kind": "integer"},
+            ),
+            FormFieldSchema(
+                name="channel_order",
+                kind=FieldKind.LIST,
+                label="Channel order",
+                default=[2, 1, 0],
+                item_schema={"kind": "integer", "length": 3},
+            ),
+            FormFieldSchema(
+                name="fill",
+                kind=FieldKind.JSON,
+                label="Fill",
+                default=0.0,
+            ),
         ),
     ).to_json()
 
@@ -74,6 +100,20 @@ def test_fiftyone_form_renderer_maps_supported_field_kinds() -> None:
     }
     assert properties["note"]["type"] == {"name": "String", "allow_empty": True}
     assert properties["mode"]["type"] == {"name": "Enum", "values": ["fast", "accurate"]}
+    assert properties["optional_mode"]["type"] == {"name": "Enum", "values": ["auto", None]}
+    assert properties["crop_size"]["type"]["name"] == "Tuple"
+    assert properties["crop_size"]["type"]["items"] == [
+        {"name": "Number", "min": None, "max": None, "int": True, "float": False},
+        {"name": "Number", "min": None, "max": None, "int": True, "float": False},
+    ]
+    assert properties["channel_order"]["type"] == {
+        "name": "List",
+        "element_type": {"name": "Number", "min": None, "max": None, "int": True, "float": False},
+        "min_items": 3,
+        "max_items": 3,
+    }
+    assert properties["fill"]["type"] == {"name": "String", "allow_empty": True}
+    assert properties["fill"]["default"] == "0.0"
 
 
 @pytest.mark.unit

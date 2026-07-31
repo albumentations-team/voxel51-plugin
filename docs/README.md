@@ -15,6 +15,8 @@ these files hold development workflow, review, and release notes.
   registry and review report.
 - [Parameter schema](parameter-schema.md): host-neutral parameter field
   generation from albu-spec metadata.
+- [Dynamic FiftyOne forms](dynamic-fiftyone-forms.md): rendering catalog-backed
+  transform schemas in the FiftyOne operator.
 - [PR checklist](pr-checklist.md): required checks before review and merge.
 - [Verification](verification.md): local gate, targeted tests, and manual checks.
 - [Design document](../DESIGN.md): implementation contract for the plugin.

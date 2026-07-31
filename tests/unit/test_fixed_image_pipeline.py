@@ -78,6 +78,29 @@ def test_random_brightness_contrast_config_uses_albumentationsx_range_params() -
 
 
 @pytest.mark.unit
+def test_fixed_pipeline_accepts_dynamic_form_parameter_names() -> None:
+    brightness_config = build_fixed_pipeline_config(
+        {
+            "transform": "RandomBrightnessContrast",
+            "brightness_range": [-0.1, 0.3],
+            "contrast_range": [-0.4, 0.2],
+        }
+    )
+    crop_config = build_fixed_pipeline_config(
+        {
+            "transform": "RandomCrop",
+            "height": 16,
+            "width": 17,
+        }
+    )
+
+    assert brightness_config.transforms[0].params["brightness_range"] == [-0.1, 0.3]
+    assert brightness_config.transforms[0].params["contrast_range"] == [-0.4, 0.2]
+    assert crop_config.transforms[0].params["height"] == 16
+    assert crop_config.transforms[0].params["width"] == 17
+
+
+@pytest.mark.unit
 def test_random_crop_validates_source_image_dimensions_before_execution() -> None:
     config = build_fixed_pipeline_config(
         {

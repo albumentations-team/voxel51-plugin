@@ -202,6 +202,10 @@ The VOX-12 parameter schema generator is documented in
 `docs/parameter-schema.md`. It converts albu-spec parameter metadata into
 host-neutral `FormFieldSchema` records without importing FiftyOne.
 
+The VOX-13 dynamic form layer is documented in
+`docs/dynamic-fiftyone-forms.md`. It keeps FiftyOne-specific rendering under
+`hosts/fiftyone/forms/` while consuming backend catalog and schema interfaces.
+
 ## Extension Points
 
 ### New transform source
