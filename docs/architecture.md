@@ -66,7 +66,7 @@ Expected modules:
 - `albumentationsx_plugin/hosts/fiftyone/operators/view_run.py`
 - `albumentationsx_plugin/hosts/fiftyone/operators/delete_run.py`
 - `albumentationsx_plugin/hosts/fiftyone/forms/renderer.py`
-- `albumentationsx_plugin/hosts/fiftyone/samples.py`
+- `albumentationsx_plugin/hosts/fiftyone/samples/adapter.py`
 
 `storage`
 
