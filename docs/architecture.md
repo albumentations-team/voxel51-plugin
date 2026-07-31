@@ -50,7 +50,7 @@ Expected modules:
 - `albumentationsx_plugin/albumentations_backend/interfaces.py` for backend
   protocol exports
 - `albumentationsx_plugin/albumentations_backend/catalog/`
-- `albumentationsx_plugin/albumentations_backend/form_schema.py`
+- `albumentationsx_plugin/albumentations_backend/parameters/`
 - `albumentationsx_plugin/albumentations_backend/pipeline.py`
 - `albumentationsx_plugin/albumentations_backend/replay.py`
 - `albumentationsx_plugin/albumentations_backend/fixed/pipeline.py` for the
@@ -197,6 +197,10 @@ interfaces instead of concrete fixed-slice modules.
 The VOX-11 albu-spec catalog is documented in `docs/albu-spec-catalog.md`. It
 is the source for normal transform choices, capability reports, and version
 drift checks.
+
+The VOX-12 parameter schema generator is documented in
+`docs/parameter-schema.md`. It converts albu-spec parameter metadata into
+host-neutral `FormFieldSchema` records without importing FiftyOne.
 
 ## Extension Points
 

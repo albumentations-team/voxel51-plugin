@@ -13,6 +13,8 @@ these files hold development workflow, review, and release notes.
   transform allowlist and output behavior.
 - [albu-spec catalog](albu-spec-catalog.md): version-aware transform capability
   registry and review report.
+- [Parameter schema](parameter-schema.md): host-neutral parameter field
+  generation from albu-spec metadata.
 - [PR checklist](pr-checklist.md): required checks before review and merge.
 - [Verification](verification.md): local gate, targeted tests, and manual checks.
 - [Design document](../DESIGN.md): implementation contract for the plugin.
