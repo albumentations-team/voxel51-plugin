@@ -34,10 +34,10 @@ remain editable without inventing transform-specific UI code.
 ## Execution Scope
 
 VOX-14 adds a catalog-driven backend pipeline factory. The execution path now
-uses that shared factory internally. Until ordered pipeline editing is
-implemented, the FiftyOne operator selector exposes only the temporary fixed
-transform set that the MVP runner can execute. Catalog-wide support remains
-visible through the capability report, not as executable App choices.
+uses that shared factory internally. VOX-22 adds ordered pipeline editing for up
+to three steps from the temporary fixed transform set that the MVP runner can
+execute. Catalog-wide support remains visible through the capability report, not
+as executable App choices.
 
 The fixed runner remains executable for:
 
@@ -45,5 +45,10 @@ The fixed runner remains executable for:
 - `RandomBrightnessContrast`
 - `RandomCrop`
 
-It accepts both legacy fixed-form names and new albu-spec names for the fixed
-transforms where they differ.
+Step 1 keeps the original fixed-form field names (`transform`, `p`, `height`,
+and similar) for compatibility. Later steps use prefixed field names such as
+`step_2_transform`, `step_2_p`, and `step_3_height`.
+
+The fixed execution form applies MVP-specific defaults over the raw albu-spec
+schema: transform probability defaults to `1.0`, `RandomCrop` height and width
+default to `32`, and only parameters consumed by the fixed runner are shown.

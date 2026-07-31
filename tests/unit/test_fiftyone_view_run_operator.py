@@ -104,6 +104,7 @@ def test_view_run_operator_resolves_samples_grid_placement() -> None:
     assert isinstance(view_json, dict)
     assert view_json["name"] == "Button"
     assert view_json["label"] == "View AlbumentationsX Run"
+    assert view_json["prompt"] is True
 
 
 @pytest.mark.unit

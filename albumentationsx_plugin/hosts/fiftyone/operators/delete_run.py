@@ -99,7 +99,7 @@ class DeleteAlbumentationsXRun(foo.Operator):
     def resolve_placement(self, ctx: Any):
         return types.Placement(
             types.Places.SAMPLES_GRID_ACTIONS,
-            types.Button(label=OPERATOR_LABEL),
+            types.Button(label=OPERATOR_LABEL, prompt=True),
         )
 
     def execute(self, ctx: Any) -> JSONDict:

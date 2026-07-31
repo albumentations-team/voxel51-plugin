@@ -24,6 +24,8 @@ from albumentationsx_plugin.core.models import (
     DEFAULT_TRANSFORM_PROBABILITY,
     FIXED_TRANSFORM_NAMES,
     MAX_OUTPUTS_PER_SAMPLE,
+    MAX_PIPELINE_STEPS,
+    PIPELINE_STEP_COUNT_FIELD_NAME,
     AugmentationInput,
     AugmentationResult,
     CapabilityStatus,
@@ -35,6 +37,7 @@ from albumentationsx_plugin.core.models import (
     RunManifest,
     TransformCapability,
     TransformConfig,
+    pipeline_step_field_name,
 )
 
 __all__ = [
@@ -54,10 +57,12 @@ __all__ = [
     "InvalidParameterError",
     "JSONDict",
     "JSONValue",
-    "MediaIOError",
+    "MAX_PIPELINE_STEPS",
     "MAX_OUTPUTS_PER_SAMPLE",
+    "MediaIOError",
     "OutputStorageBackend",
     "ParameterSchemaProvider",
+    "PIPELINE_STEP_COUNT_FIELD_NAME",
     "PipelineConfig",
     "PipelineFactory",
     "PipelineRunner",
@@ -68,4 +73,5 @@ __all__ = [
     "TransformCatalogProvider",
     "TransformConfig",
     "UnsupportedTransformError",
+    "pipeline_step_field_name",
 ]

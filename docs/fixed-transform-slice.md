@@ -33,17 +33,34 @@ pipeline rather than growing the fixed list by hand.
 
 ## Operator Parameters
 
-- `transform`: one of the three fixed transform names.
-- `p`: transform probability, from `0.0` to `1.0`.
+- `pipeline_step_count`: number of ordered transform steps, from `1` to `3`;
+  defaults to `1`.
+- `transform`: step 1 transform, one of the three fixed transform names;
+  defaults to `HorizontalFlip`.
+- `p`: step 1 transform probability, from `0.0` to `1.0`; defaults to
+  `1.0` for deterministic manual checks.
+- `step_2_transform` / `step_3_transform`: optional additional ordered step
+  transforms when `pipeline_step_count` is `2` or `3`.
+- `step_2_p` / `step_3_p`: transform probability for later steps.
 - `outputs_per_sample`: number of augmented samples to create per source sample,
-  from `1` to `3`.
+  from `1` to `3`; defaults to `1`.
 - `brightness_range`: mapped to
-  `RandomBrightnessContrast(brightness_range=(min, max))`.
+  step 1 `RandomBrightnessContrast(brightness_range=(min, max))`; defaults
+  to `[-0.2, 0.2]`.
 - `contrast_range`: mapped to
-  `RandomBrightnessContrast(contrast_range=(min, max))`.
-- `width` and `height`: mapped to `RandomCrop(width=..., height=...)`.
+  step 1 `RandomBrightnessContrast(contrast_range=(min, max))`; defaults to
+  `[-0.2, 0.2]`.
+- `width` and `height`: mapped to step 1
+  `RandomCrop(width=..., height=...)`; both default to `32`.
+- Later-step transform parameters use the same names with the step prefix, such
+  as `step_2_brightness_range`, `step_2_height`, and `step_3_width`.
 - `dry_run`: validates selection and parameters without writing output files or
   creating samples.
+
+The fixed form intentionally renders only parameters that the fixed executor
+uses. Extra albu-spec parameters such as `pad_if_needed`, `border_mode`,
+`brightness_by_max`, and `ensure_safe_output` stay hidden until the catalog-wide
+pipeline path can execute them faithfully.
 
 For compatibility with the original fixed form, the runner also accepts
 `brightness_range_min`, `brightness_range_max`, `contrast_range_min`,
@@ -51,8 +68,8 @@ For compatibility with the original fixed form, the runner also accepts
 
 VOX-13 renders these fields from albu-spec schemas. VOX-14 moved transform
 construction and replay execution behind the shared catalog-driven pipeline
-factory, while the FiftyOne execution UI remains limited to the three fixed
-transforms.
+factory. VOX-22 lets the FiftyOne execution UI build an ordered chain from the
+three fixed transforms.
 
 ## Output Behavior
 

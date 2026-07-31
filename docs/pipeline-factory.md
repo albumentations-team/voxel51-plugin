@@ -43,16 +43,17 @@ media, write outputs, and create host records.
 
 ## Current Scope
 
-The fixed FiftyOne execution path still exposes only:
+The fixed FiftyOne execution path exposes ordered chains of up to three steps
+from:
 
 - `HorizontalFlip`
 - `RandomBrightnessContrast`
 - `RandomCrop`
 
-Internally, those transforms are now created by the shared catalog-driven factory.
+Internally, those transforms are created by the shared catalog-driven factory.
 The factory can construct other image-only MVP transforms when given a
 `PipelineConfig`, but the operator execution UI has not yet been broadened from
-the fixed slice to arbitrary ordered pipelines.
+the fixed slice to catalog-wide pipelines.
 
 Annotation targets remain outside VOX-14. Bounding boxes, masks, and keypoints
 should be added through separate adapter modules with geometry tests.

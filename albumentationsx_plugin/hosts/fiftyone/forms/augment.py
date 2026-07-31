@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Final
 
 import fiftyone.operators.types as types
@@ -11,21 +11,36 @@ import fiftyone.operators.types as types
 from albumentationsx_plugin.albumentations_backend.catalog import AlbuSpecCatalogProvider
 from albumentationsx_plugin.albumentations_backend.parameters import AlbuSpecParameterSchemaProvider
 from albumentationsx_plugin.core import (
+    DEFAULT_BRIGHTNESS_RANGE,
+    DEFAULT_CONTRAST_RANGE,
+    DEFAULT_CROP_SIZE,
+    DEFAULT_TRANSFORM_PROBABILITY,
     FIXED_TRANSFORM_NAMES,
     MAX_OUTPUTS_PER_SAMPLE,
+    MAX_PIPELINE_STEPS,
+    PIPELINE_STEP_COUNT_FIELD_NAME,
     CapabilityStatus,
     FieldKind,
     FormFieldSchema,
+    JSONValue,
     ParameterSchemaProvider,
     TransformCatalogProvider,
     UnsupportedTransformError,
+    pipeline_step_field_name,
 )
 from albumentationsx_plugin.hosts.fiftyone.forms.renderer import FiftyOneFormRenderer
 
 TRANSFORM_FIELD_NAME: Final[str] = "transform"
+PROBABILITY_FIELD_NAME: Final[str] = "p"
 OUTPUTS_PER_SAMPLE_FIELD_NAME: Final[str] = "outputs_per_sample"
 DRY_RUN_FIELD_NAME: Final[str] = "dry_run"
 DEFAULT_DYNAMIC_TRANSFORM_NAME: Final[str] = "HorizontalFlip"
+PIPELINE_STEP_COUNT_LABEL: Final[str] = "Pipeline steps"
+FIXED_SLICE_PARAMETER_NAMES: Final[dict[str, tuple[str, ...]]] = {
+    "HorizontalFlip": (PROBABILITY_FIELD_NAME,),
+    "RandomBrightnessContrast": ("brightness_range", "contrast_range", PROBABILITY_FIELD_NAME),
+    "RandomCrop": ("height", "width", PROBABILITY_FIELD_NAME),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,18 +56,23 @@ class DynamicAugmentFormBuilder:
 
         params = _ctx_params(ctx)
         supported_transform_names = self._executable_transform_names()
-        selected_transform_name = _selected_transform_name(
-            params.get(TRANSFORM_FIELD_NAME),
-            supported_transform_names=supported_transform_names,
-        )
+        selected_step_count = _selected_step_count(params.get(PIPELINE_STEP_COUNT_FIELD_NAME))
 
         inputs = types.Object()
-        self._render_transform_selector(
-            inputs,
-            supported_transform_names=supported_transform_names,
-            selected_transform_name=selected_transform_name,
-        )
-        self._render_transform_parameters(inputs, selected_transform_name)
+        self._render_pipeline_step_count(inputs, selected_step_count)
+        for step_number in range(1, selected_step_count + 1):
+            selected_transform_name = _selected_transform_name(
+                params.get(pipeline_step_field_name(step_number, TRANSFORM_FIELD_NAME)),
+                supported_transform_names=supported_transform_names,
+                step_number=step_number,
+            )
+            self._render_transform_selector(
+                inputs,
+                supported_transform_names=supported_transform_names,
+                selected_transform_name=selected_transform_name,
+                step_number=step_number,
+            )
+            self._render_transform_parameters(inputs, selected_transform_name, step_number=step_number)
         self._render_execution_fields(inputs)
         return inputs
 
@@ -64,29 +84,62 @@ class DynamicAugmentFormBuilder:
         }
         return tuple(transform_name for transform_name in FIXED_TRANSFORM_NAMES if transform_name in supported_names)
 
+    def _render_pipeline_step_count(self, inputs: types.Object, selected_step_count: int) -> None:
+        self.renderer.render_into(
+            inputs,
+            (
+                FormFieldSchema(
+                    name=PIPELINE_STEP_COUNT_FIELD_NAME,
+                    kind=FieldKind.INTEGER,
+                    label=PIPELINE_STEP_COUNT_LABEL,
+                    required=False,
+                    default=selected_step_count,
+                    min_value=1,
+                    max_value=MAX_PIPELINE_STEPS,
+                ),
+            ),
+        )
+
     def _render_transform_selector(
         self,
         inputs: types.Object,
         *,
         supported_transform_names: tuple[str, ...],
         selected_transform_name: str,
+        step_number: int,
     ) -> None:
-        choices = types.AutocompleteView(label="Transform", allow_user_input=False)
+        label = _step_label(step_number, "Transform")
+        choices = types.AutocompleteView(label=label, allow_user_input=False)
         for transform_name in supported_transform_names:
             choices.add_choice(transform_name, label=transform_name)
 
         inputs.enum(
-            TRANSFORM_FIELD_NAME,
+            pipeline_step_field_name(step_number, TRANSFORM_FIELD_NAME),
             choices.values(),
-            label="Transform",
+            label=label,
             default=selected_transform_name,
-            required=True,
+            required=False,
             view=choices,
         )
 
-    def _render_transform_parameters(self, inputs: types.Object, selected_transform_name: str) -> None:
+    def _render_transform_parameters(
+        self,
+        inputs: types.Object,
+        selected_transform_name: str,
+        *,
+        step_number: int,
+    ) -> None:
         parameter_fields = self.parameter_schema_provider.get_parameter_schema(selected_transform_name)
-        self.renderer.render_into(inputs, parameter_fields)
+        self.renderer.render_into(
+            inputs,
+            _step_parameter_fields(
+                parameter_fields=_fixed_slice_ui_fields(
+                    selected_transform_name=selected_transform_name,
+                    parameter_fields=parameter_fields,
+                ),
+                step_number=step_number,
+            ),
+        )
 
     def _render_execution_fields(self, inputs: types.Object) -> None:
         self.renderer.render_into(
@@ -96,7 +149,7 @@ class DynamicAugmentFormBuilder:
                     name=OUTPUTS_PER_SAMPLE_FIELD_NAME,
                     kind=FieldKind.INTEGER,
                     label="Outputs per sample",
-                    required=True,
+                    required=False,
                     default=1,
                     min_value=1,
                     max_value=MAX_OUTPUTS_PER_SAMPLE,
@@ -122,9 +175,23 @@ def _ctx_params(ctx: Any | None) -> Mapping[str, object]:
     return params if isinstance(params, Mapping) else {}
 
 
-def _selected_transform_name(raw_value: object, *, supported_transform_names: tuple[str, ...]) -> str:
+def _selected_step_count(raw_value: object) -> int:
+    if isinstance(raw_value, int) and not isinstance(raw_value, bool) and 1 <= raw_value <= MAX_PIPELINE_STEPS:
+        return raw_value
+    return 1
+
+
+def _selected_transform_name(
+    raw_value: object,
+    *,
+    supported_transform_names: tuple[str, ...],
+    step_number: int,
+) -> str:
     if isinstance(raw_value, str) and raw_value in supported_transform_names:
         return raw_value
+    default_for_step = _default_transform_name_for_step(step_number, supported_transform_names)
+    if default_for_step is not None:
+        return default_for_step
     if DEFAULT_DYNAMIC_TRANSFORM_NAME in supported_transform_names:
         return DEFAULT_DYNAMIC_TRANSFORM_NAME
     try:
@@ -135,3 +202,76 @@ def _selected_transform_name(raw_value: object, *, supported_transform_names: tu
             message="No supported transforms are available for the augment form.",
             context={"reason_code": "empty_catalog"},
         ) from error
+
+
+def _default_transform_name_for_step(
+    step_number: int,
+    supported_transform_names: tuple[str, ...],
+) -> str | None:
+    try:
+        candidate = FIXED_TRANSFORM_NAMES[step_number - 1]
+    except IndexError:
+        candidate = DEFAULT_DYNAMIC_TRANSFORM_NAME
+    return candidate if candidate in supported_transform_names else None
+
+
+def _fixed_slice_ui_fields(
+    *,
+    selected_transform_name: str,
+    parameter_fields: tuple[FormFieldSchema, ...],
+) -> tuple[FormFieldSchema, ...]:
+    supported_parameter_names = FIXED_SLICE_PARAMETER_NAMES.get(selected_transform_name)
+    if supported_parameter_names is None:
+        return parameter_fields
+
+    return tuple(
+        _fixed_slice_ui_field(selected_transform_name=selected_transform_name, field=field)
+        for field in parameter_fields
+        if field.name in supported_parameter_names
+    )
+
+
+def _fixed_slice_ui_field(*, selected_transform_name: str, field: FormFieldSchema) -> FormFieldSchema:
+    if field.name == PROBABILITY_FIELD_NAME:
+        return replace(field, required=False, default=DEFAULT_TRANSFORM_PROBABILITY)
+    if selected_transform_name == "RandomBrightnessContrast" and field.name == "brightness_range":
+        return replace(field, required=False, default=_number_range_default(DEFAULT_BRIGHTNESS_RANGE))
+    if selected_transform_name == "RandomBrightnessContrast" and field.name == "contrast_range":
+        return replace(field, required=False, default=_number_range_default(DEFAULT_CONTRAST_RANGE))
+    if selected_transform_name == "RandomCrop":
+        return _random_crop_ui_field(field)
+    return field
+
+
+def _number_range_default(values: tuple[float, float]) -> list[JSONValue]:
+    return [values[0], values[1]]
+
+
+def _random_crop_ui_field(field: FormFieldSchema) -> FormFieldSchema:
+    if field.name not in {"height", "width"}:
+        return field
+
+    return replace(
+        field,
+        required=False,
+        default=DEFAULT_CROP_SIZE,
+    )
+
+
+def _step_parameter_fields(
+    *,
+    parameter_fields: tuple[FormFieldSchema, ...],
+    step_number: int,
+) -> tuple[FormFieldSchema, ...]:
+    return tuple(
+        replace(
+            field,
+            name=pipeline_step_field_name(step_number, field.name),
+            label=_step_label(step_number, field.label or field.name),
+        )
+        for field in parameter_fields
+    )
+
+
+def _step_label(step_number: int, label: str) -> str:
+    return f"Step {step_number} {label}"

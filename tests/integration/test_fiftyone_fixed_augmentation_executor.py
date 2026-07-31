@@ -127,6 +127,50 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
 
 
 @pytest.mark.integration
+def test_fixed_augmentation_executor_persists_ordered_transform_chain(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, "source")
+        sample_id = dataset.add_sample(_sample(source_path))
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params={
+                "pipeline_step_count": 2,
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "step_2_transform": "HorizontalFlip",
+                "step_2_p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        created = _output_samples(dataset)
+        assert len(created) == 1
+        source_image = load_rgb_image(source_path).data
+        output_image = load_rgb_image(created[0].filepath).data
+        np.testing.assert_array_equal(output_image, source_image)
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        assert [transform.name for transform in manifest.pipeline.transforms] == ["HorizontalFlip", "HorizontalFlip"]
+        assert len(manifest.replay_records) == 1
+        replay = manifest.replay_records[0]["replay"]
+        assert isinstance(replay, dict)
+        transforms = replay["transforms"]
+        assert isinstance(transforms, list)
+        assert [transform["__class_fullname__"] for transform in transforms] == ["HorizontalFlip", "HorizontalFlip"]
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
 def test_fixed_augmentation_executor_dry_run_does_not_write_outputs(tmp_path) -> None:
     dataset_name = _dataset_name()
     try:
