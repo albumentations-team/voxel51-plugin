@@ -1,6 +1,7 @@
 # Gitflow
 
-The project uses an integration-branch workflow for the MVP.
+The project uses an integration-branch workflow. The first milestone is the MVP
+release, but the same branch pattern applies to later releases.
 
 ## Branch roles
 
@@ -30,11 +31,13 @@ during release validation.
 Urgent fix branch after a tagged release. Merge hotfixes back into both `main`
 and `dev`.
 
-## MVP branch sequence
+## Branch sequence
 
 ```text
-feature/* -> dev -> main -> release/v0.1.0 -> main + dev
+feature/* -> dev -> main -> release/vX.Y.Z -> main + dev
 ```
+
+For the first MVP release, `vX.Y.Z` is `v0.1.0`.
 
 ## Start a task
 
@@ -53,13 +56,8 @@ git checkout -b feature/vox-7-empty-augment-operator
 
 ## Finish a task
 
-Run the local gate before opening a pull request:
-
-```bash
-uv run pre-commit run --all-files
-uv run pytest
-uv run pyrefly check
-```
+Run the required checks from [Verification](verification.md) before opening a
+pull request.
 
 Push the branch and open a PR into `dev`:
 
@@ -75,44 +73,59 @@ When `dev` contains a coherent tested milestone, open a PR:
 dev -> main
 ```
 
-Before merging, rerun the complete local gate and have a review agent compare
-the result with `DESIGN.md`.
+Before merging, rerun the complete local gate from
+[Verification](verification.md) and have a review agent compare the result with
+`DESIGN.md`.
 
 ## Prepare a release
 
-Create the release branch from updated `main`:
+Create each release branch from updated `main`:
 
 ```bash
 git checkout main
 git pull --ff-only
-git checkout -b release/v0.1.0
+git checkout -b release/vX.Y.Z
 ```
 
 After release validation, merge back:
 
 ```text
-release/v0.1.0 -> main
-release/v0.1.0 -> dev
+release/vX.Y.Z -> main
+release/vX.Y.Z -> dev
 ```
 
 Tag the accepted release commit on `main`:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
+Examples:
+
+- `release/v0.1.0` for the first MVP release;
+- `release/v0.2.0` for the next feature release after new work has moved from
+  `dev` to `main`;
+- `release/v0.1.1` for a planned patch release prepared through the normal
+  release process.
+
 ## Hotfixes
+
+Use a hotfix branch for urgent fixes to the latest released version. Start from
+`main` or from the release tag that needs the fix:
 
 ```bash
 git checkout main
 git pull --ff-only
-git checkout -b hotfix/v0.1.1-short-description
+git checkout -b hotfix/vX.Y.Z-short-description
 ```
 
 After validation:
 
 ```text
-hotfix/v0.1.1-short-description -> main
-hotfix/v0.1.1-short-description -> dev
+hotfix/vX.Y.Z-short-description -> main
+hotfix/vX.Y.Z-short-description -> dev
 ```
+
+Tag the hotfix commit on `main` with the matching patch version, for example
+`v0.1.1`.

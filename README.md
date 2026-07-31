@@ -48,7 +48,8 @@ The [design document](DESIGN.md) is the implementation contract when this summar
 Additional development documentation lives in [`docs/`](docs/README.md):
 
 - [Gitflow](docs/gitflow.md) describes the `feature/* -> dev -> main -> release/*` workflow;
-- [PR checklist](docs/pr-checklist.md) lists required scope, safety, documentation, and verification checks.
+- [PR checklist](docs/pr-checklist.md) lists required scope, safety, documentation, and verification checks;
+- [Verification](docs/verification.md) centralizes local gate commands, targeted tests, and manual checks.
 
 ## Prepare a development checkout
 

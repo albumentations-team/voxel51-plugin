@@ -26,30 +26,11 @@ review agent.
 
 ## Checks
 
-Run the complete local gate when the package has Python code:
-
-```bash
-uv run pre-commit run --all-files
-uv run pytest
-uv run pyrefly check
-```
-
-Run targeted tests when relevant:
-
-```bash
-uv run pytest -m unit
-uv run pytest -m integration
-uv run pytest -m geometry
-uv run pytest -m smoke
-```
+Run the complete local gate and relevant targeted tests from
+[Verification](verification.md). Record skipped or not-yet-applicable checks in
+the PR description.
 
 ## Manual verification
 
-For PRs that change App behavior, record the manual scenario in the PR:
-
-- dataset used;
-- operator opened;
-- input parameters;
-- expected output samples or errors;
-- whether source data remained unchanged;
-- cleanup result, if cleanup behavior changed.
+For PRs that change App behavior, record the manual scenario listed in
+[Verification](verification.md#manual-app-checks).
