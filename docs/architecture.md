@@ -70,13 +70,15 @@ Expected modules:
 
 `storage`
 
-Plugin-owned output paths, manifests, run metadata, atomic writes, and safe
-cleanup. This layer should be usable from FiftyOne operators, but destructive
-rules live here so they can be tested without the App.
+Plugin-owned output paths, image IO, manifests, run metadata, atomic writes, and
+safe cleanup. This layer should be usable from FiftyOne operators, but
+destructive rules live here so they can be tested without the App.
 
 Expected modules:
 
 - `albumentationsx_plugin/storage/paths.py`
+- `albumentationsx_plugin/storage/images/io.py`
+- `albumentationsx_plugin/storage/images/naming.py`
 - `albumentationsx_plugin/storage/manifest.py`
 - `albumentationsx_plugin/storage/cleanup.py`
 
@@ -90,7 +92,8 @@ Allowed dependencies:
 - `core` may import only the Python standard library and lightweight typing or
   serialization helpers already accepted by the project.
 - `albumentations_backend` may import `core`, `albumentations`, and `albu-spec`.
-- `storage` may import `core` and standard filesystem/JSON helpers.
+- `storage` may import `core`, standard filesystem/JSON helpers, NumPy, and
+  Pillow for image IO.
 - `hosts/fiftyone` may import `core`, `storage`,
   `albumentations_backend.interfaces`, and `fiftyone`.
 - Operator modules may compose services, but should not own catalog parsing,
