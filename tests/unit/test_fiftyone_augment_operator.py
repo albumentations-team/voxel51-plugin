@@ -6,9 +6,11 @@ from typing import Any
 import pytest
 import yaml
 
+import albumentationsx_plugin.hosts.fiftyone.operators.augment as augment_operator_module
+from albumentationsx_plugin.hosts.fiftyone.augmentation import FixedAugmentationExecutionResult
 from albumentationsx_plugin.hosts.fiftyone.operators.augment import (
+    FIXED_SLICE_MESSAGE,
     OPERATOR_NAME,
-    PLACEHOLDER_MESSAGE,
     AugmentWithAlbumentationsX,
 )
 
@@ -41,7 +43,7 @@ def test_augment_operator_config_matches_manifest() -> None:
 
 
 @pytest.mark.unit
-def test_augment_operator_resolves_placeholder_input_and_output() -> None:
+def test_augment_operator_resolves_fixed_slice_input_and_output() -> None:
     operator = AugmentWithAlbumentationsX()
 
     input_json = operator.resolve_input(ctx=None).to_json()
@@ -49,12 +51,25 @@ def test_augment_operator_resolves_placeholder_input_and_output() -> None:
     input_properties = input_json["type"]["properties"]
 
     assert input_json["view"]["label"] == "Augment with AlbumentationsX"
-    assert input_properties["transform"]["type"] == {"name": "Enum", "values": ["HorizontalFlip"]}
+    assert input_properties["transform"]["type"] == {
+        "name": "Enum",
+        "values": ["HorizontalFlip", "RandomBrightnessContrast", "RandomCrop"],
+    }
+    assert input_properties["p"]["type"]["name"] == "Number"
     assert input_properties["outputs_per_sample"]["type"]["name"] == "Number"
+    assert input_properties["brightness_range_min"]["type"]["name"] == "Number"
+    assert input_properties["brightness_range_max"]["type"]["name"] == "Number"
+    assert input_properties["contrast_range_min"]["type"]["name"] == "Number"
+    assert input_properties["contrast_range_max"]["type"]["name"] == "Number"
+    assert input_properties["crop_width"]["type"]["name"] == "Number"
+    assert input_properties["crop_height"]["type"]["name"] == "Number"
     assert input_properties["dry_run"]["type"]["name"] == "Boolean"
     assert "status" in input_properties
-    assert output_json["type"]["properties"]["ready"]["type"]["name"] == "Boolean"
-    assert output_json["type"]["properties"]["message"]["type"]["name"] == "String"
+    assert input_properties["status"]["view"]["description"] == FIXED_SLICE_MESSAGE
+    assert output_json["type"]["properties"]["run_key"]["type"]["name"] == "String"
+    assert output_json["type"]["properties"]["processed_count"]["type"]["name"] == "Number"
+    assert output_json["type"]["properties"]["created_count"]["type"]["name"] == "Number"
+    assert output_json["type"]["properties"]["error_count"]["type"]["name"] == "Number"
 
 
 @pytest.mark.unit
@@ -71,10 +86,41 @@ def test_augment_operator_resolves_samples_grid_placement() -> None:
 
 
 @pytest.mark.unit
-def test_augment_operator_execute_is_noop_placeholder() -> None:
+def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> None:
     operator = AugmentWithAlbumentationsX()
 
-    assert operator.execute(ctx=None) == {
-        "ready": False,
-        "message": PLACEHOLDER_MESSAGE,
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ("sample-1",)
+        params = {"transform": "HorizontalFlip"}
+
+    def fake_execute_fixed_augmentation(**kwargs):
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["view"] is Context.view
+        assert kwargs["selected_sample_ids"] == ("sample-1",)
+        assert kwargs["params"] == {"transform": "HorizontalFlip"}
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-test",
+            processed_count=1,
+            created_count=1,
+            skipped_count=0,
+            error_count=0,
+            dry_run=False,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    assert operator.execute(Context()) == {
+        "run_key": "albumentationsx-20260731T120000Z-test",
+        "processed_count": 1,
+        "created_count": 1,
+        "skipped_count": 0,
+        "error_count": 0,
+        "dry_run": False,
+        "output_tag": "albumentationsx-output",
+        "output_dir": "/tmp/outputs",
+        "errors": [],
     }

@@ -2,10 +2,10 @@
 
 [![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg)](LICENSE)
 
-This repository will contain a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and previewing [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
+This repository contains a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and previewing [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
 
 > [!IMPORTANT]
-> The project is in the early implementation phase. The plugin registers a placeholder augmentation operator, but it does not execute augmentations yet.
+> The project is in the early implementation phase. The operator can create image-only outputs with a temporary fixed transform set; catalog-driven transform forms and annotation transforms are still upcoming.
 
 ## What the plugin will do
 
@@ -23,18 +23,23 @@ Transform names, parameter types, default values, constraints, and descriptions 
 
 ## Current status
 
-The implementation has started with the plugin scaffold, a placeholder augmentation operator, and a minimal
-host-neutral form schema rendered into FiftyOne input fields. The repository currently contains:
+The implementation has started with the plugin scaffold, host-neutral contracts,
+image IO helpers, a FiftyOne sample adapter, and a fixed-transform augmentation
+operator. The repository currently contains:
 
 - the [design document](DESIGN.md), written in Russian for the project owner and coding agents;
 - the `AGPL-3.0-only` license text;
 - a `pyproject.toml` that defines the development tools and the test groups;
 - a `pre-commit` configuration that runs file checks, Ruff, and Pyrefly;
-- `fiftyone.yml`, a Python package skeleton, and a registered placeholder operator with minimal input fields.
+- `fiftyone.yml`, a Python package skeleton, and a registered operator that can
+  create augmented image samples from selected FiftyOne samples or views;
+- a direct dependency on `albumentationsx>=2.3,<3`, installed as
+  `albumentationsx` and imported at runtime as `albumentations`.
 
-The next implementation pull requests will connect catalog-driven transform schemas and the image-only execution path.
-See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for the complete sequence and acceptance
-criteria.
+The next implementation pull requests will replace the temporary transform
+allowlist with catalog-driven transform schemas and broaden annotation support.
+See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for
+the complete sequence and acceptance criteria.
 
 ## Implementation rules
 
@@ -53,6 +58,7 @@ Additional development documentation lives in [`docs/`](docs/README.md):
 
 - [Gitflow](docs/gitflow.md) describes the `feature/* -> dev -> main -> release/*` workflow;
 - [Architecture](docs/architecture.md) describes the layered code boundaries and extension points;
+- [Fixed transform slice](docs/fixed-transform-slice.md) describes the first executable image-only path;
 - [PR checklist](docs/pr-checklist.md) lists required scope, safety, documentation, and verification checks;
 - [Verification](docs/verification.md) centralizes local gate commands, targeted tests, and manual checks.
 
@@ -84,7 +90,8 @@ The operator list should include:
 @albumentations/albumentationsx/augment_with_albumentationsx
 ```
 
-The operator is currently a no-op placeholder. It verifies discovery and registration but does not create output samples yet.
+The operator currently supports a temporary fixed transform set:
+`HorizontalFlip`, `RandomBrightnessContrast`, and `RandomCrop`.
 
 ## Create the local demo dataset
 
@@ -100,6 +107,11 @@ The workflow generates three tiny PNG images under `sample_data/generated/` and
 creates a persistent FiftyOne dataset named `albumentationsx-demo`. The dataset
 uses stable `demo_id` values for repeatable checks; FiftyOne internal sample IDs
 are database-generated.
+
+In the App, select one or more samples, run `Augment with AlbumentationsX`, and
+choose one of the fixed transforms. New output samples are written under the
+plugin-owned storage directory and tagged with the run key; source samples and
+source files remain unchanged.
 
 Clean up the dataset and generated images with:
 

@@ -29,6 +29,8 @@ Expected modules:
 - `albumentationsx_plugin/core/contracts/forms.py`
 - `albumentationsx_plugin/core/contracts/augmentation.py`
 - `albumentationsx_plugin/core/contracts/runs.py`
+- `albumentationsx_plugin/core/contracts/fixed_slice.py` for the temporary
+  fixed-transform MVP contract
 - `albumentationsx_plugin/core/form_schemas/augment.py`
 - `albumentationsx_plugin/core/serialization/`
 - `albumentationsx_plugin/core/errors.py`
@@ -51,6 +53,8 @@ Expected modules:
 - `albumentationsx_plugin/albumentations_backend/form_schema.py`
 - `albumentationsx_plugin/albumentations_backend/pipeline.py`
 - `albumentationsx_plugin/albumentations_backend/replay.py`
+- `albumentationsx_plugin/albumentations_backend/fixed/pipeline.py` for the
+  temporary fixed-transform vertical slice
 
 `hosts/fiftyone`
 
@@ -65,6 +69,7 @@ Expected modules:
 - `albumentationsx_plugin/hosts/fiftyone/operators/augment.py`
 - `albumentationsx_plugin/hosts/fiftyone/operators/view_run.py`
 - `albumentationsx_plugin/hosts/fiftyone/operators/delete_run.py`
+- `albumentationsx_plugin/hosts/fiftyone/augmentation/executor.py`
 - `albumentationsx_plugin/hosts/fiftyone/forms/renderer.py`
 - `albumentationsx_plugin/hosts/fiftyone/samples/adapter.py`
 
@@ -91,7 +96,9 @@ Allowed dependencies:
 
 - `core` may import only the Python standard library and lightweight typing or
   serialization helpers already accepted by the project.
-- `albumentations_backend` may import `core`, `albumentations`, and `albu-spec`.
+- `albumentations_backend` may import `core`, NumPy array helpers,
+  `albumentations`, and `albu-spec`. The runtime package is
+  `albumentationsx`, imported as `albumentations`.
 - `storage` may import `core`, standard filesystem/JSON helpers, NumPy, and
   Pillow for image IO.
 - `hosts/fiftyone` may import `core`, `storage`,
@@ -176,6 +183,17 @@ Concrete implementations should live in their owning packages:
   `hosts/fiftyone`;
 - manifest persistence, output writes, and cleanup in `storage`.
 
+The VOX-10 fixed-transform slice is documented in
+`docs/fixed-transform-slice.md`. It is intentionally small and should be
+replaced by catalog-driven backend services rather than expanded as a handwritten
+catalog.
+
+For VOX-10, `hosts/fiftyone/augmentation/executor.py` is the temporary
+composition point that wires the FiftyOne sample adapter, storage helpers, and
+fixed AlbumentationsX backend together. Later catalog work should replace this
+with explicit backend service injection so host operators depend on backend
+interfaces instead of concrete fixed-slice modules.
+
 ## Extension Points
 
 ### New transform source
@@ -210,7 +228,7 @@ target type.
 Generated files belong under a plugin-owned directory:
 
 ```text
-~/.fiftyone/albumentationsx-plugin/<dataset-id>/<run-key>/
+~/.fiftyone/albumentationsx-plugin/<dataset-name>/<run-key>/
 ```
 
 Each run stores a manifest with relative paths. Cleanup resolves each path,

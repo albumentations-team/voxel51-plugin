@@ -64,7 +64,7 @@ def _manifest(
         pipeline=PipelineConfig(
             transforms=(
                 TransformConfig(name="HorizontalFlip", params={"p": 1.0}),
-                TransformConfig(name="RandomBrightnessContrast", params={"contrast_limit": [0.1, 0.2]}),
+                TransformConfig(name="RandomBrightnessContrast", params={"contrast_range": [0.1, 0.2]}),
             )
         ),
         source_sample_ids=source_sample_ids,
@@ -148,7 +148,7 @@ def test_sample_adapter_creates_output_sample_without_mutating_source(tmp_path) 
         assert created.get_field(SOURCE_SAMPLE_ID_FIELD) == source_id
         assert created.get_field(RUN_KEY_FIELD) == manifest.run_key
         assert created.get_field(TRANSFORM_SUMMARY_FIELD) == (
-            "HorizontalFlip(p=1.0) -> RandomBrightnessContrast(contrast_limit=[0.1,0.2])"
+            "HorizontalFlip(p=1.0) -> RandomBrightnessContrast(contrast_range=[0.1,0.2])"
         )
         assert created.metadata.width == 5
         assert created.metadata.height == 4
