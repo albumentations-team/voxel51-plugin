@@ -5,10 +5,12 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import UTC, datetime
+from hashlib import sha256
 from os import PathLike
 from pathlib import Path
 
 PLUGIN_STORAGE_DIRNAME = "albumentationsx-plugin"
+_HASH_SUFFIX_LENGTH = 10
 
 _UNSAFE_COMPONENT = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -37,11 +39,19 @@ def build_dataset_run_dir(
     """Return the plugin-owned run directory for one dataset and run key."""
 
     root = default_storage_root() if storage_root is None else Path(storage_root).expanduser()
-    return root / _safe_component(dataset_name, default="dataset") / _safe_component(run_key, default="run")
+    dataset_component = _safe_component(dataset_name, default="dataset", include_hash=True)
+    return root / dataset_component / _safe_component(run_key, default="run")
 
 
-def _safe_component(value: str, *, default: str) -> str:
+def _safe_component(value: str, *, default: str, include_hash: bool = False) -> str:
     normalized = _UNSAFE_COMPONENT.sub("-", value.strip()).strip("._-")
     if not normalized:
-        return default
-    return normalized[:96]
+        normalized = default
+    if not include_hash:
+        return normalized[:96]
+
+    digest = sha256(value.encode("utf-8")).hexdigest()[:_HASH_SUFFIX_LENGTH]
+    suffix = f"-{digest}"
+    base_length = 96 - len(suffix)
+    base = normalized[:base_length].strip("._-") or default
+    return f"{base}{suffix}"

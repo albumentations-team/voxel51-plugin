@@ -11,7 +11,9 @@ from albumentationsx_plugin.albumentations_backend.pipeline import (
     AlbumentationsPipelineFactory,
     AlbumentationsTransformRegistry,
 )
+from albumentationsx_plugin.albumentations_backend.pipeline.coercion import coerce_transform_params
 from albumentationsx_plugin.core import (
+    FieldKind,
     FormFieldSchema,
     InvalidParameterError,
     ParameterSchemaProvider,
@@ -98,6 +100,33 @@ def test_pipeline_factory_rejects_invalid_params_before_constructor() -> None:
     assert missing_error.value.context["reason_code"] == "missing_required_parameter"
     assert unknown_error.value.context["unknown_parameters"] == ["legacy"]
     assert bounded_error.value.context["bound"] == 1
+
+
+@pytest.mark.unit
+def test_parameter_coercion_enforces_exclusive_bounds_from_albu_spec_constraints() -> None:
+    schema = (
+        FormFieldSchema(
+            name="alpha",
+            kind=FieldKind.FLOAT,
+            min_value=0.0,
+            max_value=1.0,
+            metadata={"constraints": {"gt": 0.0, "lt": 1.0}},
+        ),
+    )
+
+    with pytest.raises(InvalidParameterError) as lower_error:
+        coerce_transform_params(TransformConfig(name="ExclusiveTransform", params={"alpha": 0.0}), schema)
+
+    with pytest.raises(InvalidParameterError) as upper_error:
+        coerce_transform_params(TransformConfig(name="ExclusiveTransform", params={"alpha": 1.0}), schema)
+
+    assert lower_error.value.context["bound"] == 0.0
+    assert "greater than" in lower_error.value.message
+    assert upper_error.value.context["bound"] == 1.0
+    assert "less than" in upper_error.value.message
+    assert coerce_transform_params(TransformConfig(name="ExclusiveTransform", params={"alpha": 0.5}), schema) == {
+        "alpha": 0.5
+    }
 
 
 @pytest.mark.unit

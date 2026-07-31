@@ -26,6 +26,27 @@ The dataset contains three samples with stable `demo_id` values:
 `demo-001`, `demo-002`, and `demo-003`. FiftyOne's internal sample IDs are
 created by the database and should not be used as stable test fixtures.
 
+## MVP Smoke Check
+
+Run the headless smoke workflow without opening the App:
+
+```bash
+uv run pytest -m smoke
+```
+
+The smoke workflow verifies local plugin discovery, creates the demo dataset,
+augments one image sample, inspects the saved run, deletes the generated run,
+and confirms the source samples and source files remain.
+
+For manual App verification, create the dataset, launch the App, then run:
+
+1. `Augment with AlbumentationsX` with a non-dry fixed transform.
+2. `View AlbumentationsX Run` for the created run key.
+3. `Delete AlbumentationsX Run` with confirmation checked.
+
+After cleanup, generated samples/files should be gone, and the three source demo
+samples/files should remain.
+
 ## Delete
 
 Delete only the FiftyOne dataset:

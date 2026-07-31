@@ -200,11 +200,31 @@ def _coerce_list_item(
 
 
 def _bounded_number(transform: TransformConfig, field: FormFieldSchema, value: int | float) -> int | float:
+    _validate_constraint_bounds(transform, field, value)
     if field.min_value is not None and value < field.min_value:
         _raise_bound_error(transform, field, value, comparator="at least", bound=field.min_value)
     if field.max_value is not None and value > field.max_value:
         _raise_bound_error(transform, field, value, comparator="less than or equal to", bound=field.max_value)
     return value
+
+
+def _validate_constraint_bounds(transform: TransformConfig, field: FormFieldSchema, value: int | float) -> None:
+    constraints = _constraint_mapping(field)
+    greater_than = _constraint_number(constraints, "gt")
+    if greater_than is not None and value <= greater_than:
+        _raise_bound_error(transform, field, value, comparator="greater than", bound=greater_than)
+
+    greater_or_equal = _constraint_number(constraints, "ge")
+    if greater_or_equal is not None and value < greater_or_equal:
+        _raise_bound_error(transform, field, value, comparator="at least", bound=greater_or_equal)
+
+    less_than = _constraint_number(constraints, "lt")
+    if less_than is not None and value >= less_than:
+        _raise_bound_error(transform, field, value, comparator="less than", bound=less_than)
+
+    less_or_equal = _constraint_number(constraints, "le")
+    if less_or_equal is not None and value > less_or_equal:
+        _raise_bound_error(transform, field, value, comparator="less than or equal to", bound=less_or_equal)
 
 
 def _validate_lower_upper(
@@ -241,6 +261,18 @@ def _list_length(field: FormFieldSchema) -> int | None:
 
 def _is_unsupported_required_schema(field: FormFieldSchema) -> bool:
     return field.metadata.get("schema_status") == "unsupported_required"
+
+
+def _constraint_mapping(field: FormFieldSchema) -> Mapping[str, object]:
+    constraints = field.metadata.get("constraints")
+    return constraints if isinstance(constraints, Mapping) else {}
+
+
+def _constraint_number(constraints: Mapping[str, object], name: str) -> float | None:
+    value = constraints.get(name)
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return float(value)
+    return None
 
 
 def _raise_type_error(transform: TransformConfig, field: FormFieldSchema, value: object, *, expected: str) -> NoReturn:

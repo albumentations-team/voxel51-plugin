@@ -13,6 +13,7 @@ from albumentationsx_plugin.albumentations_backend.parameters import AlbuSpecPar
 from albumentationsx_plugin.core import (
     FIXED_TRANSFORM_NAMES,
     MAX_OUTPUTS_PER_SAMPLE,
+    CapabilityStatus,
     FieldKind,
     FormFieldSchema,
     ParameterSchemaProvider,
@@ -39,7 +40,7 @@ class DynamicAugmentFormBuilder:
         """Build the current operator input object for the selected transform."""
 
         params = _ctx_params(ctx)
-        supported_transform_names = self._supported_transform_names()
+        supported_transform_names = self._executable_transform_names()
         selected_transform_name = _selected_transform_name(
             params.get(TRANSFORM_FIELD_NAME),
             supported_transform_names=supported_transform_names,
@@ -53,15 +54,15 @@ class DynamicAugmentFormBuilder:
         )
         self._render_transform_parameters(inputs, selected_transform_name)
         self._render_execution_fields(inputs)
-        self._render_execution_scope(inputs, selected_transform_name)
         return inputs
 
-    def _supported_transform_names(self) -> tuple[str, ...]:
-        return tuple(
+    def _executable_transform_names(self) -> tuple[str, ...]:
+        supported_names = {
             capability.name
             for capability in self.catalog_provider.list_transform_capabilities()
-            if capability.status.value in {"supported", "supported_with_defaults"}
-        )
+            if capability.status in {CapabilityStatus.SUPPORTED, CapabilityStatus.SUPPORTED_WITH_DEFAULTS}
+        }
+        return tuple(transform_name for transform_name in FIXED_TRANSFORM_NAMES if transform_name in supported_names)
 
     def _render_transform_selector(
         self,
@@ -108,14 +109,6 @@ class DynamicAugmentFormBuilder:
                 ),
             ),
         )
-
-    def _render_execution_scope(self, inputs: types.Object, selected_transform_name: str) -> None:
-        if selected_transform_name not in FIXED_TRANSFORM_NAMES:
-            inputs.message(
-                "execution_scope",
-                label="Schema preview",
-                description="Execution for catalog-wide transforms will be enabled by the dynamic pipeline task.",
-            )
 
 
 def build_dynamic_augment_form(ctx: Any | None) -> types.Object:

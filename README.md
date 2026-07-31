@@ -48,6 +48,14 @@ operator. The repository currently contains:
 - saved run manifests, FiftyOne custom run records, a read-only run summary
   operator, and a confirmed cleanup operator for non-dry executions.
 
+## MVP limitations
+
+- Execution is image-only. Bounding boxes, segmentation masks, and keypoints are deferred.
+- The executable App flow currently applies one transform at a time from the temporary fixed set: `HorizontalFlip`, `RandomBrightnessContrast`, and `RandomCrop`.
+- Catalog-wide ordered execution is not enabled yet; App choices are limited to the executable fixed slice even though the broader catalog can be inspected through reports.
+- Dynamic forms may use conservative schema fallbacks when albu-spec metadata is incomplete; unsupported transforms remain visible in the capability report with exclusion reasons.
+- Cleanup deletes generated output samples, manifest-listed output files, and the FiftyOne custom run; it intentionally retains `manifest.json` as an audit trail.
+
 The next implementation pull requests will replace the temporary execution
 allowlist with ordered catalog-driven pipeline editing and broaden annotation
 support.
@@ -92,10 +100,11 @@ cd voxel51-plugin
 
 uv sync --group dev
 uv run pre-commit install
-uv run pre-commit run --all-files
 ```
 
 `uv` creates and manages the local `.venv`; manual activation is optional.
+Run the complete local gate from [Verification](docs/verification.md) before
+opening a pull request.
 
 For local FiftyOne plugin discovery from this checkout, point FiftyOne at the parent directory that contains this repository:
 
@@ -162,29 +171,15 @@ The test contract lives in [`pyproject.toml`](pyproject.toml). Every pytest test
 - `unit` checks one isolated rule, such as converting albu-spec metadata into a form field or validating a cleanup path;
 - `integration` uses real temporary image files and a temporary FiftyOne dataset to test operator execution, provenance, custom runs, and cleanup;
 - `geometry` uses synthetic images with known coordinates to verify that boxes, masks, and keypoints stay aligned with transformed images;
-- `smoke` constructs every transform marked as supported and applies it to the target types claimed by the capability registry.
+- `smoke` verifies local plugin discovery and the headless MVP workflow from demo dataset creation through augmentation, run inspection, and cleanup.
 
-Run all tests with:
+Run the complete local quality gate from [Verification](docs/verification.md)
+before handing a pull request to the review agent. That page also lists targeted
+commands for `unit`, `integration`, `geometry`, and `smoke` pytest groups.
 
-```bash
-uv run pytest
-```
-
-Run one group with `uv run pytest -m unit`, replacing `unit` with `integration`, `geometry`, or `smoke`. Pytest also measures branch coverage for the `albumentationsx_plugin` package and writes `coverage.xml`.
-
-Pyrefly performs static type checking: it compares annotations with the values passed through the code and reports mismatches before the plugin runs. After the first Python files are added, run it directly with:
-
-```bash
-uv run pyrefly check
-```
-
-Run the complete local quality gate before handing a pull request to the review agent:
-
-```bash
-uv run pre-commit run --all-files
-```
-
-Ruff and Pyrefly read their settings from `pyproject.toml`. The Pyrefly pre-commit hook checks the whole Python project whenever a Python file is part of a commit.
+Ruff and Pyrefly read their settings from `pyproject.toml`. Pytest measures
+branch coverage for the `albumentationsx_plugin` package and writes
+`coverage.xml`.
 
 ## How changes are accepted
 

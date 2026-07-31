@@ -31,7 +31,6 @@ Expected modules:
 - `albumentationsx_plugin/core/contracts/runs.py`
 - `albumentationsx_plugin/core/contracts/fixed_slice.py` for the temporary
   fixed-transform MVP contract
-- `albumentationsx_plugin/core/form_schemas/augment.py`
 - `albumentationsx_plugin/core/serialization/`
 - `albumentationsx_plugin/core/errors.py`
 - `albumentationsx_plugin/core/interfaces/catalog.py`

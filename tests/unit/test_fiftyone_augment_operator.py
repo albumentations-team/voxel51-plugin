@@ -57,7 +57,7 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert "HorizontalFlip" in transform_values
     assert "RandomBrightnessContrast" in transform_values
     assert "RandomCrop" in transform_values
-    assert "ToGray" in transform_values
+    assert "ToGray" not in transform_values
     assert "Normalize" not in transform_values
     assert input_properties["p"]["type"]["name"] == "Number"
     assert input_properties["outputs_per_sample"]["type"]["name"] == "Number"
@@ -89,7 +89,7 @@ def test_augment_operator_resolves_selected_transform_parameter_schema() -> None
 
 
 @pytest.mark.unit
-def test_augment_operator_renders_catalog_transform_schema_preview() -> None:
+def test_augment_operator_ignores_non_executable_catalog_transform_selection() -> None:
     operator = AugmentWithAlbumentationsX()
 
     class Context:
@@ -98,10 +98,10 @@ def test_augment_operator_renders_catalog_transform_schema_preview() -> None:
     input_json = operator.resolve_input(Context()).to_json()
     input_properties = input_json["type"]["properties"]
 
-    assert input_properties["method"]["type"]["name"] == "Enum"
-    assert "weighted_average" in input_properties["method"]["type"]["values"]
-    assert input_properties["num_output_channels"]["type"]["name"] == "Number"
-    assert input_properties["execution_scope"]["view"]["label"] == "Schema preview"
+    assert input_properties["transform"]["default"] == "HorizontalFlip"
+    assert input_properties["p"]["type"]["name"] == "Number"
+    assert "method" not in input_properties
+    assert "execution_scope" not in input_properties
 
 
 @pytest.mark.unit

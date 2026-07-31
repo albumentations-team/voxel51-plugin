@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import re
 import tomllib
 from types import ModuleType
 from typing import Any
@@ -41,6 +42,18 @@ def test_plugin_metadata_matches_package_version() -> None:
     assert manifest["fiftyone"]["version"] == ">=1.19,<2"
 
 
+def test_plugin_requirements_include_runtime_dependencies() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    requirement_names = {
+        _requirement_name(line)
+        for line in (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+
+    for requirement in pyproject["project"]["dependencies"]:
+        assert _requirement_name(requirement) in requirement_names
+
+
 def test_plugin_manifest_declares_registered_operators() -> None:
     manifest = _load_yaml(ROOT / "fiftyone.yml")
 
@@ -69,3 +82,7 @@ def test_root_entrypoint_registers_declared_operators() -> None:
         "ViewAlbumentationsXRun",
         "DeleteAlbumentationsXRun",
     ]
+
+
+def _requirement_name(requirement: str) -> str:
+    return re.split(r"[\[<>=!~;]", requirement, maxsplit=1)[0].strip().lower()
