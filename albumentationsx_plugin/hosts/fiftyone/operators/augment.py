@@ -1,9 +1,4 @@
-"""Placeholder augmentation operator for the FiftyOne App.
-
-This operator establishes plugin discovery and registration. Real augmentation
-logic is intentionally deferred until the image IO, sample adapter, and pipeline
-tasks are implemented.
-"""
+"""Executable augmentation operator for the first fixed-transform MVP slice."""
 
 from __future__ import annotations
 
@@ -13,19 +8,18 @@ import fiftyone.operators as foo
 import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
+from albumentationsx_plugin.core import JSONDict
 from albumentationsx_plugin.core.form_schemas import build_augment_form_schema
+from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
 from albumentationsx_plugin.hosts.fiftyone.forms import render_form
 
 OPERATOR_NAME = "augment_with_albumentationsx"
 OPERATOR_LABEL = "Augment with AlbumentationsX"
-PLACEHOLDER_MESSAGE = (
-    "AlbumentationsX augmentation is not implemented yet. This operator is a "
-    "registration placeholder for the MVP workflow."
-)
+FIXED_SLICE_MESSAGE = "Temporary fixed-transform slice. Catalog-driven transform schemas will replace this form."
 
 
 class AugmentWithAlbumentationsX(foo.Operator):
-    """Empty FiftyOne operator registered by the plugin scaffold."""
+    """FiftyOne App operator that creates augmented image samples."""
 
     @property
     def config(self) -> foo.OperatorConfig:
@@ -45,8 +39,8 @@ class AugmentWithAlbumentationsX(foo.Operator):
         inputs = render_form(build_augment_form_schema())
         inputs.message(
             "status",
-            label="Operator registered",
-            description=PLACEHOLDER_MESSAGE,
+            label="Fixed MVP slice",
+            description=FIXED_SLICE_MESSAGE,
         )
         return types.Property(
             inputs,
@@ -56,16 +50,15 @@ class AugmentWithAlbumentationsX(foo.Operator):
     # pyrefly: ignore[bad-override]
     def resolve_output(self, ctx: Any):
         outputs = types.Object()
-        outputs.bool(
-            "ready",
-            label="Registered",
-            description="Whether the placeholder operator executed successfully.",
-        )
-        outputs.str(
-            "message",
-            label="Message",
-            description="Current implementation status.",
-        )
+        outputs.str("run_key", label="Run key")
+        outputs.int("processed_count", label="Processed")
+        outputs.int("created_count", label="Created")
+        outputs.int("skipped_count", label="Skipped")
+        outputs.int("error_count", label="Errors")
+        outputs.bool("dry_run", label="Dry run")
+        outputs.str("output_tag", label="Output tag")
+        outputs.str("output_dir", label="Output directory")
+        outputs.list("errors", types.Object(), label="Errors")
         return types.Property(outputs)
 
     # pyrefly: ignore[bad-override]
@@ -75,8 +68,13 @@ class AugmentWithAlbumentationsX(foo.Operator):
             types.Button(label=OPERATOR_LABEL),
         )
 
-    def execute(self, ctx: Any) -> dict[str, bool | str]:
-        return {
-            "ready": False,
-            "message": PLACEHOLDER_MESSAGE,
-        }
+    def execute(self, ctx: Any) -> JSONDict:
+        params = getattr(ctx, "params", {}) or {}
+        selected = getattr(ctx, "selected", ()) or ()
+        result = execute_fixed_augmentation(
+            dataset=ctx.dataset,
+            view=getattr(ctx, "view", None),
+            selected_sample_ids=tuple(str(sample_id) for sample_id in selected),
+            params=params,
+        )
+        return result.to_dict()
