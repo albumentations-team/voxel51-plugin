@@ -5,7 +5,7 @@
 This repository contains a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and previewing [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
 
 > [!IMPORTANT]
-> The project is in the early implementation phase. The operator renders catalog-driven transform forms and can create image-only outputs with a temporary fixed transform set backed by the shared pipeline factory; catalog-wide ordered execution and annotation transforms are still upcoming.
+> The project is in the early implementation phase. The plugin renders catalog-driven transform forms, can create image-only outputs with a temporary fixed transform set backed by the shared pipeline factory, and can inspect saved run manifests; catalog-wide ordered execution and annotation transforms are still upcoming.
 
 ## What the plugin will do
 
@@ -45,7 +45,8 @@ operator. The repository currently contains:
 - a catalog-driven AlbumentationsX image pipeline factory that validates
   transform parameters, constructs runtime transforms, and records JSON-safe
   replay data;
-- saved run manifests and FiftyOne custom run records for non-dry executions.
+- saved run manifests, FiftyOne custom run records, and a read-only run summary
+  operator for non-dry executions.
 
 The next implementation pull requests will replace the temporary execution
 allowlist with ordered catalog-driven pipeline editing and broaden annotation
@@ -76,6 +77,7 @@ Additional development documentation lives in [`docs/`](docs/README.md):
 - [Dynamic FiftyOne forms](docs/dynamic-fiftyone-forms.md) describes catalog-backed operator rendering;
 - [Pipeline factory](docs/pipeline-factory.md) describes catalog-driven transform construction and replay execution;
 - [Run manifest](docs/run-manifest.md) describes saved run metadata, replay records, and custom run registration;
+- [Run summary operator](docs/run-summary-operator.md) describes read-only run inspection in FiftyOne;
 - [PR checklist](docs/pr-checklist.md) lists required scope, safety, documentation, and verification checks;
 - [Verification](docs/verification.md) centralizes local gate commands, targeted tests, and manual checks.
 
@@ -105,6 +107,7 @@ The operator list should include:
 
 ```text
 @albumentations/albumentationsx/augment_with_albumentationsx
+@albumentations/albumentationsx/view_albumentationsx_run
 ```
 
 Execution currently supports a temporary fixed transform set:
@@ -136,6 +139,8 @@ choose one of the fixed transforms. New output samples are written under the
 plugin-owned storage directory and tagged with the run key; source samples and
 source files remain unchanged. Non-dry runs also save `manifest.json` under the
 run output directory and register the manifest in FiftyOne's custom run store.
+Then run `View AlbumentationsX Run` to inspect persisted counts, versions,
+transform config, replay availability, and stale/missing manifest state.
 
 Clean up the dataset and generated images with:
 

@@ -21,6 +21,8 @@ these files hold development workflow, review, and release notes.
   image-only execution, and replay extraction.
 - [Run manifest](run-manifest.md): saved run metadata, relative output paths,
   replay records, and FiftyOne custom run registration.
+- [Run summary operator](run-summary-operator.md): read-only FiftyOne run
+  inspection and stale manifest handling.
 - [PR checklist](pr-checklist.md): required checks before review and merge.
 - [Verification](verification.md): local gate, targeted tests, and manual checks.
 - [Design document](../DESIGN.md): implementation contract for the plugin.

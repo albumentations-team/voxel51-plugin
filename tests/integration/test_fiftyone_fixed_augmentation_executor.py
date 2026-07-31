@@ -108,6 +108,7 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
             Path(sample.filepath).relative_to(Path(result.output_dir)).as_posix() for sample in created
         }
         assert manifest.counters == {"processed": 2, "created": 2, "skipped": 0, "errors": 0, "outputs": 2}
+        assert manifest.metadata["output_tag"] == DEFAULT_OUTPUT_TAG
         assert set(manifest.dependency_versions) == {"albumentationsx", "albu-spec", "fiftyone"}
         assert len(manifest.replay_records) == 2
         first_replay = manifest.replay_records[0]

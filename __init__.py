@@ -23,6 +23,7 @@ def register(plugin: PluginRegistrar) -> None:
     grow with the implementation.
     """
 
-    from albumentationsx_plugin.hosts.fiftyone.operators import AugmentWithAlbumentationsX
+    from albumentationsx_plugin.hosts.fiftyone.operators import AugmentWithAlbumentationsX, ViewAlbumentationsXRun
 
     plugin.register(AugmentWithAlbumentationsX)
+    plugin.register(ViewAlbumentationsXRun)

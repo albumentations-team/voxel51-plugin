@@ -9,3 +9,4 @@ fiftyone:
   version: ">=1.19,<2"
 operators:
   - augment_with_albumentationsx
+  - view_albumentationsx_run
