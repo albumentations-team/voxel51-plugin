@@ -17,6 +17,8 @@ these files hold development workflow, review, and release notes.
   generation from albu-spec metadata.
 - [Dynamic FiftyOne forms](dynamic-fiftyone-forms.md): rendering catalog-backed
   transform schemas in the FiftyOne operator.
+- [Pipeline factory](pipeline-factory.md): catalog-driven transform construction,
+  image-only execution, and replay extraction.
 - [PR checklist](pr-checklist.md): required checks before review and merge.
 - [Verification](verification.md): local gate, targeted tests, and manual checks.
 - [Design document](../DESIGN.md): implementation contract for the plugin.

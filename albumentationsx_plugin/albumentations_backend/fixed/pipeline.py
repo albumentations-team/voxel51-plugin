@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TypeAlias, cast
+from typing import TypeAlias
 
-import albumentations as A
 import numpy as np
 import numpy.typing as npt
 
+from albumentationsx_plugin.albumentations_backend.pipeline import (
+    AlbumentationsImagePipelineRunner,
+    build_default_pipeline_factory,
+    validate_rgb_array,
+)
 from albumentationsx_plugin.core import (
     DEFAULT_BRIGHTNESS_RANGE,
     DEFAULT_CONTRAST_RANGE,
@@ -22,7 +26,7 @@ from albumentationsx_plugin.core import (
     TransformConfig,
     UnsupportedTransformError,
 )
-from albumentationsx_plugin.core.serialization import JSONDict, normalize_json_mapping
+from albumentationsx_plugin.core.serialization import JSONDict
 
 RGBArray: TypeAlias = npt.NDArray[np.uint8]
 _ImageShape: TypeAlias = tuple[int, int, int]
@@ -41,6 +45,7 @@ class FixedImagePipeline:
     """Validated executable image-only Albumentations pipeline."""
 
     config: PipelineConfig
+    runner: AlbumentationsImagePipelineRunner
 
     def __post_init__(self) -> None:
         validate_fixed_pipeline_config(self.config)
@@ -48,15 +53,10 @@ class FixedImagePipeline:
     def apply(self, image: object) -> FixedImagePipelineResult:
         """Apply the configured transform to one RGB image array."""
 
-        source_image = _validate_rgb_array(image, transform_name=self.config.transforms[0].name)
+        source_image = validate_rgb_array(image, transform_name=self.config.transforms[0].name)
         validate_fixed_pipeline_config(self.config, image_shape=source_image.shape)
-
-        transform = self.config.transforms[0]
-        compose = A.ReplayCompose([_build_transform(transform)], seed=self.config.seed)
-        output = compose(image=source_image)
-        output_image = _validate_rgb_array(output["image"], transform_name=transform.name)
-        replay = normalize_json_mapping(cast(Mapping[str, object], output.get("replay", {})))
-        return FixedImagePipelineResult(image=output_image, replay=replay)
+        result = self.runner.apply(source_image)
+        return FixedImagePipelineResult(image=result.image, replay=result.replay)
 
 
 def build_fixed_pipeline_config(params: Mapping[str, object]) -> PipelineConfig:
@@ -138,7 +138,8 @@ def create_fixed_image_pipeline(config: PipelineConfig) -> FixedImagePipeline:
     """Validate and create the fixed image pipeline."""
 
     validate_fixed_pipeline_config(config)
-    return FixedImagePipeline(config=config)
+    runner = build_default_pipeline_factory().create_runner(config)
+    return FixedImagePipeline(config=config, runner=runner)
 
 
 def validate_fixed_pipeline_config(config: PipelineConfig, *, image_shape: _ImageShape | None = None) -> None:
@@ -194,72 +195,6 @@ def validate_fixed_pipeline_config(config: PipelineConfig, *, image_shape: _Imag
                     _raise_crop_size_error(transform, "height", value=height, image_value=image_height)
                 if width > image_width:
                     _raise_crop_size_error(transform, "width", value=width, image_value=image_width)
-
-
-def _build_transform(transform: TransformConfig) -> A.BasicTransform:
-    match transform.name:
-        case "HorizontalFlip":
-            return A.HorizontalFlip(p=_validate_probability(transform))
-        case "RandomBrightnessContrast":
-            return A.RandomBrightnessContrast(
-                brightness_range=_range_config_param(
-                    transform,
-                    "brightness_range",
-                    default_lower=-0.2,
-                    default_upper=0.2,
-                ),
-                contrast_range=_range_config_param(
-                    transform,
-                    "contrast_range",
-                    default_lower=-0.2,
-                    default_upper=0.2,
-                ),
-                p=_validate_probability(transform),
-            )
-        case "RandomCrop":
-            return A.RandomCrop(
-                height=_positive_int_config_param(transform, "height"),
-                width=_positive_int_config_param(transform, "width"),
-                p=_validate_probability(transform),
-            )
-        case _:
-            raise UnsupportedTransformError(transform.name)
-
-
-def _validate_rgb_array(image: object, *, transform_name: str) -> RGBArray:
-    if not isinstance(image, np.ndarray):
-        raise InvalidParameterError(
-            transform_name=transform_name,
-            parameter_name="image",
-            message="Image data must be a NumPy array.",
-            context={"actual_type": type(image).__name__},
-        )
-    if image.dtype != np.uint8:
-        raise InvalidParameterError(
-            transform_name=transform_name,
-            parameter_name="image",
-            message="Image data must use uint8 dtype.",
-            context={"dtype": str(image.dtype), "shape": _shape_context(image)},
-        )
-    if image.ndim != 3 or image.shape[2] != 3:
-        raise InvalidParameterError(
-            transform_name=transform_name,
-            parameter_name="image",
-            message="Image data must have shape (height, width, 3).",
-            context={"shape": _shape_context(image)},
-        )
-    if image.shape[0] <= 0 or image.shape[1] <= 0:
-        raise InvalidParameterError(
-            transform_name=transform_name,
-            parameter_name="image",
-            message="Image data must have positive width and height.",
-            context={"shape": _shape_context(image)},
-        )
-    return cast(RGBArray, image)
-
-
-def _shape_context(image: np.ndarray) -> list[int]:
-    return [int(part) for part in image.shape]
 
 
 def _validate_probability(transform: TransformConfig) -> float:
