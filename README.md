@@ -43,6 +43,13 @@ The first implementation pull request will create the FiftyOne plugin structure 
 
 The [design document](DESIGN.md) is the implementation contract when this summary and the detailed requirements differ.
 
+## Project documentation
+
+Additional development documentation lives in [`docs/`](docs/README.md):
+
+- [Gitflow](docs/gitflow.md) describes the `feature/* -> dev -> main -> release/*` workflow;
+- [PR checklist](docs/pr-checklist.md) lists required scope, safety, documentation, and verification checks.
+
 ## Prepare a development checkout
 
 The runtime dependencies will be added with the first implementation pull request. Today, contributors need Python 3.11 or 3.12, [uv](https://docs.astral.sh/uv/getting-started/installation/), and Git. The upper bound matches [FiftyOne's current Python support](https://docs.voxel51.com/installation/index.html).
