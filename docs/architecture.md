@@ -31,7 +31,10 @@ Expected modules:
 - `albumentationsx_plugin/core/contracts/runs.py`
 - `albumentationsx_plugin/core/serialization/`
 - `albumentationsx_plugin/core/errors.py`
-- `albumentationsx_plugin/core/interfaces.py`
+- `albumentationsx_plugin/core/interfaces/catalog.py`
+- `albumentationsx_plugin/core/interfaces/pipeline.py`
+- `albumentationsx_plugin/core/interfaces/host.py`
+- `albumentationsx_plugin/core/interfaces/storage.py`
 
 `albumentations_backend`
 
@@ -41,7 +44,8 @@ creates validated AlbumentationsX pipelines, and extracts replay data.
 
 Expected modules:
 
-- `albumentationsx_plugin/albumentations_backend/interfaces.py`
+- `albumentationsx_plugin/albumentations_backend/interfaces.py` for backend
+  protocol exports
 - `albumentationsx_plugin/albumentations_backend/catalog.py`
 - `albumentationsx_plugin/albumentations_backend/form_schema.py`
 - `albumentationsx_plugin/albumentations_backend/pipeline.py`
@@ -56,6 +60,7 @@ exposes run summary/delete operators.
 
 Expected modules:
 
+- `albumentationsx_plugin/hosts/interfaces.py` for generic host protocol exports
 - `albumentationsx_plugin/hosts/fiftyone/operators/augment.py`
 - `albumentationsx_plugin/hosts/fiftyone/operators/view_run.py`
 - `albumentationsx_plugin/hosts/fiftyone/operators/delete_run.py`
@@ -142,6 +147,30 @@ Planned contracts:
 
 Structured errors should include a stable reason code, a user-facing message,
 and optional context such as transform name, parameter name, sample ID, or path.
+
+## Interface Contracts
+
+Protocols live under `albumentationsx_plugin/core/interfaces/` and use only core
+DTOs plus standard-library types. They are grouped by boundary:
+
+- `catalog.py`: `TransformCatalogProvider` and `ParameterSchemaProvider`;
+- `pipeline.py`: `PipelineFactory` and `PipelineRunner`;
+- `host.py`: `HostSampleAdapter`;
+- `storage.py`: `RunStore` and `OutputStorageBackend`.
+
+`albumentationsx_plugin/albumentations_backend/interfaces.py` re-exports the
+backend-facing protocols that concrete albu-spec and AlbumentationsX modules
+will implement. Host adapters may import this module when they need a backend
+service, but they should not import concrete backend modules directly.
+
+Concrete implementations should live in their owning packages:
+
+- albu-spec catalog and schema logic in `albumentations_backend`;
+- AlbumentationsX pipeline construction and replay extraction in
+  `albumentations_backend`;
+- FiftyOne sample/view conversion and output sample creation in
+  `hosts/fiftyone`;
+- manifest persistence, output writes, and cleanup in `storage`.
 
 ## Extension Points
 
