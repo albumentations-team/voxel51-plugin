@@ -23,15 +23,18 @@ Transform names, parameter types, default values, constraints, and descriptions 
 
 ## Current status
 
-The implementation has started with the plugin scaffold and an empty augmentation operator. The repository currently contains:
+The implementation has started with the plugin scaffold, a placeholder augmentation operator, and a minimal
+host-neutral form schema rendered into FiftyOne input fields. The repository currently contains:
 
 - the [design document](DESIGN.md), written in Russian for the project owner and coding agents;
 - the `AGPL-3.0-only` license text;
 - a `pyproject.toml` that defines the development tools and the test groups;
 - a `pre-commit` configuration that runs file checks, Ruff, and Pyrefly;
-- `fiftyone.yml`, a Python package skeleton, and a registered placeholder operator.
+- `fiftyone.yml`, a Python package skeleton, and a registered placeholder operator with minimal input fields.
 
-The next implementation pull requests will add the form renderer and image-only execution path. See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for the complete sequence and acceptance criteria.
+The next implementation pull requests will connect catalog-driven transform schemas and the image-only execution path.
+See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for the complete sequence and acceptance
+criteria.
 
 ## Implementation rules
 
