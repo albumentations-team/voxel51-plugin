@@ -102,19 +102,21 @@ def build_fixed_pipeline_config(params: Mapping[str, object]) -> PipelineConfig:
         case "RandomCrop":
             transform_params["height"] = _int_param(
                 params,
-                "crop_height",
+                "height",
                 default=DEFAULT_CROP_SIZE,
                 min_value=1,
                 max_value=None,
                 transform_name=transform_name,
+                aliases=("crop_height",),
             )
             transform_params["width"] = _int_param(
                 params,
-                "crop_width",
+                "width",
                 default=DEFAULT_CROP_SIZE,
                 min_value=1,
                 max_value=None,
                 transform_name=transform_name,
+                aliases=("crop_width",),
             )
         case _:
             raise UnsupportedTransformError(
@@ -364,6 +366,14 @@ def _range_param(
     default_upper: float,
     transform_name: str,
 ) -> list[float]:
+    direct_value = params.get(parameter_prefix)
+    if direct_value is not None:
+        return _direct_range_param(
+            direct_value,
+            parameter_prefix=parameter_prefix,
+            transform_name=transform_name,
+        )
+
     lower = _float_param(
         params,
         f"{parameter_prefix}_min",
@@ -390,6 +400,33 @@ def _range_param(
     return [lower, upper]
 
 
+def _direct_range_param(value: object, *, parameter_prefix: str, transform_name: str) -> list[float]:
+    if not isinstance(value, list | tuple) or len(value) != 2:
+        raise InvalidParameterError(
+            transform_name=transform_name,
+            parameter_name=parameter_prefix,
+            message=f"{parameter_prefix} must be a two-value numeric range.",
+            context={"value": value},
+        )
+    lower = _numeric_config_param(TransformConfig(name=transform_name), parameter_prefix, value[0])
+    upper = _numeric_config_param(TransformConfig(name=transform_name), parameter_prefix, value[1])
+    if lower < -1.0 or upper > 1.0:
+        raise InvalidParameterError(
+            transform_name=transform_name,
+            parameter_name=parameter_prefix,
+            message=f"{parameter_prefix} values must be between -1.0 and 1.0.",
+            context={"value": [lower, upper], "min_value": -1.0, "max_value": 1.0},
+        )
+    if lower > upper:
+        raise InvalidParameterError(
+            transform_name=transform_name,
+            parameter_name=parameter_prefix,
+            message=f"{parameter_prefix} lower bound must be less than or equal to the upper bound.",
+            context={"value": [lower, upper]},
+        )
+    return [lower, upper]
+
+
 def _str_param(params: Mapping[str, object], parameter_name: str, *, default: str) -> str:
     raw_value = params.get(parameter_name, default)
     if not isinstance(raw_value, str) or not raw_value.strip():
@@ -410,8 +447,9 @@ def _int_param(
     min_value: int,
     max_value: int | None,
     transform_name: str,
+    aliases: tuple[str, ...] = (),
 ) -> int:
-    raw_value = params.get(parameter_name, default)
+    raw_value = _param_value(params, parameter_name, default=default, aliases=aliases)
     if not isinstance(raw_value, int) or isinstance(raw_value, bool):
         raise InvalidParameterError(
             transform_name=transform_name,
@@ -434,6 +472,21 @@ def _int_param(
             context={"value": raw_value, "max_value": max_value},
         )
     return raw_value
+
+
+def _param_value(
+    params: Mapping[str, object],
+    parameter_name: str,
+    *,
+    default: object,
+    aliases: tuple[str, ...] = (),
+) -> object:
+    if parameter_name in params:
+        return params[parameter_name]
+    for alias in aliases:
+        if alias in params:
+            return params[alias]
+    return default
 
 
 def _float_param(

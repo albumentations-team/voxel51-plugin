@@ -28,8 +28,8 @@ The temporary allowlist is:
 
 These three transforms cover the first important execution cases: geometric
 image changes without resizing, pixel-level changes, and geometric crop output.
-The full MVP should replace this allowlist with albu-spec-backed catalog and
-form generation rather than growing the fixed list by hand.
+The full MVP should replace this allowlist with an albu-spec-backed dynamic
+pipeline rather than growing the fixed list by hand.
 
 ## Operator Parameters
 
@@ -37,16 +37,20 @@ form generation rather than growing the fixed list by hand.
 - `p`: transform probability, from `0.0` to `1.0`.
 - `outputs_per_sample`: number of augmented samples to create per source sample,
   from `1` to `3`.
-- `brightness_range_min` and `brightness_range_max`: mapped to
+- `brightness_range`: mapped to
   `RandomBrightnessContrast(brightness_range=(min, max))`.
-- `contrast_range_min` and `contrast_range_max`: mapped to
+- `contrast_range`: mapped to
   `RandomBrightnessContrast(contrast_range=(min, max))`.
-- `crop_width` and `crop_height`: mapped to `RandomCrop(width=..., height=...)`.
+- `width` and `height`: mapped to `RandomCrop(width=..., height=...)`.
 - `dry_run`: validates selection and parameters without writing output files or
   creating samples.
 
-The form is flat because dynamic catalog-driven parameter rendering is a later
-task.
+For compatibility with the original fixed form, the runner also accepts
+`brightness_range_min`, `brightness_range_max`, `contrast_range_min`,
+`contrast_range_max`, `crop_width`, and `crop_height`.
+
+VOX-13 renders these fields from albu-spec schemas. Execution remains limited to
+the three fixed transforms until the dynamic pipeline factory is implemented.
 
 ## Output Behavior
 

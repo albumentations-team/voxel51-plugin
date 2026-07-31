@@ -1,4 +1,4 @@
-"""Executable augmentation operator for the first fixed-transform MVP slice."""
+"""Executable augmentation operator for catalog-backed FiftyOne forms."""
 
 from __future__ import annotations
 
@@ -9,13 +9,11 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
-from albumentationsx_plugin.core.form_schemas import build_augment_form_schema
 from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
-from albumentationsx_plugin.hosts.fiftyone.forms import render_form
+from albumentationsx_plugin.hosts.fiftyone.forms import build_dynamic_augment_form
 
 OPERATOR_NAME = "augment_with_albumentationsx"
 OPERATOR_LABEL = "Augment with AlbumentationsX"
-FIXED_SLICE_MESSAGE = "Temporary fixed-transform slice. Catalog-driven transform schemas will replace this form."
 
 
 class AugmentWithAlbumentationsX(foo.Operator):
@@ -27,7 +25,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
             name=OPERATOR_NAME,
             label=OPERATOR_LABEL,
             description="Build and preview AlbumentationsX augmentation pipelines.",
-            dynamic=False,
+            dynamic=True,
             allow_immediate_execution=True,
             allow_delegated_execution=False,
             allow_distributed_execution=False,
@@ -36,12 +34,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_input(self, ctx: Any):
-        inputs = render_form(build_augment_form_schema())
-        inputs.message(
-            "status",
-            label="Fixed MVP slice",
-            description=FIXED_SLICE_MESSAGE,
-        )
+        inputs = build_dynamic_augment_form(ctx)
         return types.Property(
             inputs,
             view=types.View(label=OPERATOR_LABEL),
