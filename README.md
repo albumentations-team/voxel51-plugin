@@ -5,7 +5,7 @@
 This repository will contain a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and previewing [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
 
 > [!IMPORTANT]
-> The project is in the early implementation phase. The plugin metadata and Python package skeleton exist, but no user-facing operators are registered yet.
+> The project is in the early implementation phase. The plugin registers a placeholder augmentation operator, but it does not execute augmentations yet.
 
 ## What the plugin will do
 
@@ -23,15 +23,15 @@ Transform names, parameter types, default values, constraints, and descriptions 
 
 ## Current status
 
-The implementation has started with the plugin scaffold. The repository currently contains:
+The implementation has started with the plugin scaffold and an empty augmentation operator. The repository currently contains:
 
 - the [design document](DESIGN.md), written in Russian for the project owner and coding agents;
 - the `AGPL-3.0-only` license text;
 - a `pyproject.toml` that defines the development tools and the test groups;
 - a `pre-commit` configuration that runs file checks, Ruff, and Pyrefly;
-- `fiftyone.yml` and a Python package skeleton for the plugin.
+- `fiftyone.yml`, a Python package skeleton, and a registered placeholder operator.
 
-The next documentation pull request records the maintainable architecture before adding more code. The next code pull request will register the first empty operator. See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for the complete sequence and acceptance criteria.
+The next implementation pull requests will add the form renderer and image-only execution path. See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for the complete sequence and acceptance criteria.
 
 ## Implementation rules
 
@@ -75,7 +75,13 @@ export FIFTYONE_PLUGINS_DIR="$(dirname "$PWD")"
 uv run fiftyone operators list
 ```
 
-The scaffold has no operators yet, so operator registration starts with the next implementation pull request.
+The operator list should include:
+
+```text
+@albumentations/albumentationsx/augment_with_albumentationsx
+```
+
+The operator is currently a no-op placeholder. It verifies discovery and registration but does not create output samples yet.
 
 ## What the automated tests cover
 
