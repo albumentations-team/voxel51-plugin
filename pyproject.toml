@@ -1,0 +1,79 @@
+[project]
+name = "fiftyone-albumentationsx-plugin"
+version = "0.0.0"
+description = "FiftyOne plugin for building and previewing AlbumentationsX augmentation pipelines."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = "AGPL-3.0-only"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pre-commit>=4.6.0",
+  "pyrefly==1.2.0.dev2",
+  "pytest>=9.1.1",
+  "pytest-cov>=7.1.0",
+  "ruff==0.15.21",
+]
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+  "--strict-config",
+  "--strict-markers",
+  "--tb=short",
+  "--cov=albumentationsx_plugin",
+  "--cov-report=term-missing",
+  "--cov-report=xml",
+]
+markers = [
+  "unit: isolated tests of albu-spec conversion, coordinate adapters, path validation, serialization, and capability classification",
+  "integration: tests with real temporary image files and FiftyOne datasets, including operator execution, provenance, custom runs, and cleanup",
+  "geometry: synthetic-image tests that keep bounding boxes, masks, and keypoints aligned through deterministic geometric transforms",
+  "smoke: catalog-wide checks that every supported transform can be constructed and applied to its declared target types",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["albumentationsx_plugin"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+indent-width = 4
+
+[tool.ruff.format]
+indent-style = "space"
+line-ending = "auto"
+quote-style = "double"
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint]
+select = ["B", "E4", "E7", "E9", "F", "I", "UP"]
+
+[tool.pyrefly]
+python-version = "3.11"
+project-includes = [
+  "__init__.py",
+  "albumentationsx_plugin",
+  "scripts",
+  "tests",
+]
+project-excludes = [
+  "**/__pycache__",
+  ".venv",
+  "build",
+  "dist",
+]
