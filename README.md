@@ -5,7 +5,7 @@
 This repository contains a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and previewing [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
 
 > [!IMPORTANT]
-> The project is in the early implementation phase. The operator can create image-only outputs with a temporary fixed transform set; catalog-driven transform forms and annotation transforms are still upcoming.
+> The project is in the early implementation phase. The operator can create image-only outputs with a temporary fixed transform set; catalog-driven transform forms are being built behind the UI, and annotation transforms are still upcoming.
 
 ## What the plugin will do
 
@@ -37,7 +37,9 @@ operator. The repository currently contains:
   AlbumentationsX is installed as `albumentationsx` and imported at runtime as
   `albumentations`;
 - a version-aware albu-spec capability catalog that classifies supported and
-  excluded transforms before dynamic form generation.
+  excluded transforms before dynamic form generation;
+- host-neutral albu-spec parameter schemas for transforms exposed by the MVP
+  catalog.
 
 The next implementation pull requests will replace the temporary transform
 allowlist with catalog-driven transform schemas and broaden annotation support.
@@ -63,6 +65,7 @@ Additional development documentation lives in [`docs/`](docs/README.md):
 - [Architecture](docs/architecture.md) describes the layered code boundaries and extension points;
 - [Fixed transform slice](docs/fixed-transform-slice.md) describes the first executable image-only path;
 - [albu-spec catalog](docs/albu-spec-catalog.md) describes transform capability classification;
+- [Parameter schema](docs/parameter-schema.md) describes host-neutral parameter fields generated from albu-spec metadata;
 - [PR checklist](docs/pr-checklist.md) lists required scope, safety, documentation, and verification checks;
 - [Verification](docs/verification.md) centralizes local gate commands, targeted tests, and manual checks.
 
