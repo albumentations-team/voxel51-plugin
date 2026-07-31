@@ -27,4 +27,17 @@ def test_dataset_run_dir_sanitizes_dataset_and_run_components(tmp_path) -> None:
         storage_root=tmp_path,
     )
 
-    assert run_dir == tmp_path / "dataset-with-odd-chars" / "run-key"
+    assert run_dir.parent.parent == tmp_path
+    assert run_dir.parent.name.startswith("dataset-with-odd-chars-")
+    assert len(run_dir.parent.name.rsplit("-", maxsplit=1)[-1]) == 10
+    assert run_dir.name == "run-key"
+
+
+@pytest.mark.unit
+def test_dataset_run_dir_avoids_collisions_between_similar_dataset_names(tmp_path) -> None:
+    slash_name = build_dataset_run_dir("dataset/a", "run-key", storage_root=tmp_path)
+    space_name = build_dataset_run_dir("dataset a", "run-key", storage_root=tmp_path)
+
+    assert slash_name.parent.name.startswith("dataset-a-")
+    assert space_name.parent.name.startswith("dataset-a-")
+    assert slash_name.parent != space_name.parent

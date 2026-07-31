@@ -42,7 +42,7 @@ markers = [
   "unit: isolated tests of albu-spec conversion, coordinate adapters, path validation, serialization, and capability classification",
   "integration: tests with real temporary image files and FiftyOne datasets, including operator execution, provenance, custom runs, and cleanup",
   "geometry: synthetic-image tests that keep bounding boxes, masks, and keypoints aligned through deterministic geometric transforms",
-  "smoke: catalog-wide checks that every supported transform can be constructed and applied to its declared target types",
+  "smoke: local discovery and end-to-end MVP workflow checks that prove the plugin can be found and exercised",
 ]
 
 [tool.coverage.run]

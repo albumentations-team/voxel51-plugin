@@ -22,6 +22,7 @@ from albumentationsx_plugin.core import (
     AugmentationResult,
     InvalidParameterError,
     JSONDict,
+    MediaIOError,
     PipelineConfig,
     PluginError,
     RunManifest,
@@ -29,7 +30,7 @@ from albumentationsx_plugin.core import (
 from albumentationsx_plugin.hosts.fiftyone.runs import build_fiftyone_run_key, register_fiftyone_run
 from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, FiftyOneSampleAdapter
 from albumentationsx_plugin.storage.images import build_output_image_relative_path, load_rgb_image, write_rgb_image
-from albumentationsx_plugin.storage.manifest import FileRunStore
+from albumentationsx_plugin.storage.manifest import FileRunStore, resolve_manifest_output_path
 from albumentationsx_plugin.storage.paths import build_run_key
 
 
@@ -128,6 +129,7 @@ def execute_fixed_augmentation(
     for source in source_inputs:
         created_before_sample = len(created_sample_ids)
         for output_index in range(config.outputs_per_sample):
+            checkpoint_current_state = True
             try:
                 output = _prepare_one_output(
                     source=source,
@@ -135,38 +137,67 @@ def execute_fixed_augmentation(
                     run_dir=run_dir,
                     output_index=output_index,
                 )
+            except PluginError as error:
+                errors.append(_sample_error(source, output_index, error.to_dict()))
+            else:
                 output_paths.append(output.relative_path)
                 replay_records.append(output.replay_record)
-                manifest = _manifest(
+                manifest = _checkpoint_prepared_output(
+                    run_store=run_store,
                     run_key=run_key,
                     config=config,
                     source_sample_ids=source_sample_ids,
-                    created_sample_ids=tuple(created_sample_ids),
-                    output_paths=tuple(output_paths),
-                    replay_records=tuple(replay_records),
+                    created_sample_ids=created_sample_ids,
+                    output_paths=output_paths,
+                    replay_records=replay_records,
                     processed_count=len(source_inputs),
                     skipped_count=skipped_count,
-                    errors=tuple(errors),
+                    errors=errors,
+                    output_dir=run_dir,
+                    output_tag=output_tag,
+                    output=output,
+                )
+                try:
+                    created_sample_id = adapter.create_output_sample(output.result, manifest)
+                except PluginError as error:
+                    errors.append(_sample_error(source, output_index, error.to_dict()))
+                else:
+                    created_sample_ids.append(created_sample_id)
+                    try:
+                        _save_current_manifest(
+                            run_store=run_store,
+                            run_key=run_key,
+                            config=config,
+                            source_sample_ids=source_sample_ids,
+                            created_sample_ids=created_sample_ids,
+                            output_paths=output_paths,
+                            replay_records=replay_records,
+                            processed_count=len(source_inputs),
+                            skipped_count=skipped_count,
+                            errors=errors,
+                            output_dir=run_dir,
+                            output_tag=output_tag,
+                        )
+                    except PluginError:
+                        _delete_created_sample(dataset, created_sample_id)
+                        created_sample_ids.pop()
+                        raise
+                    checkpoint_current_state = False
+            if checkpoint_current_state:
+                _save_current_manifest(
+                    run_store=run_store,
+                    run_key=run_key,
+                    config=config,
+                    source_sample_ids=source_sample_ids,
+                    created_sample_ids=created_sample_ids,
+                    output_paths=output_paths,
+                    replay_records=replay_records,
+                    processed_count=len(source_inputs),
+                    skipped_count=skipped_count,
+                    errors=errors,
                     output_dir=run_dir,
                     output_tag=output_tag,
                 )
-                created_sample_ids.append(adapter.create_output_sample(output.result, manifest))
-            except PluginError as error:
-                errors.append(_sample_error(source, output_index, error.to_dict()))
-            _save_current_manifest(
-                run_store=run_store,
-                run_key=run_key,
-                config=config,
-                source_sample_ids=source_sample_ids,
-                created_sample_ids=created_sample_ids,
-                output_paths=output_paths,
-                replay_records=replay_records,
-                processed_count=len(source_inputs),
-                skipped_count=skipped_count,
-                errors=errors,
-                output_dir=run_dir,
-                output_tag=output_tag,
-            )
         if len(created_sample_ids) == created_before_sample:
             skipped_count += 1
             _save_current_manifest(
@@ -246,6 +277,58 @@ def _save_current_manifest(
     )
     run_store.save_manifest(manifest)
     return manifest
+
+
+def _checkpoint_prepared_output(
+    *,
+    run_store: FileRunStore,
+    run_key: str,
+    config: PipelineConfig,
+    source_sample_ids: tuple[str, ...],
+    created_sample_ids: list[str],
+    output_paths: list[str],
+    replay_records: list[JSONDict],
+    processed_count: int,
+    skipped_count: int,
+    errors: list[JSONDict],
+    output_dir: Path,
+    output_tag: str,
+    output: _PreparedOutput,
+) -> RunManifest:
+    try:
+        return _save_current_manifest(
+            run_store=run_store,
+            run_key=run_key,
+            config=config,
+            source_sample_ids=source_sample_ids,
+            created_sample_ids=created_sample_ids,
+            output_paths=output_paths,
+            replay_records=replay_records,
+            processed_count=processed_count,
+            skipped_count=skipped_count,
+            errors=errors,
+            output_dir=output_dir,
+            output_tag=output_tag,
+        )
+    except PluginError:
+        output_paths.pop()
+        replay_records.pop()
+        _delete_pre_manifest_output_file(output_dir, output.relative_path)
+        raise
+
+
+def _delete_pre_manifest_output_file(run_dir: Path, relative_path: str) -> None:
+    try:
+        resolve_manifest_output_path(run_dir, relative_path).unlink(missing_ok=True)
+    except (MediaIOError, OSError):
+        return
+
+
+def _delete_created_sample(dataset: fo.Dataset, sample_id: str) -> None:
+    try:
+        dataset.delete_samples((sample_id,))
+    except Exception:
+        return
 
 
 @dataclass(frozen=True, slots=True)

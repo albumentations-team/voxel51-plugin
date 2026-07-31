@@ -34,9 +34,10 @@ remain editable without inventing transform-specific UI code.
 ## Execution Scope
 
 VOX-14 adds a catalog-driven backend pipeline factory. The execution path now
-uses that shared factory internally, but the FiftyOne operator still limits
-execution to the temporary fixed transform set until ordered pipeline editing is
-implemented.
+uses that shared factory internally. Until ordered pipeline editing is
+implemented, the FiftyOne operator selector exposes only the temporary fixed
+transform set that the MVP runner can execute. Catalog-wide support remains
+visible through the capability report, not as executable App choices.
 
 The fixed runner remains executable for:
 

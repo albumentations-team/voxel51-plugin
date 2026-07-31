@@ -43,9 +43,10 @@ def test_file_run_store_round_trips_manifest_with_atomic_replace(tmp_path) -> No
 
     assert loaded == manifest
     assert store.list_run_keys() == (manifest.run_key,)
-    assert store.manifest_path(manifest.run_key) == (
-        tmp_path / "dataset-with-odd-chars" / manifest.run_key / MANIFEST_FILENAME
-    )
+    assert store.manifest_path(manifest.run_key) == store.run_dir(manifest.run_key) / MANIFEST_FILENAME
+    assert store.manifest_path(manifest.run_key).parent.parent.parent == tmp_path
+    assert store.manifest_path(manifest.run_key).parent.name == manifest.run_key
+    assert store.manifest_path(manifest.run_key).parent.parent.name.startswith("dataset-with-odd-chars-")
 
     updated = RunManifest.from_dict(
         {

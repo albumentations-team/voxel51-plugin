@@ -8,7 +8,7 @@ import fiftyone as fo
 import numpy as np
 import pytest
 
-from albumentationsx_plugin.core import InvalidParameterError
+from albumentationsx_plugin.core import InvalidParameterError, MediaIOError, RunManifest
 from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
 from albumentationsx_plugin.hosts.fiftyone.samples import (
     DEFAULT_OUTPUT_TAG,
@@ -226,6 +226,49 @@ def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_pat
         assert manifest_error_context["sample_id"] == small_id
         assert manifest_error_context["output_index"] == 0
         assert result.fiftyone_run_key in dataset.list_runs()
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_rolls_back_sample_when_manifest_checkpoint_fails(tmp_path, monkeypatch) -> None:
+    dataset_name = _dataset_name()
+    original_save_manifest = FileRunStore.save_manifest
+    save_calls = 0
+
+    def failing_save_manifest(self: FileRunStore, manifest: RunManifest) -> None:
+        nonlocal save_calls
+        save_calls += 1
+        if save_calls == 3:
+            raise MediaIOError(
+                filepath=str(self.manifest_path(manifest.run_key)),
+                message="Simulated manifest checkpoint failure.",
+                context={"reason": "manifest_write_failed"},
+            )
+        original_save_manifest(self, manifest)
+
+    monkeypatch.setattr(FileRunStore, "save_manifest", failing_save_manifest)
+
+    try:
+        dataset = fo.Dataset(dataset_name)
+        sample_id = dataset.add_sample(_sample(_write_source_image(tmp_path, "source")))
+
+        with pytest.raises(MediaIOError):
+            execute_fixed_augmentation(
+                dataset=dataset,
+                selected_sample_ids=(sample_id,),
+                params={
+                    "transform": "HorizontalFlip",
+                    "p": 1.0,
+                    "outputs_per_sample": 1,
+                    "dry_run": False,
+                },
+                storage_root=tmp_path / "plugin-storage",
+            )
+
+        assert len(dataset) == 1
+        assert _output_samples(dataset) == []
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)
