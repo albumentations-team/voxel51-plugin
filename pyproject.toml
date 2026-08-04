@@ -5,7 +5,13 @@ description = "FiftyOne plugin for building and previewing AlbumentationsX augme
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = "AGPL-3.0-only"
-dependencies = []
+dependencies = [
+  "albu-spec>=0.0.6,<1",
+  "albumentationsx>=2.3,<3",
+  "fiftyone>=1.19,<2",
+  "numpy>=2.4,<3",
+  "Pillow>=10,<13",
+]
 
 [dependency-groups]
 dev = [
@@ -13,12 +19,14 @@ dev = [
   "pyrefly==1.2.0.dev2",
   "pytest>=9.1.1",
   "pytest-cov>=7.1.0",
+  "pyyaml>=6.0",
   "ruff==0.15.21",
 ]
 
 [tool.pytest.ini_options]
 minversion = "9.0"
 testpaths = ["tests"]
+pythonpath = ["."]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -34,7 +42,7 @@ markers = [
   "unit: isolated tests of albu-spec conversion, coordinate adapters, path validation, serialization, and capability classification",
   "integration: tests with real temporary image files and FiftyOne datasets, including operator execution, provenance, custom runs, and cleanup",
   "geometry: synthetic-image tests that keep bounding boxes, masks, and keypoints aligned through deterministic geometric transforms",
-  "smoke: catalog-wide checks that every supported transform can be constructed and applied to its declared target types",
+  "smoke: local discovery and end-to-end MVP workflow checks that prove the plugin can be found and exercised",
 ]
 
 [tool.coverage.run]
@@ -65,6 +73,7 @@ select = ["B", "E4", "E7", "E9", "F", "I", "UP"]
 
 [tool.pyrefly]
 python-version = "3.11"
+search-path = ["."]
 project-includes = [
   "__init__.py",
   "albumentationsx_plugin",

@@ -9,6 +9,7 @@ Run the complete gate before opening a pull request that includes Python code or
 changes user-visible behavior:
 
 ```bash
+uv sync --group dev
 uv run pre-commit run --all-files
 uv run pytest
 uv run pyrefly check
@@ -28,6 +29,10 @@ uv run pytest -m integration
 uv run pytest -m geometry
 uv run pytest -m smoke
 ```
+
+The smoke group covers local FiftyOne plugin discovery and the headless MVP demo
+path: create demo data, augment one sample, inspect the run summary, clean up the
+run, and verify source samples/files remain.
 
 ## Manual App checks
 
