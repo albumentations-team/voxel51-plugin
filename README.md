@@ -13,6 +13,7 @@ The MVP lets a FiftyOne user:
 
 - choose AlbumentationsX transforms and configure their parameters in the FiftyOne App;
 - build an ordered augmentation pipeline with up to three stages;
+- optionally prefill the form from a previous run in the current dataset;
 - apply the pipeline to selected samples in the active dataset or filtered view;
 - create new samples without changing the source images or annotations;
 - keep supported bounding boxes, in-memory segmentation masks, keypoints, and classifications aligned with transformed images;
@@ -61,6 +62,8 @@ The release candidate contains:
   catalog;
 - a dynamic FiftyOne operator form that renders catalog-backed transform
   parameters in general settings and per-stage sections;
+- optional previous-run presets that load a saved run's pipeline config into
+  the augmentation form for reuse with new selected samples;
 - per-stage target compatibility guidance derived from transform capabilities
   and active dataset label fields;
 - a catalog-driven AlbumentationsX image pipeline factory that validates
@@ -86,6 +89,8 @@ The release candidate contains:
 - Dynamic forms hide advanced optional JSON fallback parameters for `supported_with_defaults` transforms and use documented defaults until richer controls are implemented.
 - `HorizontalFlip`, `RandomBrightnessContrast`, and `RandomCrop` are default
   stage presets, not the complete executable transform set.
+- Previous-run presets reuse saved pipeline configuration with fresh randomness;
+  they do not replay per-sample random parameters from earlier outputs.
 - Toolbar actions are context-aware: augmentation requires selected samples,
   while run summary and cleanup actions require existing persisted runs.
 - Successful non-dry augmentation runs trigger a FiftyOne App dataset reload
@@ -188,11 +193,14 @@ uses stable `demo_id` values for repeatable checks; FiftyOne internal sample IDs
 are database-generated.
 
 In the App, select one or more samples, run `Augment with AlbumentationsX`, set
-`Pipeline steps`, optionally set `Run label` and `Outputs per sample`, and
-choose a catalog-backed transform for each ordered step. `Dry run` validates the
-configuration without writing files or creating samples. New output samples are
-written under the plugin-owned storage directory and tagged with the run key;
-source samples and source files remain unchanged. Non-dry runs also save
+`Pipeline steps`, optionally choose `Previous run` to prefill the form from a
+saved run in this dataset, optionally set `Run label` and `Outputs per sample`,
+and choose a catalog-backed transform for each ordered step. `Dry run` validates
+the configuration without writing files or creating samples. Previous-run
+settings are used as a reusable pipeline template with fresh randomness, not as
+an exact replay of earlier sampled parameters. New output samples are written
+under the plugin-owned storage directory and tagged with the run key; source
+samples and source files remain unchanged. Non-dry runs also save
 `manifest.json` under the run output directory and register the manifest in
 FiftyOne's custom run store.
 Then run `View AlbumentationsX Run` to inspect persisted counts, versions,

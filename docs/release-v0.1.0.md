@@ -13,6 +13,7 @@ This page is the release note and checklist for the first public MVP release of
 - renders catalog-backed AlbumentationsX transform forms from albu-spec
   metadata;
 - lets users configure up to three ordered augmentation stages;
+- can prefill augmentation settings from a previous run in the current dataset;
 - applies the pipeline to selected samples in the active dataset or filtered
   view;
 - creates new output samples without mutating source samples or source files;
@@ -33,6 +34,8 @@ This page is the release note and checklist for the first public MVP release of
   transform set.
 - Advanced optional JSON fallback parameters are hidden for
   `supported_with_defaults` transforms.
+- Previous-run presets reuse saved pipeline configuration with fresh randomness;
+  they do not replay per-sample random parameters from earlier outputs.
 - Unsupported FiftyOne label classes, external mask-path variants, 3D/media
   transforms, external-data transforms, and transforms with unsafe outputs are
   excluded from normal App choices.
@@ -78,13 +81,15 @@ Validate from the final release branch before tagging:
 5. Select one or more samples.
 6. Run `Augment with AlbumentationsX` with a non-dry pipeline of at least two
    stages.
-7. Confirm generated samples appear after the automatic App reload.
-8. Confirm transformed supported annotations remain aligned with the generated
+7. Run `Augment with AlbumentationsX` again, select the previous run key, and
+   confirm the form is prefilled from the saved pipeline config.
+8. Confirm generated samples appear after the automatic App reload.
+9. Confirm transformed supported annotations remain aligned with the generated
    images.
-9. Run `View AlbumentationsX Run` and confirm counts, versions, transform
+10. Run `View AlbumentationsX Run` and confirm counts, versions, transform
    config, and replay availability are visible.
-10. Run `Delete AlbumentationsX Run` with confirmation checked.
-11. Confirm generated samples and output files are gone, source samples and
+11. Run `Delete AlbumentationsX Run` with confirmation checked.
+12. Confirm generated samples and output files are gone, source samples and
    source files remain, and the cleaned run is not suggested for cleanup again.
 
 ## Git Tag Checklist
