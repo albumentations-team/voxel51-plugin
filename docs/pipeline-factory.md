@@ -3,8 +3,8 @@
 VOX-14 adds the first catalog-driven AlbumentationsX execution factory. It
 replaces handwritten transform construction in the fixed vertical slice with a
 shared backend package that resolves transform classes from albu-spec metadata,
-coerces parameters from neutral schemas, executes image-only `ReplayCompose`, and
-returns JSON-safe replay data.
+coerces parameters from neutral schemas, executes `ReplayCompose`, and returns
+JSON-safe replay data.
 
 ## Runtime Boundary
 
@@ -20,10 +20,13 @@ This package may import `albumentations`, `albu-spec`, NumPy, and core DTOs. It
 must not import FiftyOne. Host code should consume it through backend interfaces
 or injected services instead of duplicating AlbumentationsX construction logic.
 
-The current runner is intentionally image-only and exposes `apply(image)`. The
-host-level `PipelineRunner.run(AugmentationInput)` contract still belongs above
-image IO and storage orchestration, because a host adapter decides how to load
-media, write outputs, and create host records.
+The runner exposes `apply(image, targets=None)`. Without targets it behaves as a
+plain image pipeline. When host adapters provide Albumentations-compatible
+`bboxes`, `keypoints`, or `masks`, it configures the matching target params,
+forwards the targets into `ReplayCompose`, and returns transformed target data
+beside the output image and replay. Host-level `PipelineRunner.run(AugmentationInput)`
+still belongs above image IO and storage orchestration, because a host adapter
+decides how to load media, write outputs, and create host records.
 
 ## Safety Rules
 
@@ -51,12 +54,14 @@ from:
 - `RandomCrop`
 
 Internally, those transforms are created by the shared catalog-driven factory.
-The factory can construct other image-only MVP transforms when given a
+The factory can construct other MVP image transforms when given a
 `PipelineConfig`, but the operator execution UI has not yet been broadened from
 the fixed slice to catalog-wide pipelines.
 
-Annotation targets remain outside VOX-14. Bounding boxes, masks, and keypoints
-should be added through separate adapter modules with geometry tests.
+VOX-26 adds the first host-side annotation adapter. The backend runner remains
+host-neutral: FiftyOne label serialization and reconstruction live in
+`hosts/fiftyone/annotations/`, while this package only receives and returns
+Albumentations target arrays.
 
 ## Verification
 

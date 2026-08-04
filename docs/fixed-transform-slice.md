@@ -73,8 +73,8 @@ three fixed transforms.
 
 ## Output Behavior
 
-Source samples and source image files are left unchanged. A successful execution
-creates new image files under:
+Source samples, source image files, and source annotations are left unchanged.
+A successful execution creates new image files under:
 
 ```text
 ~/.fiftyone/albumentationsx-plugin/<dataset-name>/<run-key>/images/
@@ -84,10 +84,18 @@ Each created FiftyOne sample is tagged with `albumentationsx-output` and
 `albumentationsx-run:<run-key>`. It also stores provenance fields for the source
 sample ID, run key, output tag, and transform summary.
 
+VOX-26 copies supported classification labels and transforms supported
+`Detections`, `Keypoints`, and in-memory `Segmentation` masks through
+Albumentations target APIs for the fixed execution path. Unsupported label
+fields are excluded from output samples and recorded in run annotation metadata
+with a reason.
+
 VOX-15 saves each non-dry execution under the run directory as `manifest.json`
 and registers a FiftyOne custom run. The manifest records versions, source IDs,
-created sample IDs, relative output paths, replay records, counters, and
-structured errors. Dry runs still avoid writing output files or run metadata.
+created sample IDs, relative output paths, replay records, counters, structured
+errors, run annotation fields, and per-output dropped target counts when
+Albumentations removes boxes, points, or masks. Dry runs still avoid writing
+output files or run metadata.
 
 Static parameter errors fail before writing output files when possible. Runtime
 per-sample errors, such as a `RandomCrop` larger than one selected image, are

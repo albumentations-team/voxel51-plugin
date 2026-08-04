@@ -44,6 +44,38 @@ def _sample(filepath: Path, *, width: int = 5, height: int = 4, tag: str = "sour
     )
 
 
+def _annotated_sample(filepath: Path) -> fo.Sample:
+    mask = np.zeros((8, 10), dtype=np.uint8)
+    mask[:, :3] = 1
+    return fo.Sample(
+        filepath=str(filepath),
+        tags=["source"],
+        metadata=fo.ImageMetadata(width=10, height=8, mime_type="image/png"),
+        ground_truth=fo.Classification(label="cat", confidence=0.95),
+        detections=fo.Detections(
+            detections=[
+                fo.Detection(
+                    label="object",
+                    bounding_box=[0.1, 0.25, 0.2, 0.5],
+                    confidence=0.8,
+                    attributes={"source": fo.CategoricalAttribute(value="manual")},
+                )
+            ]
+        ),
+        keypoints=fo.Keypoints(
+            keypoints=[
+                fo.Keypoint(
+                    label="nose",
+                    points=[[0.2, 0.375]],
+                    confidence=[0.9],
+                    attributes={"side": fo.CategoricalAttribute(value="left")},
+                )
+            ]
+        ),
+        segmentation=fo.Segmentation(mask=mask),
+    )
+
+
 def _output_samples(dataset: fo.Dataset) -> list[Any]:
     return list(dataset.match_tags(DEFAULT_OUTPUT_TAG))
 
@@ -165,6 +197,63 @@ def test_fixed_augmentation_executor_persists_ordered_transform_chain(tmp_path) 
         transforms = replay["transforms"]
         assert isinstance(transforms, list)
         assert [transform["__class_fullname__"] for transform in transforms] == ["HorizontalFlip", "HorizontalFlip"]
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_transforms_supported_annotations(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, "annotated", width=10, height=8)
+        sample_id = dataset.add_sample(_annotated_sample(source_path))
+        source = _load_sample(dataset, sample_id)
+        source_mask = np.asarray(source.segmentation.mask)
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        assert result.error_count == 0
+        created = _output_samples(dataset)
+        assert len(created) == 1
+        output = created[0]
+
+        assert output.ground_truth.label == "cat"
+        assert output.ground_truth.confidence == pytest.approx(0.95)
+
+        assert len(output.detections.detections) == 1
+        detection = output.detections.detections[0]
+        assert detection.label == "object"
+        assert detection.confidence == pytest.approx(0.8)
+        assert detection.attributes["source"].value == "manual"
+        assert detection.bounding_box == pytest.approx([0.7, 0.25, 0.2, 0.5])
+
+        assert len(output.keypoints.keypoints) == 1
+        keypoint = output.keypoints.keypoints[0]
+        assert keypoint.label == "nose"
+        assert keypoint.attributes["side"].value == "left"
+        assert keypoint.points[0] == pytest.approx([0.7, 0.375])
+        assert keypoint.confidence == pytest.approx([0.9])
+
+        np.testing.assert_array_equal(np.asarray(output.segmentation.mask), source_mask[:, ::-1])
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        annotations = manifest.metadata["annotations"]
+        assert isinstance(annotations, dict)
+        assert annotations["fields"] == ["detections", "ground_truth", "keypoints", "segmentation"]
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)

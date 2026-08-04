@@ -27,6 +27,13 @@ from albumentationsx_plugin.core import (
     PluginError,
     RunManifest,
 )
+from albumentationsx_plugin.core.serialization import normalize_json_mapping
+from albumentationsx_plugin.hosts.fiftyone.annotations import (
+    ANNOTATION_EXCLUDED_FIELDS_KEY,
+    ANNOTATION_PAYLOAD_KEY,
+    target_data_from_annotation_payload,
+    transformed_annotation_payload,
+)
 from albumentationsx_plugin.hosts.fiftyone.runs import build_fiftyone_run_key, register_fiftyone_run
 from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, FiftyOneSampleAdapter
 from albumentationsx_plugin.storage.images import build_output_image_relative_path, load_rgb_image, write_rgb_image
@@ -92,6 +99,7 @@ def execute_fixed_augmentation(
         output_tag=output_tag,
     )
     source_inputs = tuple(adapter.iter_inputs())
+    annotation_metadata = _annotation_run_metadata(source_inputs)
     if dry_run:
         return FixedAugmentationExecutionResult(
             run_key=run_key,
@@ -124,6 +132,7 @@ def execute_fixed_augmentation(
         errors=errors,
         output_dir=run_dir,
         output_tag=output_tag,
+        annotation_metadata=annotation_metadata,
     )
 
     for source in source_inputs:
@@ -156,6 +165,7 @@ def execute_fixed_augmentation(
                     output_dir=run_dir,
                     output_tag=output_tag,
                     output=output,
+                    annotation_metadata=annotation_metadata,
                 )
                 try:
                     created_sample_id = adapter.create_output_sample(output.result, manifest)
@@ -177,6 +187,7 @@ def execute_fixed_augmentation(
                             errors=errors,
                             output_dir=run_dir,
                             output_tag=output_tag,
+                            annotation_metadata=annotation_metadata,
                         )
                     except PluginError:
                         _delete_created_sample(dataset, created_sample_id)
@@ -197,6 +208,7 @@ def execute_fixed_augmentation(
                     errors=errors,
                     output_dir=run_dir,
                     output_tag=output_tag,
+                    annotation_metadata=annotation_metadata,
                 )
         if len(created_sample_ids) == created_before_sample:
             skipped_count += 1
@@ -213,6 +225,7 @@ def execute_fixed_augmentation(
                 errors=errors,
                 output_dir=run_dir,
                 output_tag=output_tag,
+                annotation_metadata=annotation_metadata,
             )
 
     final_manifest = _save_current_manifest(
@@ -228,6 +241,7 @@ def execute_fixed_augmentation(
         errors=errors,
         output_dir=run_dir,
         output_tag=output_tag,
+        annotation_metadata=annotation_metadata,
     )
     manifest_path = run_store.manifest_path(run_key)
     fiftyone_run_key = register_fiftyone_run(dataset, final_manifest, manifest_path=manifest_path)
@@ -261,6 +275,7 @@ def _save_current_manifest(
     errors: list[JSONDict],
     output_dir: Path,
     output_tag: str,
+    annotation_metadata: Mapping[str, object] | None = None,
 ) -> RunManifest:
     manifest = _manifest(
         run_key=run_key,
@@ -274,6 +289,7 @@ def _save_current_manifest(
         errors=tuple(errors),
         output_dir=output_dir,
         output_tag=output_tag,
+        annotation_metadata=annotation_metadata,
     )
     run_store.save_manifest(manifest)
     return manifest
@@ -294,6 +310,7 @@ def _checkpoint_prepared_output(
     output_dir: Path,
     output_tag: str,
     output: _PreparedOutput,
+    annotation_metadata: Mapping[str, object] | None = None,
 ) -> RunManifest:
     try:
         return _save_current_manifest(
@@ -309,6 +326,7 @@ def _checkpoint_prepared_output(
             errors=errors,
             output_dir=output_dir,
             output_tag=output_tag,
+            annotation_metadata=annotation_metadata,
         )
     except PluginError:
         output_paths.pop()
@@ -346,7 +364,15 @@ def _prepare_one_output(
     output_index: int,
 ) -> _PreparedOutput:
     loaded = load_rgb_image(source.filepath)
-    pipeline_result = pipeline.apply(loaded.data)
+    source_annotation_payload = _source_annotation_payload(source)
+    annotation_targets = target_data_from_annotation_payload(source_annotation_payload, loaded.data.shape)
+    pipeline_result = pipeline.apply(loaded.data, targets=annotation_targets.values)
+    transformed_labels = transformed_annotation_payload(
+        source_annotation_payload,
+        annotation_targets,
+        pipeline_result.targets,
+        pipeline_result.image.shape,
+    )
     relative_path = build_output_image_relative_path(
         source.filepath,
         sample_id=source.sample_id,
@@ -359,8 +385,13 @@ def _prepare_one_output(
         result=AugmentationResult(
             source_sample_id=source.sample_id,
             output_filepath=str(written_path),
+            labels=transformed_labels,
             replay=replay,
-            metadata={"output_index": output_index, "output_relative_path": relative_path_text},
+            metadata={
+                "output_index": output_index,
+                "output_relative_path": relative_path_text,
+                "annotations": _annotation_result_metadata(transformed_labels),
+            },
         ),
         relative_path=relative_path_text,
         replay_record=_replay_record(
@@ -368,6 +399,7 @@ def _prepare_one_output(
             output_index=output_index,
             relative_path=relative_path_text,
             replay=replay,
+            annotation_metadata=_annotation_result_metadata(transformed_labels),
         ),
     )
 
@@ -385,6 +417,7 @@ def _manifest(
     errors: tuple[JSONDict, ...],
     output_dir: Path,
     output_tag: str,
+    annotation_metadata: Mapping[str, object] | None = None,
 ) -> RunManifest:
     counters = {
         "processed": processed_count,
@@ -393,6 +426,15 @@ def _manifest(
         "errors": len(errors),
         "outputs": len(output_paths),
     }
+    metadata: JSONDict = {
+        "output_dir": str(output_dir),
+        "output_tag": output_tag,
+        "manifest_filename": "manifest.json",
+        "fiftyone_run_key": build_fiftyone_run_key(run_key),
+    }
+    if annotation_metadata is not None:
+        metadata["annotations"] = normalize_json_mapping(annotation_metadata)
+
     return RunManifest(
         run_key=run_key,
         plugin_version=albumentationsx_plugin.__version__,
@@ -408,12 +450,7 @@ def _manifest(
         replay_records=replay_records,
         counters=counters,
         errors=errors,
-        metadata={
-            "output_dir": str(output_dir),
-            "output_tag": output_tag,
-            "manifest_filename": "manifest.json",
-            "fiftyone_run_key": build_fiftyone_run_key(run_key),
-        },
+        metadata=metadata,
     )
 
 
@@ -444,10 +481,52 @@ def _sample_error(source: AugmentationInput, output_index: int, error: JSONDict)
     return error
 
 
-def _replay_record(*, source: AugmentationInput, output_index: int, relative_path: str, replay: JSONDict) -> JSONDict:
-    return {
+def _source_annotation_payload(source: AugmentationInput) -> Mapping[str, object]:
+    value = source.metadata.get(ANNOTATION_PAYLOAD_KEY)
+    return value if isinstance(value, Mapping) else {}
+
+
+def _annotation_run_metadata(source_inputs: Sequence[AugmentationInput]) -> JSONDict:
+    fields = sorted({field_name for source in source_inputs for field_name in source.selected_label_fields})
+    excluded_fields: list[JSONDict] = []
+    seen_excluded: set[tuple[str, str]] = set()
+    for source in source_inputs:
+        value = source.metadata.get(ANNOTATION_EXCLUDED_FIELDS_KEY)
+        if not isinstance(value, list | tuple):
+            continue
+        for item in value:
+            if not isinstance(item, Mapping):
+                continue
+            field_name = str(item.get("field_name", ""))
+            reason = str(item.get("reason", ""))
+            key = (field_name, reason)
+            if key in seen_excluded:
+                continue
+            excluded_fields.append(normalize_json_mapping(item))
+            seen_excluded.add(key)
+
+    return normalize_json_mapping({"fields": fields, "excluded_fields": excluded_fields})
+
+
+def _annotation_result_metadata(labels: Mapping[str, object]) -> JSONDict:
+    value = labels.get("metadata")
+    return normalize_json_mapping(value) if isinstance(value, Mapping) else {}
+
+
+def _replay_record(
+    *,
+    source: AugmentationInput,
+    output_index: int,
+    relative_path: str,
+    replay: JSONDict,
+    annotation_metadata: Mapping[str, object] | None = None,
+) -> JSONDict:
+    record: JSONDict = {
         "source_sample_id": source.sample_id,
         "output_index": output_index,
         "output_path": relative_path,
         "replay": replay,
     }
+    if annotation_metadata:
+        record["annotations"] = normalize_json_mapping(annotation_metadata)
+    return record

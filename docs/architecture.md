@@ -210,8 +210,9 @@ The VOX-13 dynamic form layer is documented in
 
 The VOX-14 pipeline factory is documented in `docs/pipeline-factory.md`. It
 resolves transform classes from albu-spec metadata, validates parameters through
-neutral schemas, and provides an image-only replay runner. Host-level media IO,
-output sample creation, and storage orchestration remain outside that runner.
+neutral schemas, and provides a replay runner that can optionally receive
+Albumentations target data. Host-level media IO, label conversion, output sample
+creation, and storage orchestration remain outside that runner.
 
 The VOX-15 run manifest layer is documented in `docs/run-manifest.md`. It stores
 `manifest.json` in the plugin-owned run directory and registers the same payload
@@ -241,12 +242,15 @@ and implement host adapters for:
 The host should not need to reimplement catalog loading, schema generation,
 pipeline validation, replay extraction, or manifest safety rules.
 
-### Future annotation targets
+### Annotation targets
 
-Detections, segmentation masks, and keypoints should be added as separate
-adapter modules with round-trip tests. Spatial labels must not be copied across
-geometric transforms unless the transform chain is proven compatible with that
-target type.
+FiftyOne annotation conversion lives in `hosts/fiftyone/annotations/`.
+Classification labels are copied as static labels. Detections, keypoints, and
+in-memory segmentation masks are converted into Albumentations targets, passed
+through the backend runner, and reconstructed on output samples. Spatial labels
+must not be copied across geometric transforms unless the transform chain is
+proven compatible with that target type. Unsupported FiftyOne label classes and
+target variants should be added incrementally with round-trip tests.
 
 ## Storage and Safety
 

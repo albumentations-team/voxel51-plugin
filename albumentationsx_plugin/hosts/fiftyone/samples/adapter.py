@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from os import PathLike
 from pathlib import Path
@@ -19,6 +19,13 @@ from albumentationsx_plugin.core import (
     PipelineConfig,
     RunManifest,
     TransformConfig,
+)
+from albumentationsx_plugin.hosts.fiftyone.annotations import (
+    ANNOTATION_EXCLUDED_FIELDS_KEY,
+    ANNOTATION_PAYLOAD_KEY,
+    annotation_payload_from_sample,
+    labels_from_annotation_payload,
+    resolve_annotation_fields,
 )
 
 DEFAULT_OUTPUT_TAG = "albumentationsx-output"
@@ -64,13 +71,18 @@ class FiftyOneSampleAdapter:
 
         collection = self.view if self.view is not None else self.dataset
         _ensure_image_collection(collection)
+        label_fields, excluded_label_fields = resolve_annotation_fields(
+            self.dataset,
+            selected_label_fields=self._selected_label_fields,
+        )
 
         if not self._selected_sample_ids:
             for sample in collection:
                 yield sample_to_augmentation_input(
                     sample,
                     dataset_name=self.dataset.name,
-                    selected_label_fields=self._selected_label_fields,
+                    selected_label_fields=label_fields,
+                    excluded_label_fields=excluded_label_fields,
                 )
             return
 
@@ -97,7 +109,8 @@ class FiftyOneSampleAdapter:
             yield sample_to_augmentation_input(
                 samples_by_id[sample_id],
                 dataset_name=self.dataset.name,
-                selected_label_fields=self._selected_label_fields,
+                selected_label_fields=label_fields,
+                excluded_label_fields=excluded_label_fields,
             )
 
     def create_output_sample(self, result: AugmentationResult, manifest: RunManifest) -> str:
@@ -116,12 +129,14 @@ def sample_to_augmentation_input(
     *,
     dataset_name: str,
     selected_label_fields: Sequence[str] = (),
+    excluded_label_fields: Sequence[Mapping[str, object]] = (),
 ) -> AugmentationInput:
     """Convert a FiftyOne source sample into a host-neutral input DTO."""
 
     sample_id = str(sample.id)
     source_path = _require_existing_filepath(sample)
     width, height = _metadata_dimensions(sample)
+    annotation_payload = annotation_payload_from_sample(sample, selected_label_fields)
     return AugmentationInput(
         sample_id=sample_id,
         filepath=str(source_path.resolve()),
@@ -132,6 +147,8 @@ def sample_to_augmentation_input(
         metadata={
             "dataset_name": dataset_name,
             "tags": list(sample.tags or ()),
+            ANNOTATION_PAYLOAD_KEY: annotation_payload,
+            ANNOTATION_EXCLUDED_FIELDS_KEY: [dict(field) for field in excluded_label_fields],
         },
     )
 
@@ -153,6 +170,7 @@ def create_output_sample(
         tags=[output_tag, build_run_tag(manifest.run_key)],
         metadata=fo.ImageMetadata.build_for(str(output_path)),
         **{
+            **labels_from_annotation_payload(result.labels),
             SOURCE_SAMPLE_ID_FIELD: result.source_sample_id,
             RUN_KEY_FIELD: manifest.run_key,
             TRANSFORM_SUMMARY_FIELD: summarize_pipeline(manifest.pipeline),

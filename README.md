@@ -5,7 +5,7 @@
 This repository contains a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and previewing [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
 
 > [!IMPORTANT]
-> The project is in the early implementation phase. The plugin renders catalog-driven transform forms, can create image-only outputs with an ordered temporary fixed transform pipeline backed by the shared pipeline factory, can inspect saved run manifests, and can clean up generated runs; catalog-wide execution and annotation transforms are still upcoming.
+> The project is in the early implementation phase. The plugin renders catalog-driven transform forms, can create augmented outputs with an ordered temporary fixed transform pipeline backed by the shared pipeline factory, transforms supported FiftyOne annotations for the executable slice, can inspect saved run manifests, and can clean up generated runs; catalog-wide execution is still upcoming.
 
 ## What the plugin will do
 
@@ -45,21 +45,27 @@ operator. The repository currently contains:
 - a catalog-driven AlbumentationsX image pipeline factory that validates
   transform parameters, constructs runtime transforms, and records JSON-safe
   replay data;
+- annotation-aware execution for supported FiftyOne `Classification`,
+  `Detections`, `Keypoints`, and in-memory `Segmentation` mask fields in the
+  current fixed execution path;
 - saved run manifests, FiftyOne custom run records, a read-only run summary
   operator, and a confirmed cleanup operator for non-dry executions.
 
 ## MVP limitations
 
-- Execution is image-only. Bounding boxes, segmentation masks, and keypoints are deferred.
+- Annotation-aware execution covers supported FiftyOne classification,
+  detection, keypoint, and in-memory segmentation mask fields in the executable
+  fixed slice. Unsupported label classes, external mask-path variants, and
+  catalog-wide target requirements still need follow-up work.
 - The executable App flow currently applies an ordered chain of up to three transforms from the temporary fixed set: `HorizontalFlip`, `RandomBrightnessContrast`, and `RandomCrop`.
 - Catalog-wide execution is not enabled yet; App choices are limited to the executable fixed slice even though the broader catalog can be inspected through reports.
 - Dynamic forms may use conservative schema fallbacks when albu-spec metadata is incomplete; unsupported transforms remain visible in the capability report with exclusion reasons.
 - Cleanup deletes generated output samples, manifest-listed output files, and the FiftyOne custom run; it intentionally retains `manifest.json` as an audit trail.
 
 The next implementation pull requests will replace the temporary execution
-allowlist with catalog-wide pipeline editing and broaden annotation support.
-See the [design document](DESIGN.md#план-работы-небольшими-pull-request) for
-the complete sequence and acceptance criteria.
+allowlist with catalog-wide pipeline editing and broaden target-aware transform
+coverage. See the [design document](DESIGN.md#план-работы-небольшими-pull-request)
+for the complete sequence and acceptance criteria.
 
 ## Implementation rules
 
@@ -78,7 +84,8 @@ Additional development documentation lives in [`docs/`](docs/README.md):
 
 - [Gitflow](docs/gitflow.md) describes the `feature/* -> dev -> main -> release/*` workflow;
 - [Architecture](docs/architecture.md) describes the layered code boundaries and extension points;
-- [Fixed transform slice](docs/fixed-transform-slice.md) describes the first executable image-only path;
+- [Fixed transform slice](docs/fixed-transform-slice.md) describes the first executable path;
+- [Annotation-aware execution](docs/annotation-aware-execution.md) describes supported FiftyOne label conversion;
 - [albu-spec catalog](docs/albu-spec-catalog.md) describes transform capability classification;
 - [Parameter schema](docs/parameter-schema.md) describes host-neutral parameter fields generated from albu-spec metadata;
 - [Dynamic FiftyOne forms](docs/dynamic-fiftyone-forms.md) describes catalog-backed operator rendering;
