@@ -64,11 +64,12 @@ dry-run flag. Only active stages are rendered, so later-stage validation is not
 shown before those stages are enabled.
 
 When a previous run is selected, the form loads that run's `manifest.json` from
-the current dataset and overlays its saved `pipeline` config under any current
-form edits. The same overlay is applied during operator execution, so submitting
-only the previous run key still applies the saved pipeline template to the new
-selection. Replay records are not reused; the new run samples fresh random
-parameters.
+the current dataset and overlays its saved `pipeline` config over current
+pipeline form values. The same overlay is applied during operator execution, so
+submitting only the previous run key still applies the saved pipeline template to
+the new selection. Clear `Previous run` after loading if you want to keep editing
+the form without reapplying the saved pipeline. Replay records are not reused;
+the new run samples fresh random parameters.
 
 VOX-30 adds per-stage target compatibility guidance. Each active stage shows
 image, bbox, mask, keypoint, and label handling from the selected transform

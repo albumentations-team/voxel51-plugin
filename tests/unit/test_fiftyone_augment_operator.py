@@ -240,6 +240,39 @@ def test_augment_operator_prefills_form_from_previous_run_manifest(tmp_path) -> 
 
 
 @pytest.mark.unit
+def test_augment_operator_prefill_overrides_stale_submitted_form_values(tmp_path) -> None:
+    operator = AugmentWithAlbumentationsX()
+    dataset_name = "preset-stale-form-dataset"
+    manifest = _preset_manifest()
+    FileRunStore(dataset_name, storage_root=tmp_path).save_manifest(manifest)
+
+    context = SimpleNamespace(
+        dataset=SimpleNamespace(name=dataset_name),
+        params={
+            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            "pipeline_step_count": 1,
+            "outputs_per_sample": 1,
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+        },
+    )
+
+    input_json = operator.resolve_input(context).to_json()
+    input_properties = input_json["type"]["properties"]
+
+    assert input_properties["pipeline_step_count"]["default"] == 2
+    assert input_properties["outputs_per_sample"]["default"] == 2
+    assert input_properties["transform"]["default"] == "RandomBrightnessContrast"
+    assert input_properties["brightness_range"]["default"] == [0.1, 0.2]
+    assert input_properties["contrast_range"]["default"] == [0.3, 0.4]
+    assert input_properties["p"]["default"] == 0.8
+    assert input_properties["step_2_transform"]["default"] == "RandomCrop"
+    assert input_properties["step_2_height"]["default"] == 12
+    assert input_properties["step_2_width"]["default"] == 10
+
+
+@pytest.mark.unit
 def test_augment_operator_resolves_later_step_random_crop_defaults() -> None:
     operator = AugmentWithAlbumentationsX()
 
@@ -683,6 +716,60 @@ def test_augment_operator_execute_applies_previous_run_preset_without_submitted_
         assert kwargs["view"] is Context.view
         assert kwargs["selected_sample_ids"] == ("sample-1",)
         assert kwargs["storage_root"] == str(tmp_path)
+        assert params[PREVIOUS_RUN_KEY_FIELD_NAME] == manifest.run_key
+        assert params["pipeline_step_count"] == 2
+        assert params["outputs_per_sample"] == 2
+        assert params["transform"] == "RandomBrightnessContrast"
+        assert params["brightness_range"] == [0.1, 0.2]
+        assert params["contrast_range"] == [0.3, 0.4]
+        assert params["p"] == 0.8
+        assert params["step_2_transform"] == "RandomCrop"
+        assert params["step_2_height"] == 12
+        assert params["step_2_width"] == 10
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-preset-copy",
+            processed_count=1,
+            created_count=0,
+            skipped_count=0,
+            error_count=0,
+            dry_run=True,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["run_key"] == "albumentationsx-20260731T120000Z-preset-copy"
+    assert result["error_count"] == 0
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_previous_run_preset_overrides_submitted_defaults(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    operator = AugmentWithAlbumentationsX()
+    dataset_name = "preset-execute-stale-dataset"
+    manifest = _preset_manifest()
+    FileRunStore(dataset_name, storage_root=tmp_path).save_manifest(manifest)
+
+    class Context:
+        dataset = SimpleNamespace(name=dataset_name)
+        view = object()
+        selected = ("sample-1",)
+        params = {
+            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            "pipeline_step_count": 1,
+            "outputs_per_sample": 1,
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+        }
+
+    def fake_execute_fixed_augmentation(**kwargs):
+        params = kwargs["params"]
         assert params[PREVIOUS_RUN_KEY_FIELD_NAME] == manifest.run_key
         assert params["pipeline_step_count"] == 2
         assert params["outputs_per_sample"] == 2
