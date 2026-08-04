@@ -53,6 +53,11 @@ class _DatasetSchema:
         return {field_name: {"document_type": document_type} for field_name, document_type in self._fields.items()}
 
 
+class _BrokenDatasetSchema:
+    def get_field_schema(self) -> dict[str, object]:
+        raise RuntimeError("schema backend is unavailable")
+
+
 def _load_manifest() -> dict[str, Any]:
     with (ROOT / "fiftyone.yml").open("r", encoding="utf-8") as file:
         value = yaml.safe_load(file)
@@ -287,6 +292,21 @@ def test_augment_operator_renders_target_guidance_without_dataset_metadata() -> 
     assert target_guidance["name"] == "Notice"
     assert "Dataset labels: metadata unavailable" in target_guidance["description"]
     assert "Hidden advanced parameters use Albumentations defaults:" in target_guidance["description"]
+
+
+@pytest.mark.unit
+def test_augment_operator_keeps_target_guidance_resilient_to_schema_errors() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = _BrokenDatasetSchema()
+        params = {"transform": "HorizontalFlip"}
+
+    input_json = operator.resolve_input(Context()).to_json()
+    target_guidance = input_json["type"]["properties"]["_target_compatibility"]["view"]
+
+    assert target_guidance["name"] == "Notice"
+    assert "Dataset labels: metadata unavailable" in target_guidance["description"]
 
 
 @pytest.mark.unit
