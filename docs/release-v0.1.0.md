@@ -38,6 +38,8 @@ This page is the release note and checklist for the first public MVP release of
   excluded from normal App choices.
 - Cleaned runs keep `manifest.json` for auditability, so they remain visible in
   `View AlbumentationsX Run` but are hidden from cleanup suggestions.
+- Successful or partial cleanup runs ask the FiftyOne App to reload the dataset
+  so removed generated samples disappear without a manual browser refresh.
 - There is no packaged PyPI/GitHub release artifact yet; the first public
   release is source-install oriented.
 - Manual FiftyOne App validation is still required before publishing the

@@ -90,6 +90,8 @@ The release candidate contains:
   while run summary and cleanup actions require existing persisted runs.
 - Successful non-dry augmentation runs trigger a FiftyOne App dataset reload
   after generated samples and run metadata are persisted.
+- Successful or partial cleanup runs trigger a FiftyOne App dataset reload after
+  generated samples/files are deleted.
 - Cleanup deletes generated output samples, manifest-listed output files, and the FiftyOne custom run; it intentionally retains `manifest.json` as an audit trail.
 
 Post-MVP pull requests should broaden target-aware transform coverage, improve

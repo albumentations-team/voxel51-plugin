@@ -23,6 +23,10 @@ The manifest is intentionally retained as the cleanup allowlist and audit trail.
 Keeping it also makes repeated cleanup idempotent: already-deleted samples and
 missing files are counted as skipped no-op results.
 
+After an `ok` or `partial` cleanup result, the operator asks the FiftyOne App to
+reload the dataset so removed generated samples disappear from the grid without
+a manual browser refresh.
+
 ## Safety Rules
 
 Cleanup uses the same manifest path validation as manifest persistence:
