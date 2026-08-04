@@ -12,7 +12,7 @@ from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
 from albumentationsx_plugin.hosts.fiftyone.run_cleanup import cleanup_run
-from albumentationsx_plugin.hosts.fiftyone.run_summary import list_available_run_keys
+from albumentationsx_plugin.hosts.fiftyone.run_summary import list_deletable_run_keys
 
 OPERATOR_NAME = "delete_albumentationsx_run"
 OPERATOR_LABEL = "Delete AlbumentationsX Run"
@@ -42,7 +42,7 @@ class DeleteAlbumentationsXRun(foo.Operator):
         params = _ctx_params(ctx)
         storage_root = _storage_root(params)
         dataset = getattr(ctx, "dataset", None)
-        run_keys = list_available_run_keys(dataset, storage_root=storage_root) if dataset is not None else ()
+        run_keys = list_deletable_run_keys(dataset, storage_root=storage_root) if dataset is not None else ()
 
         inputs = types.Object()
         if run_keys:
@@ -61,7 +61,7 @@ class DeleteAlbumentationsXRun(foo.Operator):
             inputs.str(
                 RUN_KEY_FIELD_NAME,
                 label="Run key",
-                description="No persisted AlbumentationsX runs were found for this dataset.",
+                description="No deletable AlbumentationsX runs were found for this dataset.",
             )
         inputs.bool(
             CONFIRM_FIELD_NAME,
@@ -141,7 +141,7 @@ def _has_available_runs(ctx: Any | None) -> bool:
     if dataset is None:
         return False
     try:
-        return bool(list_available_run_keys(dataset, storage_root=_storage_root(_ctx_params(ctx))))
+        return bool(list_deletable_run_keys(dataset, storage_root=_storage_root(_ctx_params(ctx))))
     except Exception:
         return False
 

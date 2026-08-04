@@ -19,6 +19,9 @@ from albumentationsx_plugin.core.serialization import (
 
 RUN_LABEL_FIELD_NAME: Final[str] = "run_label"
 RUN_LABEL_SLUG_METADATA_KEY: Final[str] = "run_label_slug"
+RUN_CLEANED_AT_METADATA_KEY: Final[str] = "cleaned_at"
+RUN_CLEANUP_STATUS_CLEANED: Final[str] = "cleaned"
+RUN_CLEANUP_STATUS_METADATA_KEY: Final[str] = "cleanup_status"
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +120,9 @@ class RunManifest:
 
 
 __all__ = [
+    "RUN_CLEANED_AT_METADATA_KEY",
+    "RUN_CLEANUP_STATUS_CLEANED",
+    "RUN_CLEANUP_STATUS_METADATA_KEY",
     "RUN_LABEL_FIELD_NAME",
     "RUN_LABEL_SLUG_METADATA_KEY",
     "RunManifest",
