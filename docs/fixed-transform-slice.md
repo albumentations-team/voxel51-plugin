@@ -52,6 +52,11 @@ visible in the capability report with concrete exclusion reasons.
 - `dry_run`: validates selection and parameters without writing output files or
   creating samples.
 
+The FiftyOne prompt renders general run settings before transform details, then
+shows a dedicated section for each active pipeline stage. Toolbar placement is
+context-aware: augmentation is disabled until samples are selected, and run
+summary/cleanup actions are disabled until persisted runs exist.
+
 For `supported_with_defaults` transforms, advanced optional JSON fallback
 parameters stay hidden and their albu-spec/Albumentations defaults are used.
 Simple parameters remain visible. The executable form also keeps MVP-specific
@@ -93,6 +98,10 @@ created sample IDs, relative output paths, replay records, counters, structured
 errors, run annotation fields, and per-output dropped target counts when
 Albumentations removes boxes, points, or masks. Dry runs still avoid writing
 output files or run metadata.
+
+After a successful non-dry run creates samples, the operator asks the FiftyOne
+App to reload the dataset so generated outputs are visible without a manual
+browser refresh.
 
 Static parameter errors fail before writing output files when possible. Runtime
 per-sample errors, such as a `RandomCrop` larger than one selected image, are

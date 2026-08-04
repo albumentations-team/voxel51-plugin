@@ -94,9 +94,15 @@ class ViewAlbumentationsXRun(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
+        disabled = not _has_available_runs(ctx)
         return types.Placement(
             types.Places.SAMPLES_GRID_ACTIONS,
-            types.Button(label=OPERATOR_LABEL, prompt=True),
+            types.Button(
+                label=OPERATOR_LABEL,
+                prompt=True,
+                disabled=disabled,
+                title="Create an AlbumentationsX run before inspecting it." if disabled else None,
+            ),
         )
 
     def execute(self, ctx: Any) -> JSONDict:
@@ -118,6 +124,18 @@ def _selected_run_key(raw_value: object, run_keys: tuple[str, ...]) -> str:
     if isinstance(raw_value, str) and raw_value.strip():
         return raw_value
     return run_keys[0] if run_keys else ""
+
+
+def _has_available_runs(ctx: Any | None) -> bool:
+    if ctx is None:
+        return False
+    dataset = getattr(ctx, "dataset", None)
+    if dataset is None:
+        return False
+    try:
+        return bool(list_available_run_keys(dataset, storage_root=_storage_root(_ctx_params(ctx))))
+    except Exception:
+        return False
 
 
 def _storage_root(params: Mapping[str, object]) -> str | PathLike[str] | None:
