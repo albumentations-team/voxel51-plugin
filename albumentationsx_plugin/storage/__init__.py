@@ -7,20 +7,24 @@ from albumentationsx_plugin.storage.manifest import (
     resolve_manifest_output_path,
 )
 from albumentationsx_plugin.storage.paths import (
+    MAX_RUN_LABEL_SLUG_LENGTH,
     PLUGIN_STORAGE_DIRNAME,
     build_dataset_run_dir,
     build_run_key,
     default_storage_root,
+    slugify_run_label,
 )
 
 __all__ = [
     "FileCleanupResult",
     "FileRunStore",
     "MANIFEST_FILENAME",
+    "MAX_RUN_LABEL_SLUG_LENGTH",
     "PLUGIN_STORAGE_DIRNAME",
     "build_dataset_run_dir",
     "build_run_key",
     "delete_manifest_output_files",
     "default_storage_root",
     "resolve_manifest_output_path",
+    "slugify_run_label",
 ]

@@ -9,7 +9,7 @@ from pathlib import Path
 import fiftyone as fo
 from fiftyone.core.runs import RunConfig, RunResults
 
-from albumentationsx_plugin.core import RunManifest
+from albumentationsx_plugin.core import RUN_LABEL_FIELD_NAME, RUN_LABEL_SLUG_METADATA_KEY, RunManifest
 
 FIFTYONE_RUN_METHOD = "albumentationsx_plugin"
 
@@ -36,9 +36,13 @@ def register_fiftyone_run(
 
     manifest_file = Path(manifest_path)
     fiftyone_run_key = build_fiftyone_run_key(manifest.run_key)
+    run_label = _metadata_str(manifest, RUN_LABEL_FIELD_NAME)
+    run_label_slug = _metadata_str(manifest, RUN_LABEL_SLUG_METADATA_KEY)
     config = RunConfig(
         method=FIFTYONE_RUN_METHOD,
         plugin_run_key=manifest.run_key,
+        run_label=run_label,
+        run_label_slug=run_label_slug,
         plugin_version=manifest.plugin_version,
         dependency_versions=dict(manifest.dependency_versions),
         pipeline=manifest.pipeline.to_dict(),
@@ -52,6 +56,8 @@ def register_fiftyone_run(
         manifest=manifest.to_dict(),
         manifest_path=str(manifest_file),
         plugin_run_key=manifest.run_key,
+        run_label=run_label,
+        run_label_slug=run_label_slug,
     )
     dataset.register_run(
         fiftyone_run_key,
@@ -62,3 +68,8 @@ def register_fiftyone_run(
         cache=True,
     )
     return fiftyone_run_key
+
+
+def _metadata_str(manifest: RunManifest, name: str) -> str:
+    value = manifest.metadata.get(name, "")
+    return value if isinstance(value, str) else ""

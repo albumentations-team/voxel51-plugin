@@ -75,6 +75,8 @@ class ViewAlbumentationsXRun(foo.Operator):
         outputs.str("message", label="Message")
         outputs.str("manifest_path", label="Manifest path")
         outputs.str("fiftyone_run_key", label="FiftyOne run key")
+        outputs.str("run_label", label="Run label")
+        outputs.str("run_label_slug", label="Run label slug")
         outputs.int("source_count", label="Sources")
         outputs.int("created_count", label="Created samples")
         outputs.int("output_count", label="Manifest outputs")

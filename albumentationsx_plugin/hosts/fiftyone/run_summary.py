@@ -9,7 +9,13 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, Protocol
 
-from albumentationsx_plugin.core import JSONDict, MediaIOError, RunManifest
+from albumentationsx_plugin.core import (
+    RUN_LABEL_FIELD_NAME,
+    RUN_LABEL_SLUG_METADATA_KEY,
+    JSONDict,
+    MediaIOError,
+    RunManifest,
+)
 from albumentationsx_plugin.hosts.fiftyone.runs import FIFTYONE_RUN_METHOD, build_fiftyone_run_key
 from albumentationsx_plugin.hosts.fiftyone.samples import summarize_pipeline
 from albumentationsx_plugin.storage.manifest import (
@@ -53,6 +59,8 @@ class RunSummary:
     message: str
     manifest_path: str = ""
     fiftyone_run_key: str = ""
+    run_label: str = ""
+    run_label_slug: str = ""
     source_count: int = 0
     created_count: int = 0
     output_count: int = 0
@@ -78,6 +86,8 @@ class RunSummary:
             "message": self.message,
             "manifest_path": self.manifest_path,
             "fiftyone_run_key": self.fiftyone_run_key,
+            "run_label": self.run_label,
+            "run_label_slug": self.run_label_slug,
             "source_count": self.source_count,
             "created_count": self.created_count,
             "output_count": self.output_count,
@@ -249,6 +259,8 @@ def _manifest_summary(
         message=message,
         manifest_path=str(manifest_path),
         fiftyone_run_key=fiftyone_run_key,
+        run_label=_metadata_str(manifest.metadata, RUN_LABEL_FIELD_NAME),
+        run_label_slug=_metadata_str(manifest.metadata, RUN_LABEL_SLUG_METADATA_KEY),
         source_count=_counter(manifest.counters, "processed", fallback=len(manifest.source_sample_ids)),
         created_count=_counter(manifest.counters, "created", fallback=len(manifest.created_sample_ids)),
         output_count=_counter(manifest.counters, "outputs", fallback=len(manifest.output_paths)),

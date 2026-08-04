@@ -19,6 +19,7 @@ from albumentationsx_plugin.core import (
     MAX_OUTPUTS_PER_SAMPLE,
     MAX_PIPELINE_STEPS,
     PIPELINE_STEP_COUNT_FIELD_NAME,
+    RUN_LABEL_FIELD_NAME,
     CapabilityStatus,
     FieldKind,
     FormFieldSchema,
@@ -116,6 +117,14 @@ class DynamicAugmentFormBuilder:
                     default=selected_step_count,
                     min_value=1,
                     max_value=MAX_PIPELINE_STEPS,
+                ),
+                FormFieldSchema(
+                    name=RUN_LABEL_FIELD_NAME,
+                    kind=FieldKind.STRING,
+                    label="Run label",
+                    required=False,
+                    default="",
+                    help_text="Optional short prefix for generated run keys.",
                 ),
                 FormFieldSchema(
                     name=OUTPUTS_PER_SAMPLE_FIELD_NAME,

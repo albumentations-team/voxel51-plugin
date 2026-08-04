@@ -20,7 +20,7 @@ from albumentationsx_plugin.core.contracts.fixed_slice import (
 )
 from albumentationsx_plugin.core.contracts.forms import FieldKind, FormFieldSchema
 from albumentationsx_plugin.core.contracts.pipeline import PipelineConfig, TransformConfig
-from albumentationsx_plugin.core.contracts.runs import RunManifest
+from albumentationsx_plugin.core.contracts.runs import RUN_LABEL_FIELD_NAME, RUN_LABEL_SLUG_METADATA_KEY, RunManifest
 from albumentationsx_plugin.core.serialization import JSONDict, JSONValue, normalize_json_mapping, normalize_json_value
 
 __all__ = [
@@ -40,6 +40,8 @@ __all__ = [
     "MAX_OUTPUTS_PER_SAMPLE",
     "PIPELINE_STEP_COUNT_FIELD_NAME",
     "PipelineConfig",
+    "RUN_LABEL_FIELD_NAME",
+    "RUN_LABEL_SLUG_METADATA_KEY",
     "RunManifest",
     "TransformCapability",
     "TransformConfig",

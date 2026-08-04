@@ -127,6 +127,9 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert len(transform_values) > 3
     assert "Normalize" not in transform_values
     assert "BBoxSafeRandomCrop" not in transform_values
+    assert input_properties["run_label"]["type"]["name"] == "String"
+    assert input_properties["run_label"]["default"] == ""
+    assert input_properties["run_label"]["required"] is False
     assert input_properties["p"]["type"]["name"] == "Number"
     assert input_properties["p"]["default"] == 1.0
     assert "Constraints: >= 0, <= 1." in input_properties["p"]["view"]["description"]
