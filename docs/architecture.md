@@ -61,9 +61,9 @@ Expected modules:
 `hosts/fiftyone`
 
 FiftyOne-specific adapter code. This layer registers operators, renders neutral
-schemas into `fiftyone.operators.types`, converts selected samples or views into
-host-neutral inputs, creates new FiftyOne samples from augmentation results, and
-exposes run summary/delete operators.
+schemas into `fiftyone.operators.types`, converts selected samples from the
+active dataset or view into host-neutral inputs, creates new FiftyOne samples
+from augmentation results, and exposes run summary/delete operators.
 
 Expected modules:
 

@@ -32,6 +32,11 @@ classified as `unsupported_target`, `requires_external_data`,
 `requires_manual_schema` are not shown in normal executable choices; they remain
 visible in the capability report with concrete exclusion reasons.
 
+The original three names from VOX-10, `HorizontalFlip`,
+`RandomBrightnessContrast`, and `RandomCrop`, remain only as default stage
+presets for a fresh form. They do not limit the transform selector after
+VOX-25.
+
 ## Operator Parameters
 
 - `pipeline_step_count`: number of ordered transform steps, from `1` to `3`;
@@ -51,6 +56,8 @@ visible in the capability report with concrete exclusion reasons.
   as `step_2_brightness_range`, `step_2_height`, and `step_3_method`.
 - `dry_run`: validates selection and parameters without writing output files or
   creating samples.
+- `run_label`: optional short prefix added to generated run keys so users can
+  find related runs more easily.
 
 The FiftyOne prompt renders general run settings before transform details, then
 shows a dedicated section for each active pipeline stage. Toolbar placement is

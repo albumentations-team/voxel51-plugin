@@ -27,7 +27,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
         return foo.OperatorConfig(
             name=OPERATOR_NAME,
             label=OPERATOR_LABEL,
-            description="Build and preview AlbumentationsX augmentation pipelines.",
+            description="Build and apply AlbumentationsX augmentation pipelines to selected samples.",
             dynamic=True,
             allow_immediate_execution=True,
             allow_delegated_execution=False,

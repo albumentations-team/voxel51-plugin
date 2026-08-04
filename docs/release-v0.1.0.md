@@ -13,6 +13,8 @@ This page is the release note and checklist for the first public MVP release of
 - renders catalog-backed AlbumentationsX transform forms from albu-spec
   metadata;
 - lets users configure up to three ordered augmentation stages;
+- applies the pipeline to selected samples in the active dataset or filtered
+  view;
 - creates new output samples without mutating source samples or source files;
 - transforms supported FiftyOne `Classification`, `Detections`, `Keypoints`,
   and in-memory `Segmentation` mask fields in the executable path;
@@ -26,6 +28,9 @@ This page is the release note and checklist for the first public MVP release of
   plugin-owned run directories.
 - The executable picker exposes the `109` normal MVP choices classified as
   `supported` or `supported_with_defaults` by the current albu-spec catalog.
+  The default stage presets are `HorizontalFlip`,
+  `RandomBrightnessContrast`, and `RandomCrop`, but they are not the complete
+  transform set.
 - Advanced optional JSON fallback parameters are hidden for
   `supported_with_defaults` transforms.
 - Unsupported FiftyOne label classes, external mask-path variants, 3D/media

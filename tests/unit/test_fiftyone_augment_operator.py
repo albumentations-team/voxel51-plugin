@@ -76,6 +76,7 @@ def test_augment_operator_config_matches_manifest() -> None:
     assert OPERATOR_NAME in manifest["operators"]
     assert config.name == OPERATOR_NAME
     assert config.label == "Augment with AlbumentationsX"
+    assert config.description == "Build and apply AlbumentationsX augmentation pipelines to selected samples."
     assert config.dynamic is True
     assert config.allow_immediate_execution is True
     assert config.allow_delegated_execution is False

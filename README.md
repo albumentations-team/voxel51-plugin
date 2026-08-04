@@ -13,7 +13,7 @@ The MVP lets a FiftyOne user:
 
 - choose AlbumentationsX transforms and configure their parameters in the FiftyOne App;
 - build an ordered augmentation pipeline with up to three stages;
-- apply the pipeline to a dataset, filtered view, or sample selection;
+- apply the pipeline to selected samples in the active dataset or filtered view;
 - create new samples without changing the source images or annotations;
 - keep supported bounding boxes, in-memory segmentation masks, keypoints, and classifications aligned with transformed images;
 - record the sampled parameters and replay metadata so each result can be inspected;
@@ -21,6 +21,26 @@ The MVP lets a FiftyOne user:
 - remove only the samples and files created by a specific plugin run.
 
 Transform names, parameter types, default values, constraints, and descriptions come from [albu-spec](https://github.com/albumentations-team/albu-spec). The repository does not maintain a second handwritten catalog of AlbumentationsX transforms.
+
+## Available augmentations
+
+The transform selector is generated from the albu-spec capability catalog. With
+the current lockfile, the FiftyOne App exposes `109` normal MVP choices
+classified as `supported` or `supported_with_defaults`; it is not limited to the
+three default stage presets. `HorizontalFlip`, `RandomBrightnessContrast`, and
+`RandomCrop` are only the initial defaults for the first three stages.
+
+The full release snapshot is recorded in
+[Capability report v0.1.0](docs/capability-report-v0.1.0.md). It includes
+image transforms such as flips, crops, resize/pad transforms, color and contrast
+adjustments, blur/noise effects, geometric transforms, weather/light effects,
+dropout/masking transforms, and other AlbumentationsX image augmentations that
+the MVP can safely render and execute.
+
+Transforms that need external reference data, produce non-image outputs, target
+unsupported media types, or require target handling outside the MVP remain
+excluded from the normal App selector and are listed in the capability report
+with concrete reasons.
 
 ## v0.1.0 MVP status
 
@@ -64,6 +84,8 @@ The release candidate contains:
 - The executable App flow currently applies an ordered chain of up to three transforms from the catalog-backed normal MVP choices.
 - Transforms classified as `unsupported_target`, `requires_external_data`, `blocked_media_target`, `unsupported_output`, `hidden`, or `requires_manual_schema` stay out of normal executable choices but remain visible in the capability report with exclusion reasons.
 - Dynamic forms hide advanced optional JSON fallback parameters for `supported_with_defaults` transforms and use documented defaults until richer controls are implemented.
+- `HorizontalFlip`, `RandomBrightnessContrast`, and `RandomCrop` are default
+  stage presets, not the complete executable transform set.
 - Toolbar actions are context-aware: augmentation requires selected samples,
   while run summary and cleanup actions require existing persisted runs.
 - Successful non-dry augmentation runs trigger a FiftyOne App dataset reload
@@ -137,9 +159,10 @@ The operator list should include:
 @albumentations/albumentationsx/delete_albumentationsx_run
 ```
 
-Execution currently supports up to three ordered steps selected from the
-catalog-backed normal MVP transform choices. With the current lockfile this is
-`109` choices classified as `supported` or `supported_with_defaults`.
+Execution currently supports selected samples and up to three ordered steps
+selected from the catalog-backed normal MVP transform choices. With the current
+lockfile this is `109` choices classified as `supported` or
+`supported_with_defaults`.
 
 Review the catalog-backed MVP transform capabilities with:
 
@@ -163,10 +186,13 @@ uses stable `demo_id` values for repeatable checks; FiftyOne internal sample IDs
 are database-generated.
 
 In the App, select one or more samples, run `Augment with AlbumentationsX`, set
-`Pipeline steps`, and choose the fixed transforms for each ordered step. New output samples are written under the
-plugin-owned storage directory and tagged with the run key; source samples and
-source files remain unchanged. Non-dry runs also save `manifest.json` under the
-run output directory and register the manifest in FiftyOne's custom run store.
+`Pipeline steps`, optionally set `Run label` and `Outputs per sample`, and
+choose a catalog-backed transform for each ordered step. `Dry run` validates the
+configuration without writing files or creating samples. New output samples are
+written under the plugin-owned storage directory and tagged with the run key;
+source samples and source files remain unchanged. Non-dry runs also save
+`manifest.json` under the run output directory and register the manifest in
+FiftyOne's custom run store.
 Then run `View AlbumentationsX Run` to inspect persisted counts, versions,
 transform config, replay availability, and stale/missing manifest state. Run
 `Delete AlbumentationsX Run` with confirmation checked to remove generated
