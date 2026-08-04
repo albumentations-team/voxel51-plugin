@@ -9,8 +9,8 @@ these files hold development workflow, review, and release notes.
 - [Gitflow](gitflow.md): branch model and merge flow for MVP work.
 - [Architecture](architecture.md): layered code boundaries and extension points.
 - [Demo dataset](demo-dataset.md): deterministic local dataset workflow.
-- [Fixed transform slice](fixed-transform-slice.md): temporary executable
-  transform allowlist and output behavior.
+- [Fixed transform slice](fixed-transform-slice.md): executable
+  catalog-backed transform choices and output behavior.
 - [Annotation-aware execution](annotation-aware-execution.md): supported
   FiftyOne label conversion through Albumentations targets.
 - [albu-spec catalog](albu-spec-catalog.md): version-aware transform capability

@@ -26,10 +26,11 @@ def test_readme_documents_mvp_limitations_without_overclaiming_annotation_covera
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "## MVP limitations" in readme
+    assert "catalog-backed normal MVP choices" in readme
+    assert "supported_with_defaults" in readme
     assert "Annotation-aware execution covers supported FiftyOne classification" in readme
     assert "Unsupported label classes" in readme
-    assert "Catalog-wide execution is not enabled yet" in readme
-    assert "Dynamic forms may use conservative schema fallbacks" in readme
+    assert "Dynamic forms hide advanced optional JSON fallback parameters" in readme
 
 
 @pytest.mark.unit

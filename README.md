@@ -5,7 +5,7 @@
 This repository contains a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and previewing [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
 
 > [!IMPORTANT]
-> The project is in the early implementation phase. The plugin renders catalog-driven transform forms, can create augmented outputs with an ordered temporary fixed transform pipeline backed by the shared pipeline factory, transforms supported FiftyOne annotations for the executable slice, can inspect saved run manifests, and can clean up generated runs; catalog-wide execution is still upcoming.
+> The project is in the early implementation phase. The plugin renders catalog-driven transform forms, can create augmented outputs with an ordered catalog-backed MVP transform pipeline, transforms supported FiftyOne annotations for the executable slice, can inspect saved run manifests, and can clean up generated runs; broader UX polish and target coverage are still upcoming.
 
 ## What the plugin will do
 
@@ -45,6 +45,9 @@ operator. The repository currently contains:
 - a catalog-driven AlbumentationsX image pipeline factory that validates
   transform parameters, constructs runtime transforms, and records JSON-safe
   replay data;
+- executable augmentation choices generated from the albu-spec capability
+  catalog for transforms classified as `supported` or
+  `supported_with_defaults`;
 - annotation-aware execution for supported FiftyOne `Classification`,
   `Detections`, `Keypoints`, and in-memory `Segmentation` mask fields in the
   current fixed execution path;
@@ -56,15 +59,14 @@ operator. The repository currently contains:
 - Annotation-aware execution covers supported FiftyOne classification,
   detection, keypoint, and in-memory segmentation mask fields in the executable
   fixed slice. Unsupported label classes, external mask-path variants, and
-  catalog-wide target requirements still need follow-up work.
-- The executable App flow currently applies an ordered chain of up to three transforms from the temporary fixed set: `HorizontalFlip`, `RandomBrightnessContrast`, and `RandomCrop`.
-- Catalog-wide execution is not enabled yet; App choices are limited to the executable fixed slice even though the broader catalog can be inspected through reports.
-- Dynamic forms may use conservative schema fallbacks when albu-spec metadata is incomplete; unsupported transforms remain visible in the capability report with exclusion reasons.
+  broader target requirements still need follow-up work.
+- The executable App flow currently applies an ordered chain of up to three transforms from the catalog-backed normal MVP choices.
+- Transforms classified as `unsupported_target`, `requires_external_data`, `blocked_media_target`, `unsupported_output`, `hidden`, or `requires_manual_schema` stay out of normal executable choices but remain visible in the capability report with exclusion reasons.
+- Dynamic forms hide advanced optional JSON fallback parameters for `supported_with_defaults` transforms and use documented defaults until richer controls are implemented.
 - Cleanup deletes generated output samples, manifest-listed output files, and the FiftyOne custom run; it intentionally retains `manifest.json` as an audit trail.
 
-The next implementation pull requests will replace the temporary execution
-allowlist with catalog-wide pipeline editing and broaden target-aware transform
-coverage. See the [design document](DESIGN.md#план-работы-небольшими-pull-request)
+The next implementation pull requests will improve the augmentation UX and
+broaden target-aware transform coverage. See the [design document](DESIGN.md#план-работы-небольшими-pull-request)
 for the complete sequence and acceptance criteria.
 
 ## Implementation rules
@@ -84,7 +86,7 @@ Additional development documentation lives in [`docs/`](docs/README.md):
 
 - [Gitflow](docs/gitflow.md) describes the `feature/* -> dev -> main -> release/*` workflow;
 - [Architecture](docs/architecture.md) describes the layered code boundaries and extension points;
-- [Fixed transform slice](docs/fixed-transform-slice.md) describes the first executable path;
+- [Fixed transform slice](docs/fixed-transform-slice.md) describes the executable catalog-backed path;
 - [Annotation-aware execution](docs/annotation-aware-execution.md) describes supported FiftyOne label conversion;
 - [albu-spec catalog](docs/albu-spec-catalog.md) describes transform capability classification;
 - [Parameter schema](docs/parameter-schema.md) describes host-neutral parameter fields generated from albu-spec metadata;
@@ -127,8 +129,9 @@ The operator list should include:
 @albumentations/albumentationsx/delete_albumentationsx_run
 ```
 
-Execution currently supports up to three ordered steps from the temporary fixed transform set:
-`HorizontalFlip`, `RandomBrightnessContrast`, and `RandomCrop`.
+Execution currently supports up to three ordered steps selected from the
+catalog-backed normal MVP transform choices. With the current lockfile this is
+`109` choices classified as `supported` or `supported_with_defaults`.
 
 Review the catalog-backed MVP transform capabilities with:
 

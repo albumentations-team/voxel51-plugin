@@ -41,7 +41,8 @@ The catalog exposes every transform known to albu-spec with one status:
   safely.
 
 Normal MVP choices are transforms with `supported` or
-`supported_with_defaults`.
+`supported_with_defaults`; VOX-25 exposes these choices in the executable
+FiftyOne augmentation UI.
 
 ## Review Report
 
