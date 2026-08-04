@@ -10,6 +10,8 @@ The FiftyOne host layer owns the UI mapping:
 - `hosts/fiftyone/forms/augment.py` composes the operator form.
 - `hosts/fiftyone/forms/defaults.py` derives host-context defaults without
   changing backend schema metadata.
+- `hosts/fiftyone/forms/guidance.py` derives target compatibility and dataset
+  label warnings from catalog and dataset metadata.
 - `hosts/fiftyone/forms/renderer.py` maps `FormFieldSchema` to
   `fiftyone.operators.types`.
 
@@ -30,10 +32,11 @@ The current renderer maps:
 - `json` to a JSON string input
 
 Required complex fields that cannot be rendered safely are marked invalid and
-read-only. The generic renderer can render optional complex fields as JSON
-strings, but the executable augmentation form hides optional JSON fallback
-parameters for `supported_with_defaults` transforms and relies on documented
-defaults.
+read-only. Parameter descriptions and constraints from albu-spec metadata are
+rendered as field descriptions. The generic renderer can render optional
+complex fields as JSON strings, but the executable augmentation form hides
+optional JSON fallback parameters for `supported_with_defaults` transforms and
+relies on documented defaults.
 
 ## Execution Scope
 
@@ -58,6 +61,13 @@ VOX-27 groups the prompt into a general settings section followed by one
 visible section for each active augmentation stage. General settings include the
 stage count, output count, and dry-run flag. Only active stages are rendered, so
 later-stage validation is not shown before those stages are enabled.
+
+VOX-30 adds per-stage target compatibility guidance. Each active stage shows
+image, bbox, mask, keypoint, and label handling from the selected transform
+capability. When dataset label metadata is available, the form warns if selected
+dataset labels use targets that the transform does not declare support for.
+When dataset metadata is unavailable, the form keeps guidance visible and notes
+that execution validation still runs before processing.
 
 The fixed execution form applies MVP-specific defaults over the raw albu-spec
 schema without mutating catalog metadata: transform probability defaults to
