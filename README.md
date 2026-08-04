@@ -2,37 +2,36 @@
 
 [![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg)](LICENSE)
 
-This repository contains a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and previewing [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
+This repository contains a [FiftyOne](https://docs.voxel51.com/plugins/index.html) plugin for building and applying [AlbumentationsX](https://albumentations.ai/docs/) augmentation pipelines on FiftyOne datasets.
 
 > [!IMPORTANT]
-> The project is in the early implementation phase. The plugin renders catalog-driven transform forms, can create augmented outputs with an ordered catalog-backed MVP transform pipeline, transforms supported FiftyOne annotations for the executable slice, can inspect saved run manifests, and can clean up generated runs; broader UX polish and target coverage are still upcoming.
+> The `v0.1.0` MVP renders catalog-driven transform forms, creates augmented output samples with an ordered catalog-backed pipeline, transforms supported FiftyOne annotations for the executable slice, records replay metadata, can inspect saved run manifests, and can clean up generated runs. Broader target coverage, richer preview/progress UX, and packaging automation remain post-MVP work.
 
-## What the plugin will do
+## What the plugin does in v0.1.0
 
-The plugin will let a FiftyOne user:
+The MVP lets a FiftyOne user:
 
 - choose AlbumentationsX transforms and configure their parameters in the FiftyOne App;
-- build an ordered augmentation pipeline;
+- build an ordered augmentation pipeline with up to three stages;
 - apply the pipeline to a dataset, filtered view, or sample selection;
 - create new samples without changing the source images or annotations;
-- keep bounding boxes, segmentation masks, and keypoints aligned with transformed images;
-- record the sampled parameters so each result can be inspected and reproduced;
+- keep supported bounding boxes, in-memory segmentation masks, keypoints, and classifications aligned with transformed images;
+- record the sampled parameters and replay metadata so each result can be inspected;
+- inspect saved run manifests from the FiftyOne App;
 - remove only the samples and files created by a specific plugin run.
 
-Transform names, parameter types, default values, constraints, and descriptions will come from [albu-spec](https://github.com/albumentations-team/albu-spec). The repository will not maintain a second handwritten catalog of AlbumentationsX transforms.
+Transform names, parameter types, default values, constraints, and descriptions come from [albu-spec](https://github.com/albumentations-team/albu-spec). The repository does not maintain a second handwritten catalog of AlbumentationsX transforms.
 
-## Current status
+## v0.1.0 MVP status
 
-The implementation has started with the plugin scaffold, host-neutral contracts,
-image IO helpers, a FiftyOne sample adapter, and a fixed-transform augmentation
-operator. The repository currently contains:
+The release candidate contains:
 
 - the [design document](DESIGN.md), written in Russian for the project owner and coding agents;
 - the `AGPL-3.0-only` license text;
 - a `pyproject.toml` that defines the development tools and the test groups;
 - a `pre-commit` configuration that runs file checks, Ruff, and Pyrefly;
-- `fiftyone.yml`, a Python package skeleton, and a registered operator that can
-  create augmented image samples from selected FiftyOne samples;
+- `fiftyone.yml`, the Python package, and three registered operators for
+  augmentation, run inspection, and run cleanup;
 - direct dependencies on `albumentationsx>=2.3,<3` and `albu-spec>=0.0.6,<1`;
   AlbumentationsX is installed as `albumentationsx` and imported at runtime as
   `albumentations`;
@@ -42,6 +41,8 @@ operator. The repository currently contains:
   catalog;
 - a dynamic FiftyOne operator form that renders catalog-backed transform
   parameters in general settings and per-stage sections;
+- per-stage target compatibility guidance derived from transform capabilities
+  and active dataset label fields;
 - a catalog-driven AlbumentationsX image pipeline factory that validates
   transform parameters, constructs runtime transforms, and records JSON-safe
   replay data;
@@ -69,9 +70,10 @@ operator. The repository currently contains:
   after generated samples and run metadata are persisted.
 - Cleanup deletes generated output samples, manifest-listed output files, and the FiftyOne custom run; it intentionally retains `manifest.json` as an audit trail.
 
-The next implementation pull requests will broaden target-aware transform
-coverage and add richer preview/progress UX. See the [design document](DESIGN.md#план-работы-небольшими-pull-request)
-for the complete sequence and acceptance criteria.
+Post-MVP pull requests should broaden target-aware transform coverage, improve
+pipeline editing UX, and add richer preview/progress behavior. See the
+[design document](DESIGN.md#план-работы-небольшими-pull-request) for the
+complete sequence and acceptance criteria.
 
 ## Implementation rules
 
@@ -99,6 +101,8 @@ Additional development documentation lives in [`docs/`](docs/README.md):
 - [Run manifest](docs/run-manifest.md) describes saved run metadata, replay records, and custom run registration;
 - [Run summary operator](docs/run-summary-operator.md) describes read-only run inspection in FiftyOne;
 - [Run cleanup operator](docs/run-cleanup-operator.md) describes confirmed deletion of generated outputs;
+- [Release v0.1.0](docs/release-v0.1.0.md) describes MVP scope, release checks, known limitations, and tag flow;
+- [Capability report v0.1.0](docs/capability-report-v0.1.0.md) records the final albu-spec transform snapshot for the release;
 - [PR checklist](docs/pr-checklist.md) lists required scope, safety, documentation, and verification checks;
 - [Verification](docs/verification.md) centralizes local gate commands, targeted tests, and manual checks.
 
@@ -167,7 +171,8 @@ Then run `View AlbumentationsX Run` to inspect persisted counts, versions,
 transform config, replay availability, and stale/missing manifest state. Run
 `Delete AlbumentationsX Run` with confirmation checked to remove generated
 samples/files and the FiftyOne custom run; source samples and source files
-remain unchanged.
+remain unchanged. Cleaned runs remain inspectable through the retained manifest
+audit trail, but they are hidden from cleanup run-key suggestions.
 
 Clean up the dataset and generated images with:
 

@@ -94,10 +94,10 @@ release/vX.Y.Z -> main
 release/vX.Y.Z -> dev
 ```
 
-Tag the accepted release commit on `main`:
+Tag the accepted release commit on `main` with an annotated tag:
 
 ```bash
-git tag vX.Y.Z
+git tag -a vX.Y.Z -m "vX.Y.Z"
 git push origin vX.Y.Z
 ```
 

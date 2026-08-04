@@ -74,4 +74,5 @@ The current lockfile produces:
   - `unsupported_target`: `7`
 
 Tests intentionally assert this summary so dependency or metadata drift is
-visible during review.
+visible during review. The release-specific snapshot for the first public MVP is
+[Capability Report v0.1.0](capability-report-v0.1.0.md).

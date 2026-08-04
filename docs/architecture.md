@@ -172,9 +172,9 @@ DTOs plus standard-library types. They are grouped by boundary:
 - `storage.py`: `RunStore` and `OutputStorageBackend`.
 
 `albumentationsx_plugin/albumentations_backend/interfaces.py` re-exports the
-backend-facing protocols that concrete albu-spec and AlbumentationsX modules
-will implement. Host adapters may import this module when they need a backend
-service, but they should not import concrete backend modules directly.
+backend-facing protocols implemented by concrete albu-spec and AlbumentationsX
+modules. Host adapters may import this module when they need a backend service,
+but they should not import concrete backend modules directly.
 
 Concrete implementations should live in their owning packages:
 
