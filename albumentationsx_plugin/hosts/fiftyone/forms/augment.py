@@ -29,6 +29,7 @@ from albumentationsx_plugin.core import (
     pipeline_step_field_name,
 )
 from albumentationsx_plugin.hosts.fiftyone.forms.defaults import RandomCropDefaults, build_random_crop_defaults
+from albumentationsx_plugin.hosts.fiftyone.forms.guidance import TransformGuidance, build_transform_guidance
 from albumentationsx_plugin.hosts.fiftyone.forms.renderer import FiftyOneFormRenderer
 
 SCHEMA_STATUS_JSON_FALLBACK: Final[str] = "json_fallback"
@@ -41,6 +42,7 @@ PIPELINE_STEP_COUNT_LABEL: Final[str] = "Pipeline steps"
 RANDOM_CROP_TRANSFORM_NAME: Final[str] = "RandomCrop"
 GENERAL_SECTION_FIELD_NAME: Final[str] = "_general_settings"
 STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
+TARGET_GUIDANCE_FIELD_NAME: Final[str] = "_target_compatibility"
 FIXED_SLICE_PARAMETER_NAMES: Final[dict[str, tuple[str, ...]]] = {
     "HorizontalFlip": (PROBABILITY_FIELD_NAME,),
     "RandomBrightnessContrast": ("brightness_range", "contrast_range", PROBABILITY_FIELD_NAME),
@@ -79,6 +81,7 @@ class DynamicAugmentFormBuilder:
                 selected_transform_name=selected_transform_name,
                 step_number=step_number,
             )
+            self._render_transform_guidance(inputs, selected_transform_name, step_number=step_number, ctx=ctx)
             self._render_transform_parameters(
                 inputs,
                 selected_transform_name,
@@ -163,6 +166,23 @@ class DynamicAugmentFormBuilder:
             view=choices,
         )
 
+    def _render_transform_guidance(
+        self,
+        inputs: types.Object,
+        selected_transform_name: str,
+        *,
+        step_number: int,
+        ctx: Any | None,
+    ) -> None:
+        guidance = build_transform_guidance(
+            capability=self.catalog_provider.get_transform_capability(selected_transform_name),
+            ctx=ctx,
+        )
+        inputs.view(
+            pipeline_step_field_name(step_number, TARGET_GUIDANCE_FIELD_NAME),
+            _guidance_view(guidance),
+        )
+
     def _render_transform_parameters(
         self,
         inputs: types.Object,
@@ -194,6 +214,11 @@ def build_dynamic_augment_form(ctx: Any | None) -> types.Object:
 def _ctx_params(ctx: Any | None) -> Mapping[str, object]:
     params = getattr(ctx, "params", {}) if ctx is not None else {}
     return params if isinstance(params, Mapping) else {}
+
+
+def _guidance_view(guidance: TransformGuidance) -> types.View:
+    view_cls = types.Warning if guidance.warning else types.Notice
+    return view_cls(label=guidance.label, description=guidance.description)
 
 
 def _selected_step_count(raw_value: object) -> int:

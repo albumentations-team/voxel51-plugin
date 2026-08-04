@@ -45,6 +45,14 @@ class _SampleCollection:
         return self._samples[sample_id]
 
 
+class _DatasetSchema:
+    def __init__(self, fields: dict[str, str]) -> None:
+        self._fields = fields
+
+    def get_field_schema(self) -> dict[str, dict[str, str]]:
+        return {field_name: {"document_type": document_type} for field_name, document_type in self._fields.items()}
+
+
 def _load_manifest() -> dict[str, Any]:
     with (ROOT / "fiftyone.yml").open("r", encoding="utf-8") as file:
         value = yaml.safe_load(file)
@@ -96,6 +104,8 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["_general_settings"]["view"]["label"] == "General"
     assert input_properties["_pipeline_stage_1"]["view"]["name"] == "Header"
     assert input_properties["_pipeline_stage_1"]["view"]["label"] == "Stage 1"
+    assert input_properties["_target_compatibility"]["view"]["name"] == "Notice"
+    assert "Dataset labels: metadata unavailable" in input_properties["_target_compatibility"]["view"]["description"]
     assert input_properties["pipeline_step_count"]["type"]["name"] == "Number"
     assert input_properties["pipeline_step_count"]["default"] == 1
     assert input_properties["pipeline_step_count"]["required"] is False
@@ -114,6 +124,7 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert "BBoxSafeRandomCrop" not in transform_values
     assert input_properties["p"]["type"]["name"] == "Number"
     assert input_properties["p"]["default"] == 1.0
+    assert "Constraints: >= 0, <= 1." in input_properties["p"]["view"]["description"]
     assert input_properties["outputs_per_sample"]["type"]["name"] == "Number"
     assert input_properties["outputs_per_sample"]["required"] is False
     assert input_properties["outputs_per_sample"]["default"] == 1
@@ -214,6 +225,71 @@ def test_augment_operator_resolves_selected_transform_parameter_schema() -> None
 
 
 @pytest.mark.unit
+def test_augment_operator_renders_target_compatibility_for_supported_dataset_labels() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = _DatasetSchema(
+            {
+                "ground_truth": "Classification",
+                "detections": "Detections",
+                "keypoints": "Keypoints",
+                "segmentation": "Segmentation",
+            }
+        )
+        params = {"transform": "HorizontalFlip"}
+
+    input_json = operator.resolve_input(Context()).to_json()
+    target_guidance = input_json["type"]["properties"]["_target_compatibility"]["view"]
+
+    assert target_guidance["name"] == "Notice"
+    assert (
+        "Targets: image: supported; bboxes: supported; masks: supported; keypoints: supported; labels: copied."
+        in (target_guidance["description"])
+    )
+    assert (
+        "Dataset labels: bboxes (detections); masks (segmentation); keypoints (keypoints); labels (ground_truth)."
+        in (target_guidance["description"])
+    )
+
+
+@pytest.mark.unit
+def test_augment_operator_warns_when_transform_does_not_support_dataset_labels() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = _DatasetSchema({"detections": "Detections"})
+        params = {"transform": "RandomBrightnessContrast"}
+
+    input_json = operator.resolve_input(Context()).to_json()
+    target_guidance = input_json["type"]["properties"]["_target_compatibility"]["view"]
+
+    assert target_guidance["name"] == "Warning"
+    assert "bboxes: not supported" in target_guidance["description"]
+    assert "Dataset labels: bboxes (detections)." in target_guidance["description"]
+    assert (
+        "Warning: selected transform does not declare support for bboxes fields detections."
+        in (target_guidance["description"])
+    )
+
+
+@pytest.mark.unit
+def test_augment_operator_renders_target_guidance_without_dataset_metadata() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        params = {"transform": "RandomCrop"}
+
+    input_json = operator.resolve_input(Context()).to_json()
+    target_guidance = input_json["type"]["properties"]["_target_compatibility"]["view"]
+
+    assert target_guidance["name"] == "Notice"
+    assert "Dataset labels: metadata unavailable" in target_guidance["description"]
+    assert "Hidden advanced parameters use Albumentations defaults:" in target_guidance["description"]
+
+
+@pytest.mark.unit
 def test_augment_operator_resolves_random_crop_without_initial_required_errors() -> None:
     operator = AugmentWithAlbumentationsX()
 
@@ -249,12 +325,8 @@ def test_augment_operator_limits_random_crop_defaults_to_selected_sample_dimensi
     assert input_properties["height"]["default"] == 18
     assert input_properties["width"]["required"] is False
     assert input_properties["width"]["default"] == 24
-    assert input_properties["height"]["view"]["description"].endswith(
-        "Default is limited by the selected image dimensions."
-    )
-    assert input_properties["width"]["view"]["description"].endswith(
-        "Default is limited by the selected image dimensions."
-    )
+    assert "Default is limited by the selected image dimensions." in input_properties["height"]["view"]["description"]
+    assert "Default is limited by the selected image dimensions." in input_properties["width"]["view"]["description"]
 
 
 @pytest.mark.unit
@@ -275,11 +347,13 @@ def test_augment_operator_limits_random_crop_defaults_to_selected_samples_contex
 
     assert input_properties["height"]["default"] == 19
     assert input_properties["width"]["default"] == 21
-    assert input_properties["height"]["view"]["description"].endswith(
+    assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
+        in (input_properties["height"]["view"]["description"])
     )
-    assert input_properties["width"]["view"]["description"].endswith(
+    assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
+        in (input_properties["width"]["view"]["description"])
     )
 
 
@@ -303,11 +377,13 @@ def test_augment_operator_limits_random_crop_defaults_to_selected_view_samples()
 
     assert input_properties["height"]["default"] == 24
     assert input_properties["width"]["default"] == 22
-    assert input_properties["height"]["view"]["description"].endswith(
+    assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
+        in (input_properties["height"]["view"]["description"])
     )
-    assert input_properties["width"]["view"]["description"].endswith(
+    assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
+        in (input_properties["width"]["view"]["description"])
     )
 
 
@@ -346,11 +422,13 @@ def test_augment_operator_uses_conservative_random_crop_defaults_for_mixed_selec
 
     assert input_properties["height"]["default"] == 16
     assert input_properties["width"]["default"] == 20
-    assert input_properties["height"]["view"]["description"].endswith(
+    assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
+        in (input_properties["height"]["view"]["description"])
     )
-    assert input_properties["width"]["view"]["description"].endswith(
+    assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
+        in (input_properties["width"]["view"]["description"])
     )
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Final, TypeGuard, cast
 
@@ -112,8 +112,9 @@ def _property_kwargs(field: FormFieldSchema) -> dict[str, object]:
     kwargs: dict[str, object] = {"required": field.required}
     if field.label is not None:
         kwargs["label"] = field.label
-    if field.help_text is not None:
-        kwargs["description"] = field.help_text
+    description = _field_description(field)
+    if description is not None:
+        kwargs["description"] = description
     if field.default is not None:
         kwargs["default"] = field.default
     if _is_unsupported_required_schema(field):
@@ -121,6 +122,55 @@ def _property_kwargs(field: FormFieldSchema) -> dict[str, object]:
         kwargs["error_message"] = "This required parameter cannot be rendered safely yet."
         kwargs["view"] = types.View(read_only=True)
     return kwargs
+
+
+def _field_description(field: FormFieldSchema) -> str | None:
+    parts = [field.help_text] if field.help_text is not None else []
+    constraint_description = _constraint_description(field)
+    if constraint_description is not None:
+        parts.append(constraint_description)
+    return " ".join(parts) if parts else None
+
+
+def _constraint_description(field: FormFieldSchema) -> str | None:
+    constraints = _metadata_mapping(field, "constraints")
+    if not constraints:
+        return None
+
+    parts = [
+        description
+        for field_name, formatter in _constraint_formatters()
+        if (description := _constraint_part(constraints, field_name, formatter)) is not None
+    ]
+    return "Constraints: " + ", ".join(parts) + "." if parts else None
+
+
+def _constraint_formatters() -> tuple[tuple[str, str], ...]:
+    return (
+        ("ge", ">="),
+        ("gt", ">"),
+        ("le", "<="),
+        ("lt", "<"),
+        ("min_value", "min"),
+        ("max_value", "max"),
+        ("min_length", "min length"),
+        ("max_length", "max length"),
+        ("multiple_of", "multiple of"),
+        ("pattern", "pattern"),
+    )
+
+
+def _constraint_part(constraints: Mapping[str, object], field_name: str, formatter: str) -> str | None:
+    value = constraints.get(field_name)
+    if value is None:
+        return None
+    return f"{formatter} {_format_constraint_value(value)}"
+
+
+def _format_constraint_value(value: object) -> str:
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
 
 
 def _enum_values(field: FormFieldSchema) -> list[str | int | float | bool | None]:
