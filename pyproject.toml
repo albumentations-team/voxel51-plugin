@@ -1,7 +1,7 @@
 [project]
 name = "fiftyone-albumentationsx-plugin"
-version = "0.0.0"
-description = "FiftyOne plugin for building and previewing AlbumentationsX augmentation pipelines."
+version = "0.1.0"
+description = "FiftyOne plugin for building and applying AlbumentationsX augmentation pipelines."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = "AGPL-3.0-only"

@@ -51,12 +51,12 @@ def test_delete_run_operator_resolves_run_selector_confirmation_and_output(monke
         dataset = object()
         params = {}
 
-    def fake_list_available_run_keys(dataset: object, **kwargs) -> tuple[str, ...]:
+    def fake_list_deletable_run_keys(dataset: object, **kwargs) -> tuple[str, ...]:
         assert dataset is Context.dataset
         assert kwargs["storage_root"] is None
         return ("albumentationsx-20260731T150000Z-first",)
 
-    monkeypatch.setattr(delete_run_operator_module, "list_available_run_keys", fake_list_available_run_keys)
+    monkeypatch.setattr(delete_run_operator_module, "list_deletable_run_keys", fake_list_deletable_run_keys)
 
     input_json = operator.resolve_input(Context()).to_json()
     output_json = operator.resolve_output(ctx=None).to_json()
@@ -87,6 +87,29 @@ def test_delete_run_operator_resolves_samples_grid_placement() -> None:
     assert view_json["name"] == "Button"
     assert view_json["label"] == "Delete AlbumentationsX Run"
     assert view_json["prompt"] is True
+    assert view_json["disabled"] is True
+
+
+@pytest.mark.unit
+def test_delete_run_operator_enables_samples_grid_placement_with_dataset_runs(monkeypatch) -> None:
+    operator = DeleteAlbumentationsXRun()
+
+    class Context:
+        dataset = object()
+        params = {}
+
+    monkeypatch.setattr(
+        delete_run_operator_module,
+        "list_deletable_run_keys",
+        lambda dataset, **kwargs: ("albumentationsx-20260731T150000Z-run",),
+    )
+
+    placement_json = operator.resolve_placement(Context()).to_json()
+    view_json = placement_json["view"]
+
+    assert isinstance(view_json, dict)
+    assert view_json["disabled"] is False
+    assert view_json["title"] is None
 
 
 @pytest.mark.unit
@@ -100,6 +123,11 @@ def test_delete_run_operator_execute_delegates_to_cleanup_service(monkeypatch) -
             CONFIRM_FIELD_NAME: True,
             STORAGE_ROOT_PARAM_NAME: "/tmp/plugin-storage",
         }
+        triggered: list[str] = []
+
+        @classmethod
+        def trigger(cls, event_name: str) -> None:
+            cls.triggered.append(event_name)
 
     def fake_cleanup_run(dataset: object, run_key: str, **kwargs) -> RunCleanupResult:
         assert dataset is Context.dataset
@@ -134,3 +162,36 @@ def test_delete_run_operator_execute_delegates_to_cleanup_service(monkeypatch) -
         "confirmed": True,
         "errors_json": "[]",
     }
+    assert Context.triggered == ["reload_dataset"]
+
+
+@pytest.mark.unit
+def test_delete_run_operator_does_not_reload_when_cleanup_does_not_mutate(monkeypatch) -> None:
+    operator = DeleteAlbumentationsXRun()
+
+    class Context:
+        dataset = object()
+        params = {
+            "run_key": "albumentationsx-20260731T150000Z-run",
+            CONFIRM_FIELD_NAME: False,
+        }
+        triggered: list[str] = []
+
+        @classmethod
+        def trigger(cls, event_name: str) -> None:
+            cls.triggered.append(event_name)
+
+    def fake_cleanup_run(dataset: object, run_key: str, **kwargs) -> RunCleanupResult:
+        return RunCleanupResult(
+            run_key=run_key,
+            status="confirmation_required",
+            message="confirm first",
+            confirmed=False,
+        )
+
+    monkeypatch.setattr(delete_run_operator_module, "cleanup_run", fake_cleanup_run)
+
+    result = operator.execute(Context())
+
+    assert result["status"] == "confirmation_required"
+    assert Context.triggered == []

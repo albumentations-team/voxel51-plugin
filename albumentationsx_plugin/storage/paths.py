@@ -8,19 +8,41 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from os import PathLike
 from pathlib import Path
+from typing import Final
 
-PLUGIN_STORAGE_DIRNAME = "albumentationsx-plugin"
-_HASH_SUFFIX_LENGTH = 10
+PLUGIN_STORAGE_DIRNAME: Final[str] = "albumentationsx-plugin"
+MAX_RUN_LABEL_SLUG_LENGTH: Final[int] = 48
+_HASH_SUFFIX_LENGTH: Final[int] = 10
 
 _UNSAFE_COMPONENT = re.compile(r"[^A-Za-z0-9._-]+")
+_UNSAFE_RUN_LABEL = re.compile(r"[^a-z0-9]+")
 
 
-def build_run_key(*, now: datetime | None = None, suffix: str | None = None) -> str:
+def build_run_key(
+    *,
+    now: datetime | None = None,
+    suffix: str | None = None,
+    run_label: str | None = None,
+) -> str:
     """Build a readable unique key for one augmentation run."""
 
     timestamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
     unique_suffix = suffix or uuid.uuid4().hex[:8]
-    return f"albumentationsx-{timestamp}-{_safe_component(unique_suffix, default='run')}"
+    run_key = f"albumentationsx-{timestamp}-{_safe_component(unique_suffix, default='run')}"
+    label_slug = slugify_run_label(run_label)
+    return f"{label_slug}-{run_key}" if label_slug else run_key
+
+
+def slugify_run_label(value: str | None) -> str:
+    """Return a bounded, path-safe slug for an optional user-facing run label."""
+
+    if value is None:
+        return ""
+
+    normalized = _UNSAFE_RUN_LABEL.sub("-", value.casefold().strip()).strip("-")
+    if not normalized:
+        return ""
+    return normalized[:MAX_RUN_LABEL_SLUG_LENGTH].strip("-")
 
 
 def default_storage_root(*, home: str | PathLike[str] | None = None) -> Path:

@@ -61,9 +61,9 @@ Expected modules:
 `hosts/fiftyone`
 
 FiftyOne-specific adapter code. This layer registers operators, renders neutral
-schemas into `fiftyone.operators.types`, converts selected samples or views into
-host-neutral inputs, creates new FiftyOne samples from augmentation results, and
-exposes run summary/delete operators.
+schemas into `fiftyone.operators.types`, converts selected samples from the
+active dataset or view into host-neutral inputs, creates new FiftyOne samples
+from augmentation results, and exposes run summary/delete operators.
 
 Expected modules:
 
@@ -172,9 +172,9 @@ DTOs plus standard-library types. They are grouped by boundary:
 - `storage.py`: `RunStore` and `OutputStorageBackend`.
 
 `albumentationsx_plugin/albumentations_backend/interfaces.py` re-exports the
-backend-facing protocols that concrete albu-spec and AlbumentationsX modules
-will implement. Host adapters may import this module when they need a backend
-service, but they should not import concrete backend modules directly.
+backend-facing protocols implemented by concrete albu-spec and AlbumentationsX
+modules. Host adapters may import this module when they need a backend service,
+but they should not import concrete backend modules directly.
 
 Concrete implementations should live in their owning packages:
 

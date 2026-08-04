@@ -8,6 +8,10 @@ catalog and neutral parameter schemas.
 The FiftyOne host layer owns the UI mapping:
 
 - `hosts/fiftyone/forms/augment.py` composes the operator form.
+- `hosts/fiftyone/forms/defaults.py` derives host-context defaults without
+  changing backend schema metadata.
+- `hosts/fiftyone/forms/guidance.py` derives target compatibility and dataset
+  label warnings from catalog and dataset metadata.
 - `hosts/fiftyone/forms/renderer.py` maps `FormFieldSchema` to
   `fiftyone.operators.types`.
 
@@ -28,27 +32,53 @@ The current renderer maps:
 - `json` to a JSON string input
 
 Required complex fields that cannot be rendered safely are marked invalid and
-read-only. Normal optional complex fields are rendered as JSON strings so they
-remain editable without inventing transform-specific UI code.
+read-only. Parameter descriptions and constraints from albu-spec metadata are
+rendered as field descriptions. The generic renderer can render optional
+complex fields as JSON strings, but the executable augmentation form hides
+optional JSON fallback parameters for `supported_with_defaults` transforms and
+relies on documented defaults.
 
 ## Execution Scope
 
 VOX-14 adds a catalog-driven backend pipeline factory. The execution path now
 uses that shared factory internally. VOX-22 adds ordered pipeline editing for up
-to three steps from the temporary fixed transform set that the MVP runner can
-execute. Catalog-wide support remains visible through the capability report, not
-as executable App choices.
+to three steps. VOX-25 exposes catalog-backed normal MVP transform choices in
+the executable App flow.
 
-The fixed runner remains executable for:
+Executable choices include transforms whose catalog status is:
 
-- `HorizontalFlip`
-- `RandomBrightnessContrast`
-- `RandomCrop`
+- `supported`
+- `supported_with_defaults`
+
+Excluded catalog statuses remain visible through the capability report, not as
+normal executable App choices.
 
 Step 1 keeps the original fixed-form field names (`transform`, `p`, `height`,
 and similar) for compatibility. Later steps use prefixed field names such as
 `step_2_transform`, `step_2_p`, and `step_3_height`.
 
+VOX-27 groups the prompt into a general settings section followed by one
+visible section for each active augmentation stage. General settings include the
+optional previous-run preset selector, stage count, output count, run label, and
+dry-run flag. Only active stages are rendered, so later-stage validation is not
+shown before those stages are enabled.
+
+When a previous run is selected, the form loads that run's `manifest.json` from
+the current dataset and overlays its saved `pipeline` config under any current
+form edits. The same overlay is applied during operator execution, so submitting
+only the previous run key still applies the saved pipeline template to the new
+selection. Replay records are not reused; the new run samples fresh random
+parameters.
+
+VOX-30 adds per-stage target compatibility guidance. Each active stage shows
+image, bbox, mask, keypoint, and label handling from the selected transform
+capability. When dataset label metadata is available, the form warns if selected
+dataset labels use targets that the transform does not declare support for.
+When dataset metadata is unavailable, the form keeps guidance visible and notes
+that execution validation still runs before processing.
+
 The fixed execution form applies MVP-specific defaults over the raw albu-spec
-schema: transform probability defaults to `1.0`, `RandomCrop` height and width
-default to `32`, and only parameters consumed by the fixed runner are shown.
+schema without mutating catalog metadata: transform probability defaults to
+`1.0`, `RandomCrop` height and width use selected-sample image metadata when
+available and otherwise fall back to `32`, and optional JSON fallback advanced
+parameters are hidden for `supported_with_defaults` transforms.

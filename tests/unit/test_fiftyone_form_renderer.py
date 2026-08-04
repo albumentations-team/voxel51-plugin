@@ -39,6 +39,8 @@ def test_fiftyone_form_renderer_maps_supported_field_kinds() -> None:
                 default=0.5,
                 min_value=0.0,
                 max_value=1.0,
+                help_text="How often to apply the transform.",
+                metadata={"constraints": {"ge": 0.0, "le": 1.0}},
             ),
             FormFieldSchema(name="note", kind=FieldKind.STRING, label="Note"),
             FormFieldSchema(
@@ -98,6 +100,9 @@ def test_fiftyone_form_renderer_maps_supported_field_kinds() -> None:
         "min": 0.0,
         "max": 1.0,
     }
+    assert properties["probability"]["view"]["description"] == (
+        "How often to apply the transform. Constraints: >= 0, <= 1."
+    )
     assert properties["note"]["type"] == {"name": "String", "allow_empty": True}
     assert properties["mode"]["type"] == {"name": "Enum", "values": ["fast", "accurate"]}
     assert properties["optional_mode"]["type"] == {"name": "Enum", "values": ["auto", None]}

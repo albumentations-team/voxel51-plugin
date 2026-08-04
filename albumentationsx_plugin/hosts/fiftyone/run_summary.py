@@ -9,7 +9,16 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, Protocol
 
-from albumentationsx_plugin.core import JSONDict, MediaIOError, RunManifest
+from albumentationsx_plugin.core import (
+    RUN_CLEANED_AT_METADATA_KEY,
+    RUN_CLEANUP_STATUS_CLEANED,
+    RUN_CLEANUP_STATUS_METADATA_KEY,
+    RUN_LABEL_FIELD_NAME,
+    RUN_LABEL_SLUG_METADATA_KEY,
+    JSONDict,
+    MediaIOError,
+    RunManifest,
+)
 from albumentationsx_plugin.hosts.fiftyone.runs import FIFTYONE_RUN_METHOD, build_fiftyone_run_key
 from albumentationsx_plugin.hosts.fiftyone.samples import summarize_pipeline
 from albumentationsx_plugin.storage.manifest import (
@@ -19,6 +28,7 @@ from albumentationsx_plugin.storage.manifest import (
 )
 
 RUN_STATUS_OK = "ok"
+RUN_STATUS_CLEANED = RUN_CLEANUP_STATUS_CLEANED
 RUN_STATUS_STALE = "stale"
 RUN_STATUS_MISSING = "missing_manifest"
 RUN_STATUS_INVALID = "invalid_manifest"
@@ -44,6 +54,14 @@ class RunDataset(Protocol):
         ...
 
 
+class DeletableRunDataset(RunDataset, Protocol):
+    """Read-only FiftyOne dataset APIs needed to find runs with cleanup work."""
+
+    def select(self, sample_ids: Sequence[str], ordered: bool = False) -> Any:
+        """Return a view containing existing sample IDs."""
+        ...
+
+
 @dataclass(frozen=True, slots=True)
 class RunSummary:
     """Read-only summary of a persisted AlbumentationsX run."""
@@ -53,6 +71,10 @@ class RunSummary:
     message: str
     manifest_path: str = ""
     fiftyone_run_key: str = ""
+    cleanup_status: str = ""
+    cleaned_at: str = ""
+    run_label: str = ""
+    run_label_slug: str = ""
     source_count: int = 0
     created_count: int = 0
     output_count: int = 0
@@ -78,6 +100,10 @@ class RunSummary:
             "message": self.message,
             "manifest_path": self.manifest_path,
             "fiftyone_run_key": self.fiftyone_run_key,
+            "cleanup_status": self.cleanup_status,
+            "cleaned_at": self.cleaned_at,
+            "run_label": self.run_label,
+            "run_label_slug": self.run_label_slug,
             "source_count": self.source_count,
             "created_count": self.created_count,
             "output_count": self.output_count,
@@ -105,6 +131,18 @@ def list_available_run_keys(
 
     run_keys = set(_list_manifest_run_keys(dataset.name, storage_root=storage_root))
     run_keys.update(_list_fiftyone_plugin_run_keys(dataset))
+    return tuple(sorted(run_keys))
+
+
+def list_deletable_run_keys(
+    dataset: DeletableRunDataset,
+    *,
+    storage_root: str | PathLike[str] | None = None,
+) -> tuple[str, ...]:
+    """Return plugin run keys that still have cleanup work available."""
+
+    run_keys = set(_list_fiftyone_plugin_run_keys(dataset))
+    run_keys.update(_list_deletable_manifest_run_keys(dataset, storage_root=storage_root))
     return tuple(sorted(run_keys))
 
 
@@ -177,6 +215,50 @@ def _list_fiftyone_plugin_run_keys(dataset: RunDataset) -> tuple[str, ...]:
     return tuple(run_keys)
 
 
+def _list_deletable_manifest_run_keys(
+    dataset: DeletableRunDataset,
+    *,
+    storage_root: str | PathLike[str] | None,
+) -> tuple[str, ...]:
+    store = FileRunStore(dataset.name, storage_root=storage_root)
+    if not store.dataset_dir.exists():
+        return ()
+
+    run_keys: list[str] = []
+    for manifest_path in sorted(store.dataset_dir.glob(f"*/{MANIFEST_FILENAME}")):
+        try:
+            manifest = store.load_manifest(manifest_path.parent.name)
+        except (MediaIOError, TypeError, ValueError):
+            continue
+        if _manifest_has_deletable_artifacts(dataset, manifest, run_dir=store.run_dir(manifest.run_key)):
+            run_keys.append(manifest.run_key)
+    return tuple(run_keys)
+
+
+def _manifest_has_deletable_artifacts(
+    dataset: DeletableRunDataset,
+    manifest: RunManifest,
+    *,
+    run_dir: Path,
+) -> bool:
+    if _lookup_fiftyone_run_key(dataset, manifest.run_key):
+        return True
+    if _existing_created_sample_count(dataset, manifest.created_sample_ids):
+        return True
+
+    available_output_count, _missing_output_count = _output_file_counts(run_dir, manifest.output_paths)
+    return available_output_count > 0
+
+
+def _existing_created_sample_count(dataset: DeletableRunDataset, sample_ids: tuple[str, ...]) -> int:
+    if not sample_ids:
+        return 0
+    try:
+        return len({str(sample_id) for sample_id in dataset.select(sample_ids).values("id")})
+    except Exception:
+        return 0
+
+
 def _lookup_fiftyone_run_key(dataset: RunDataset, plugin_run_key: str) -> str:
     expected_run_key = build_fiftyone_run_key(plugin_run_key)
     if dataset.has_run(expected_run_key):
@@ -237,9 +319,14 @@ def _manifest_summary(
     fiftyone_run_key: str,
 ) -> RunSummary:
     available_output_count, missing_output_count = _output_file_counts(run_dir, manifest.output_paths)
+    cleanup_status = _metadata_str(manifest.metadata, RUN_CLEANUP_STATUS_METADATA_KEY)
+    cleaned_at = _metadata_str(manifest.metadata, RUN_CLEANED_AT_METADATA_KEY)
     status = RUN_STATUS_OK
     message = "Run manifest loaded."
-    if missing_output_count:
+    if cleanup_status == RUN_CLEANUP_STATUS_CLEANED:
+        status = RUN_STATUS_CLEANED
+        message = "Run has been cleaned; manifest is retained for audit."
+    elif missing_output_count:
         status = RUN_STATUS_STALE
         message = f"Run manifest loaded, but {missing_output_count} output file(s) are missing."
 
@@ -249,6 +336,10 @@ def _manifest_summary(
         message=message,
         manifest_path=str(manifest_path),
         fiftyone_run_key=fiftyone_run_key,
+        cleanup_status=cleanup_status,
+        cleaned_at=cleaned_at,
+        run_label=_metadata_str(manifest.metadata, RUN_LABEL_FIELD_NAME),
+        run_label_slug=_metadata_str(manifest.metadata, RUN_LABEL_SLUG_METADATA_KEY),
         source_count=_counter(manifest.counters, "processed", fallback=len(manifest.source_sample_ids)),
         created_count=_counter(manifest.counters, "created", fallback=len(manifest.created_sample_ids)),
         output_count=_counter(manifest.counters, "outputs", fallback=len(manifest.output_paths)),

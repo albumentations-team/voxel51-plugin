@@ -159,6 +159,41 @@ def test_fixed_pipeline_accepts_dynamic_form_parameter_names() -> None:
 
 
 @pytest.mark.unit
+def test_fixed_pipeline_builds_catalog_backed_transform_configs() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "pipeline_step_count": 3,
+            "transform": "ToGray",
+            "method": "average",
+            "p": 1.0,
+            "step_2_transform": "Blur",
+            "step_2_blur_range": [3, 5],
+            "step_2_p": 1.0,
+            "step_3_transform": "CoarseDropout",
+            "step_3_num_holes_range": [1, 1],
+            "step_3_hole_height_range": [0.1, 0.1],
+            "step_3_hole_width_range": [0.1, 0.1],
+            "step_3_p": 1.0,
+        }
+    )
+
+    assert config.options["source"] == "catalog_mvp_pipeline"
+    assert config.transforms == (
+        TransformConfig(name="ToGray", params={"num_output_channels": 3, "method": "average", "p": 1.0}),
+        TransformConfig(name="Blur", params={"blur_range": [3, 5], "p": 1.0}),
+        TransformConfig(
+            name="CoarseDropout",
+            params={
+                "num_holes_range": [1, 1],
+                "hole_height_range": [0.1, 0.1],
+                "hole_width_range": [0.1, 0.1],
+                "p": 1.0,
+            },
+        ),
+    )
+
+
+@pytest.mark.unit
 def test_random_crop_validates_source_image_dimensions_before_execution() -> None:
     config = build_fixed_pipeline_config(
         {
@@ -201,25 +236,21 @@ def test_fixed_pipeline_rejects_unknown_transform_and_invalid_parameters() -> No
             PipelineConfig(transforms=(TransformConfig(name="HorizontalFlip", params={"p": 1.0, "legacy": True}),))
         )
 
-    with pytest.raises(InvalidParameterError) as direct_range_error:
+    with pytest.raises(InvalidParameterError) as direct_probability_error:
         validate_fixed_pipeline_config(
             PipelineConfig(
                 transforms=(
                     TransformConfig(
                         name="RandomBrightnessContrast",
-                        params={"p": 1.0, "brightness_range": [-2.0, 0.2], "contrast_range": [-0.2, 0.2]},
+                        params={"p": 2.0, "brightness_range": [-0.2, 0.2], "contrast_range": [-0.2, 0.2]},
                     ),
                 )
             )
         )
 
-    assert unsupported_error.value.context["supported_transforms"] == [
-        "HorizontalFlip",
-        "RandomBrightnessContrast",
-        "RandomCrop",
-    ]
+    assert unsupported_error.value.context["reason_code"] == "non_uint8_image_output"
     assert output_count_error.value.context["parameter_name"] == "outputs_per_sample"
     assert step_count_error.value.context["parameter_name"] == "pipeline_step_count"
     assert range_error.value.context["parameter_name"] == "brightness_range"
-    assert direct_range_error.value.context["min_value"] == -1.0
+    assert direct_probability_error.value.context["parameter_name"] == "p"
     assert unknown_param_error.value.context["unknown_parameters"] == ["legacy"]

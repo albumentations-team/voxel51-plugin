@@ -4,17 +4,26 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from os import PathLike
 from pathlib import Path
 from typing import Any, Protocol
 
-from albumentationsx_plugin.core import JSONDict, MediaIOError, RunManifest
+from albumentationsx_plugin.core import (
+    RUN_CLEANED_AT_METADATA_KEY,
+    RUN_CLEANUP_STATUS_CLEANED,
+    RUN_CLEANUP_STATUS_METADATA_KEY,
+    JSONDict,
+    MediaIOError,
+    RunManifest,
+)
 from albumentationsx_plugin.hosts.fiftyone.runs import build_fiftyone_run_key
 from albumentationsx_plugin.storage.cleanup import delete_manifest_output_files
 from albumentationsx_plugin.storage.manifest import FileRunStore
 
 CLEANUP_STATUS_OK = "ok"
+CLEANUP_STATUS_CLEANED = RUN_CLEANUP_STATUS_CLEANED
 CLEANUP_STATUS_PARTIAL = "partial"
 CLEANUP_STATUS_CONFIRMATION_REQUIRED = "confirmation_required"
 CLEANUP_STATUS_MISSING = "missing_manifest"
@@ -139,6 +148,7 @@ def cleanup_run(
     return _cleanup_loaded_manifest(
         dataset,
         manifest,
+        run_store=store,
         run_dir=store.run_dir(manifest.run_key),
         manifest_path=store.manifest_path(manifest.run_key),
         fiftyone_run_key=fiftyone_run_key or build_fiftyone_run_key(manifest.run_key),
@@ -150,6 +160,7 @@ def _cleanup_loaded_manifest(
     dataset: CleanupDataset,
     manifest: RunManifest,
     *,
+    run_store: FileRunStore,
     run_dir: Path,
     manifest_path: Path,
     fiftyone_run_key: str,
@@ -166,10 +177,14 @@ def _cleanup_loaded_manifest(
         status = CLEANUP_STATUS_PARTIAL
     else:
         custom_run_deleted, custom_run_missing = _delete_custom_run(dataset, fiftyone_run_key)
-        message = "Cleanup completed."
-        status = CLEANUP_STATUS_OK
+        if deleted_sample_count or file_cleanup.deleted_count or custom_run_deleted:
+            message = "Cleanup completed."
+            status = CLEANUP_STATUS_OK
+        else:
+            message = "Run was already cleaned; nothing remained to delete."
+            status = CLEANUP_STATUS_CLEANED
 
-    return RunCleanupResult(
+    result = RunCleanupResult(
         run_key=manifest.run_key,
         status=status,
         message=message,
@@ -184,6 +199,18 @@ def _cleanup_loaded_manifest(
         custom_run_missing=custom_run_missing,
         confirmed=confirmed,
         errors=file_cleanup.errors,
+    )
+    if status not in (CLEANUP_STATUS_OK, CLEANUP_STATUS_CLEANED):
+        return result
+
+    metadata_error = _mark_manifest_cleaned(run_store, manifest)
+    if metadata_error is None:
+        return result
+    return replace(
+        result,
+        status=CLEANUP_STATUS_PARTIAL,
+        message="Cleanup completed, but cleanup metadata could not be saved to the manifest.",
+        errors=(*result.errors, metadata_error.to_dict()),
     )
 
 
@@ -230,6 +257,21 @@ def _delete_custom_run(dataset: CleanupDataset, fiftyone_run_key: str) -> tuple[
         return False, True
     dataset.delete_run(fiftyone_run_key)
     return True, False
+
+
+def _mark_manifest_cleaned(run_store: FileRunStore, manifest: RunManifest) -> MediaIOError | None:
+    metadata = dict(manifest.metadata)
+    metadata[RUN_CLEANUP_STATUS_METADATA_KEY] = RUN_CLEANUP_STATUS_CLEANED
+    metadata.setdefault(RUN_CLEANED_AT_METADATA_KEY, _utc_timestamp())
+    try:
+        run_store.save_manifest(replace(manifest, metadata=metadata))
+    except MediaIOError as error:
+        return error
+    return None
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _fiftyone_run_key(dataset: CleanupDataset, run_key: str) -> str:

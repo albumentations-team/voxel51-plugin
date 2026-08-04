@@ -41,7 +41,8 @@ The catalog exposes every transform known to albu-spec with one status:
   safely.
 
 Normal MVP choices are transforms with `supported` or
-`supported_with_defaults`.
+`supported_with_defaults`; VOX-25 exposes these choices in the executable
+FiftyOne augmentation UI.
 
 ## Review Report
 
@@ -73,4 +74,5 @@ The current lockfile produces:
   - `unsupported_target`: `7`
 
 Tests intentionally assert this summary so dependency or metadata drift is
-visible during review.
+visible during review. The release-specific snapshot for the first public MVP is
+[Capability Report v0.1.0](capability-report-v0.1.0.md).

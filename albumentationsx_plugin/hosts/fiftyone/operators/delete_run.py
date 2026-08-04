@@ -11,8 +11,8 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
-from albumentationsx_plugin.hosts.fiftyone.run_cleanup import cleanup_run
-from albumentationsx_plugin.hosts.fiftyone.run_summary import list_available_run_keys
+from albumentationsx_plugin.hosts.fiftyone.run_cleanup import CLEANUP_STATUS_OK, CLEANUP_STATUS_PARTIAL, cleanup_run
+from albumentationsx_plugin.hosts.fiftyone.run_summary import list_deletable_run_keys
 
 OPERATOR_NAME = "delete_albumentationsx_run"
 OPERATOR_LABEL = "Delete AlbumentationsX Run"
@@ -42,7 +42,7 @@ class DeleteAlbumentationsXRun(foo.Operator):
         params = _ctx_params(ctx)
         storage_root = _storage_root(params)
         dataset = getattr(ctx, "dataset", None)
-        run_keys = list_available_run_keys(dataset, storage_root=storage_root) if dataset is not None else ()
+        run_keys = list_deletable_run_keys(dataset, storage_root=storage_root) if dataset is not None else ()
 
         inputs = types.Object()
         if run_keys:
@@ -61,7 +61,7 @@ class DeleteAlbumentationsXRun(foo.Operator):
             inputs.str(
                 RUN_KEY_FIELD_NAME,
                 label="Run key",
-                description="No persisted AlbumentationsX runs were found for this dataset.",
+                description="No deletable AlbumentationsX runs were found for this dataset.",
             )
         inputs.bool(
             CONFIRM_FIELD_NAME,
@@ -97,9 +97,15 @@ class DeleteAlbumentationsXRun(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
+        disabled = not _has_available_runs(ctx)
         return types.Placement(
             types.Places.SAMPLES_GRID_ACTIONS,
-            types.Button(label=OPERATOR_LABEL, prompt=True),
+            types.Button(
+                label=OPERATOR_LABEL,
+                prompt=True,
+                disabled=disabled,
+                title="Create an AlbumentationsX run before deleting it." if disabled else None,
+            ),
         )
 
     def execute(self, ctx: Any) -> JSONDict:
@@ -110,6 +116,7 @@ class DeleteAlbumentationsXRun(foo.Operator):
             confirmed=_confirmed(params.get(CONFIRM_FIELD_NAME)),
             storage_root=_storage_root(params),
         )
+        _trigger_dataset_reload(ctx, result)
         return result.to_dict()
 
 
@@ -126,6 +133,31 @@ def _selected_run_key(raw_value: object, run_keys: tuple[str, ...]) -> str:
 
 def _confirmed(raw_value: object) -> bool:
     return raw_value is True
+
+
+def _has_available_runs(ctx: Any | None) -> bool:
+    if ctx is None:
+        return False
+    dataset = getattr(ctx, "dataset", None)
+    if dataset is None:
+        return False
+    try:
+        return bool(list_deletable_run_keys(dataset, storage_root=_storage_root(_ctx_params(ctx))))
+    except Exception:
+        return False
+
+
+def _trigger_dataset_reload(ctx: Any, result: Any) -> None:
+    if getattr(result, "status", "") not in {CLEANUP_STATUS_OK, CLEANUP_STATUS_PARTIAL}:
+        return
+
+    trigger = getattr(ctx, "trigger", None)
+    if not callable(trigger):
+        return
+    try:
+        trigger("reload_dataset")
+    except ValueError:
+        return
 
 
 def _storage_root(params: Mapping[str, object]) -> str | PathLike[str] | None:

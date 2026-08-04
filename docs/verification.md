@@ -34,6 +34,18 @@ The smoke group covers local FiftyOne plugin discovery and the headless MVP demo
 path: create demo data, augment one sample, inspect the run summary, clean up the
 run, and verify source samples/files remain.
 
+## Release candidate checks
+
+For release branches, run the complete local gate above and refresh the
+capability report:
+
+```bash
+uv run python scripts/report_transform_capabilities.py
+```
+
+Attach or link the resulting snapshot from the release notes. For `v0.1.0`,
+the release checklist lives in [Release v0.1.0](release-v0.1.0.md).
+
 ## Manual App checks
 
 For pull requests that change FiftyOne App behavior, record the manual scenario

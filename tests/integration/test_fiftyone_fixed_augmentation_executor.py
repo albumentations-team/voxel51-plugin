@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import fiftyone as fo
@@ -10,6 +11,18 @@ import pytest
 
 from albumentationsx_plugin.core import InvalidParameterError, MediaIOError, RunManifest
 from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
+from albumentationsx_plugin.hosts.fiftyone.operators.delete_run import (
+    STORAGE_ROOT_PARAM_NAME as DELETE_STORAGE_ROOT_PARAM_NAME,
+)
+from albumentationsx_plugin.hosts.fiftyone.operators.delete_run import (
+    DeleteAlbumentationsXRun,
+)
+from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
+    STORAGE_ROOT_PARAM_NAME as VIEW_STORAGE_ROOT_PARAM_NAME,
+)
+from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
+    ViewAlbumentationsXRun,
+)
 from albumentationsx_plugin.hosts.fiftyone.samples import (
     DEFAULT_OUTPUT_TAG,
     RUN_KEY_FIELD,
@@ -159,6 +172,67 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
 
 
 @pytest.mark.integration
+def test_fixed_augmentation_executor_uses_optional_run_label_for_run_keys_and_selectors(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, "source")
+        sample_id = dataset.add_sample(_sample(source_path))
+        storage_root = tmp_path / "plugin-storage"
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+                "run_label": "Cats crop test",
+            },
+            storage_root=storage_root,
+        )
+
+        assert result.run_key.startswith("cats-crop-test-albumentationsx-")
+        assert Path(result.output_dir).name == result.run_key
+        assert result.fiftyone_run_key.startswith("cats_crop_test_albumentationsx_")
+        created = _output_samples(dataset)
+        assert len(created) == 1
+        assert created[0].get_field(RUN_KEY_FIELD) == result.run_key
+        assert build_run_tag(result.run_key) in created[0].tags
+
+        manifest = FileRunStore(dataset.name, storage_root=storage_root).load_manifest(result.run_key)
+        assert manifest.metadata["run_label"] == "Cats crop test"
+        assert manifest.metadata["run_label_slug"] == "cats-crop-test"
+
+        view_context = SimpleNamespace(
+            dataset=dataset,
+            params={VIEW_STORAGE_ROOT_PARAM_NAME: str(storage_root)},
+        )
+        delete_context = SimpleNamespace(
+            dataset=dataset,
+            params={DELETE_STORAGE_ROOT_PARAM_NAME: str(storage_root)},
+        )
+        view_input = ViewAlbumentationsXRun().resolve_input(view_context).to_json()
+        delete_input = DeleteAlbumentationsXRun().resolve_input(delete_context).to_json()
+
+        assert result.run_key in view_input["type"]["properties"]["run_key"]["type"]["values"]
+        assert result.run_key in delete_input["type"]["properties"]["run_key"]["type"]["values"]
+
+        summary = ViewAlbumentationsXRun().execute(
+            SimpleNamespace(
+                dataset=dataset,
+                params={"run_key": result.run_key, VIEW_STORAGE_ROOT_PARAM_NAME: str(storage_root)},
+            )
+        )
+        assert summary["run_label"] == "Cats crop test"
+        assert summary["run_label_slug"] == "cats-crop-test"
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
 def test_fixed_augmentation_executor_persists_ordered_transform_chain(tmp_path) -> None:
     dataset_name = _dataset_name()
     try:
@@ -254,6 +328,70 @@ def test_fixed_augmentation_executor_transforms_supported_annotations(tmp_path) 
         annotations = manifest.metadata["annotations"]
         assert isinstance(annotations, dict)
         assert annotations["fields"] == ["detections", "ground_truth", "keypoints", "segmentation"]
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("transform_name", "params", "expected_group"),
+    (
+        ("VerticalFlip", {"p": 1.0}, "geometry"),
+        ("ToGray", {"method": "average", "p": 1.0}, "color"),
+        ("Blur", {"blur_range": [3, 3], "p": 1.0}, "blur"),
+        ("CoarseDropout", {"p": 1.0}, "dropout"),
+    ),
+)
+def test_fixed_augmentation_executor_runs_catalog_backed_transform_groups(
+    tmp_path,
+    transform_name: str,
+    params: dict[str, object],
+    expected_group: str,
+) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, f"source-{expected_group}", width=8, height=6)
+        sample_id = dataset.add_sample(_sample(source_path, width=8, height=6))
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params={
+                "transform": transform_name,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+                **params,
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        assert result.error_count == 0
+        created = _output_samples(dataset)
+        assert len(created) == 1
+
+        source_image = load_rgb_image(source_path).data
+        output_image = load_rgb_image(created[0].filepath).data
+        assert output_image.shape == source_image.shape
+        assert output_image.dtype == source_image.dtype
+        if expected_group == "geometry":
+            np.testing.assert_array_equal(output_image, source_image[::-1, :, :])
+        if expected_group == "color":
+            np.testing.assert_array_equal(output_image[..., 0], output_image[..., 1])
+            np.testing.assert_array_equal(output_image[..., 1], output_image[..., 2])
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        assert [transform.name for transform in manifest.pipeline.transforms] == [transform_name]
+        replay = manifest.replay_records[0]["replay"]
+        assert isinstance(replay, dict)
+        replay_transforms = replay["transforms"]
+        assert isinstance(replay_transforms, list)
+        replay_transform = replay_transforms[0]
+        assert isinstance(replay_transform, dict)
+        assert replay_transform["__class_fullname__"] == transform_name
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)

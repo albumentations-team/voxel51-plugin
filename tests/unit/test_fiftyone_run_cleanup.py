@@ -9,6 +9,7 @@ import pytest
 
 from albumentationsx_plugin.core import PipelineConfig, RunManifest, TransformConfig
 from albumentationsx_plugin.hosts.fiftyone.run_cleanup import (
+    CLEANUP_STATUS_CLEANED,
     CLEANUP_STATUS_CONFIRMATION_REQUIRED,
     CLEANUP_STATUS_INVALID,
     CLEANUP_STATUS_OK,
@@ -128,10 +129,14 @@ def test_cleanup_run_deletes_generated_samples_files_and_custom_run_idempotently
     assert dataset.deleted_run_keys == [build_fiftyone_run_key(manifest.run_key)]
     assert not output_path.exists()
     assert store.manifest_path(manifest.run_key).exists()
+    cleaned_manifest = store.load_manifest(manifest.run_key)
+    assert cleaned_manifest.metadata["cleanup_status"] == "cleaned"
+    assert isinstance(cleaned_manifest.metadata["cleaned_at"], str)
 
     repeated = cleanup_run(dataset, manifest.run_key, confirmed=True, storage_root=tmp_path)
 
-    assert repeated.status == CLEANUP_STATUS_OK
+    assert repeated.status == CLEANUP_STATUS_CLEANED
+    assert repeated.message == "Run was already cleaned; nothing remained to delete."
     assert repeated.deleted_sample_count == 0
     assert repeated.skipped_sample_count == 1
     assert repeated.deleted_file_count == 0

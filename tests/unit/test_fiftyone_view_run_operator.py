@@ -71,6 +71,10 @@ def test_view_run_operator_resolves_run_selector_and_output(monkeypatch) -> None
     assert input_properties["run_key"]["default"] == "albumentationsx-20260731T150000Z-first"
     assert input_properties["run_key"]["view"]["name"] == "AutocompleteView"
     assert output_properties["status"]["type"]["name"] == "String"
+    assert output_properties["cleanup_status"]["type"]["name"] == "String"
+    assert output_properties["cleaned_at"]["type"]["name"] == "String"
+    assert output_properties["run_label"]["type"]["name"] == "String"
+    assert output_properties["run_label_slug"]["type"]["name"] == "String"
     assert output_properties["source_count"]["type"]["name"] == "Number"
     assert output_properties["replay_available"]["type"]["name"] == "Boolean"
     assert output_properties["pipeline_config_json"]["type"]["name"] == "String"
@@ -105,6 +109,29 @@ def test_view_run_operator_resolves_samples_grid_placement() -> None:
     assert view_json["name"] == "Button"
     assert view_json["label"] == "View AlbumentationsX Run"
     assert view_json["prompt"] is True
+    assert view_json["disabled"] is True
+
+
+@pytest.mark.unit
+def test_view_run_operator_enables_samples_grid_placement_with_dataset_runs(monkeypatch) -> None:
+    operator = ViewAlbumentationsXRun()
+
+    class Context:
+        dataset = object()
+        params = {}
+
+    monkeypatch.setattr(
+        view_run_operator_module,
+        "list_available_run_keys",
+        lambda dataset, **kwargs: ("albumentationsx-20260731T150000Z-run",),
+    )
+
+    placement_json = operator.resolve_placement(Context()).to_json()
+    view_json = placement_json["view"]
+
+    assert isinstance(view_json, dict)
+    assert view_json["disabled"] is False
+    assert view_json["title"] is None
 
 
 @pytest.mark.unit
@@ -126,6 +153,10 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
             run_key=run_key,
             status="ok",
             message="loaded",
+            cleanup_status="",
+            cleaned_at="",
+            run_label="Cats crop test",
+            run_label_slug="cats-crop-test",
             source_count=2,
             created_count=2,
             pipeline_summary="HorizontalFlip(p=1.0)",
@@ -139,6 +170,10 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
         "message": "loaded",
         "manifest_path": "",
         "fiftyone_run_key": "",
+        "cleanup_status": "",
+        "cleaned_at": "",
+        "run_label": "Cats crop test",
+        "run_label_slug": "cats-crop-test",
         "source_count": 2,
         "created_count": 2,
         "output_count": 0,

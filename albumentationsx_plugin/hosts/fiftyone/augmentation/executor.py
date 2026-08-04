@@ -18,6 +18,8 @@ from albumentationsx_plugin.albumentations_backend.fixed import (
     create_fixed_image_pipeline,
 )
 from albumentationsx_plugin.core import (
+    RUN_LABEL_FIELD_NAME,
+    RUN_LABEL_SLUG_METADATA_KEY,
     AugmentationInput,
     AugmentationResult,
     InvalidParameterError,
@@ -38,7 +40,7 @@ from albumentationsx_plugin.hosts.fiftyone.runs import build_fiftyone_run_key, r
 from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, FiftyOneSampleAdapter
 from albumentationsx_plugin.storage.images import build_output_image_relative_path, load_rgb_image, write_rgb_image
 from albumentationsx_plugin.storage.manifest import FileRunStore, resolve_manifest_output_path
-from albumentationsx_plugin.storage.paths import build_run_key
+from albumentationsx_plugin.storage.paths import build_run_key, slugify_run_label
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,7 +91,9 @@ def execute_fixed_augmentation(
     config = build_fixed_pipeline_config(params)
     pipeline = create_fixed_image_pipeline(config)
     dry_run = _bool_param(params, "dry_run", default=False)
-    run_key = build_run_key()
+    run_label = _optional_str_param(params, RUN_LABEL_FIELD_NAME)
+    run_label_slug = slugify_run_label(run_label)
+    run_key = build_run_key(run_label=run_label)
     run_store = FileRunStore(dataset_name=dataset.name, storage_root=storage_root)
     run_dir = run_store.run_dir(run_key)
     adapter = FiftyOneSampleAdapter(
@@ -133,6 +137,8 @@ def execute_fixed_augmentation(
         output_dir=run_dir,
         output_tag=output_tag,
         annotation_metadata=annotation_metadata,
+        run_label=run_label,
+        run_label_slug=run_label_slug,
     )
 
     for source in source_inputs:
@@ -166,6 +172,8 @@ def execute_fixed_augmentation(
                     output_tag=output_tag,
                     output=output,
                     annotation_metadata=annotation_metadata,
+                    run_label=run_label,
+                    run_label_slug=run_label_slug,
                 )
                 try:
                     created_sample_id = adapter.create_output_sample(output.result, manifest)
@@ -188,6 +196,8 @@ def execute_fixed_augmentation(
                             output_dir=run_dir,
                             output_tag=output_tag,
                             annotation_metadata=annotation_metadata,
+                            run_label=run_label,
+                            run_label_slug=run_label_slug,
                         )
                     except PluginError:
                         _delete_created_sample(dataset, created_sample_id)
@@ -209,6 +219,8 @@ def execute_fixed_augmentation(
                     output_dir=run_dir,
                     output_tag=output_tag,
                     annotation_metadata=annotation_metadata,
+                    run_label=run_label,
+                    run_label_slug=run_label_slug,
                 )
         if len(created_sample_ids) == created_before_sample:
             skipped_count += 1
@@ -226,6 +238,8 @@ def execute_fixed_augmentation(
                 output_dir=run_dir,
                 output_tag=output_tag,
                 annotation_metadata=annotation_metadata,
+                run_label=run_label,
+                run_label_slug=run_label_slug,
             )
 
     final_manifest = _save_current_manifest(
@@ -242,6 +256,8 @@ def execute_fixed_augmentation(
         output_dir=run_dir,
         output_tag=output_tag,
         annotation_metadata=annotation_metadata,
+        run_label=run_label,
+        run_label_slug=run_label_slug,
     )
     manifest_path = run_store.manifest_path(run_key)
     fiftyone_run_key = register_fiftyone_run(dataset, final_manifest, manifest_path=manifest_path)
@@ -276,6 +292,8 @@ def _save_current_manifest(
     output_dir: Path,
     output_tag: str,
     annotation_metadata: Mapping[str, object] | None = None,
+    run_label: str = "",
+    run_label_slug: str = "",
 ) -> RunManifest:
     manifest = _manifest(
         run_key=run_key,
@@ -290,6 +308,8 @@ def _save_current_manifest(
         output_dir=output_dir,
         output_tag=output_tag,
         annotation_metadata=annotation_metadata,
+        run_label=run_label,
+        run_label_slug=run_label_slug,
     )
     run_store.save_manifest(manifest)
     return manifest
@@ -311,6 +331,8 @@ def _checkpoint_prepared_output(
     output_tag: str,
     output: _PreparedOutput,
     annotation_metadata: Mapping[str, object] | None = None,
+    run_label: str = "",
+    run_label_slug: str = "",
 ) -> RunManifest:
     try:
         return _save_current_manifest(
@@ -327,6 +349,8 @@ def _checkpoint_prepared_output(
             output_dir=output_dir,
             output_tag=output_tag,
             annotation_metadata=annotation_metadata,
+            run_label=run_label,
+            run_label_slug=run_label_slug,
         )
     except PluginError:
         output_paths.pop()
@@ -418,6 +442,8 @@ def _manifest(
     output_dir: Path,
     output_tag: str,
     annotation_metadata: Mapping[str, object] | None = None,
+    run_label: str = "",
+    run_label_slug: str = "",
 ) -> RunManifest:
     counters = {
         "processed": processed_count,
@@ -434,6 +460,9 @@ def _manifest(
     }
     if annotation_metadata is not None:
         metadata["annotations"] = normalize_json_mapping(annotation_metadata)
+    if run_label_slug:
+        metadata[RUN_LABEL_FIELD_NAME] = run_label
+        metadata[RUN_LABEL_SLUG_METADATA_KEY] = run_label_slug
 
     return RunManifest(
         run_key=run_key,
@@ -471,6 +500,20 @@ def _bool_param(params: Mapping[str, object], parameter_name: str, *, default: b
             context={"value": raw_value},
         )
     return raw_value
+
+
+def _optional_str_param(params: Mapping[str, object], parameter_name: str) -> str:
+    raw_value = params.get(parameter_name, "")
+    if raw_value is None:
+        return ""
+    if not isinstance(raw_value, str):
+        raise InvalidParameterError(
+            transform_name="<operator>",
+            parameter_name=parameter_name,
+            message=f"{parameter_name} must be a string.",
+            context={"value": raw_value},
+        )
+    return raw_value if raw_value.strip() else ""
 
 
 def _sample_error(source: AugmentationInput, output_index: int, error: JSONDict) -> JSONDict:
