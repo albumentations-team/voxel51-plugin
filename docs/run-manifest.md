@@ -61,8 +61,10 @@ Dry runs do not create output files, run directories, manifests, or custom runs.
 Saved manifests also act as same-dataset augmentation presets. The
 `Augment with AlbumentationsX` form can load a previous run's `pipeline` config
 to prefill transforms, visible parameters, and output count for a new run.
-Per-output replay records remain inspection metadata; they are not used for
-exact replay on new samples.
+While selected, the saved pipeline takes precedence over already submitted form
+values; clear `Previous run` after loading if you want to keep editing from that
+state. Per-output replay records remain inspection metadata; they are not used
+for exact replay on new samples.
 
 ## Run Summary
 

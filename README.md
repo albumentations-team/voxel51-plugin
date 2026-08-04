@@ -198,9 +198,11 @@ saved run in this dataset, optionally set `Run label` and `Outputs per sample`,
 and choose a catalog-backed transform for each ordered step. `Dry run` validates
 the configuration without writing files or creating samples. Previous-run
 settings are used as a reusable pipeline template with fresh randomness, not as
-an exact replay of earlier sampled parameters. New output samples are written
-under the plugin-owned storage directory and tagged with the run key; source
-samples and source files remain unchanged. Non-dry runs also save
+an exact replay of earlier sampled parameters. Clear `Previous run` after
+loading if you want to keep editing the form without reapplying the saved
+pipeline. New output samples are written under the plugin-owned storage
+directory and tagged with the run key; source samples and source files remain
+unchanged. Non-dry runs also save
 `manifest.json` under the run output directory and register the manifest in
 FiftyOne's custom run store.
 Then run `View AlbumentationsX Run` to inspect persisted counts, versions,

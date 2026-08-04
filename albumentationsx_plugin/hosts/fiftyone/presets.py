@@ -93,14 +93,14 @@ def params_with_previous_run_preset(
     *,
     storage_root: str | PathLike[str] | None = None,
 ) -> dict[str, object]:
-    """Overlay saved pipeline params under user-provided operator params."""
+    """Overlay saved pipeline params over user-provided operator params."""
 
     run_key = selected_previous_run_key(params)
     if not run_key:
         return dict(params)
 
     preset = load_previous_run_preset(dataset, run_key, storage_root=storage_root)
-    return {**preset.operator_params, **params}
+    return {**params, **preset.operator_params}
 
 
 def operator_params_from_pipeline(pipeline: PipelineConfig) -> dict[str, object]:
