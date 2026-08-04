@@ -37,6 +37,8 @@ OUTPUTS_PER_SAMPLE_FIELD_NAME: Final[str] = "outputs_per_sample"
 DRY_RUN_FIELD_NAME: Final[str] = "dry_run"
 DEFAULT_DYNAMIC_TRANSFORM_NAME: Final[str] = "HorizontalFlip"
 PIPELINE_STEP_COUNT_LABEL: Final[str] = "Pipeline steps"
+GENERAL_SECTION_FIELD_NAME: Final[str] = "_general_settings"
+STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
 FIXED_SLICE_PARAMETER_NAMES: Final[dict[str, tuple[str, ...]]] = {
     "HorizontalFlip": (PROBABILITY_FIELD_NAME,),
     "RandomBrightnessContrast": ("brightness_range", "contrast_range", PROBABILITY_FIELD_NAME),
@@ -60,8 +62,9 @@ class DynamicAugmentFormBuilder:
         selected_step_count = _selected_step_count(params.get(PIPELINE_STEP_COUNT_FIELD_NAME))
 
         inputs = types.Object()
-        self._render_pipeline_step_count(inputs, selected_step_count)
+        self._render_general_settings(inputs, selected_step_count)
         for step_number in range(1, selected_step_count + 1):
+            self._render_stage_header(inputs, step_number)
             selected_transform_name = _selected_transform_name(
                 params.get(pipeline_step_field_name(step_number, TRANSFORM_FIELD_NAME)),
                 supported_transform_names=supported_transform_names,
@@ -74,7 +77,6 @@ class DynamicAugmentFormBuilder:
                 step_number=step_number,
             )
             self._render_transform_parameters(inputs, selected_transform_name, step_number=step_number)
-        self._render_execution_fields(inputs)
         return inputs
 
     def _executable_transform_names(self) -> tuple[str, ...]:
@@ -84,7 +86,14 @@ class DynamicAugmentFormBuilder:
             if capability.status in {CapabilityStatus.SUPPORTED, CapabilityStatus.SUPPORTED_WITH_DEFAULTS}
         )
 
-    def _render_pipeline_step_count(self, inputs: types.Object, selected_step_count: int) -> None:
+    def _render_general_settings(self, inputs: types.Object, selected_step_count: int) -> None:
+        inputs.view(
+            GENERAL_SECTION_FIELD_NAME,
+            types.Header(
+                label="General",
+                description="Run settings are configured before individual augmentation stages.",
+            ),
+        )
         self.renderer.render_into(
             inputs,
             (
@@ -97,6 +106,30 @@ class DynamicAugmentFormBuilder:
                     min_value=1,
                     max_value=MAX_PIPELINE_STEPS,
                 ),
+                FormFieldSchema(
+                    name=OUTPUTS_PER_SAMPLE_FIELD_NAME,
+                    kind=FieldKind.INTEGER,
+                    label="Outputs per sample",
+                    required=False,
+                    default=1,
+                    min_value=1,
+                    max_value=MAX_OUTPUTS_PER_SAMPLE,
+                ),
+                FormFieldSchema(
+                    name=DRY_RUN_FIELD_NAME,
+                    kind=FieldKind.BOOLEAN,
+                    label="Dry run",
+                    default=False,
+                ),
+            ),
+        )
+
+    def _render_stage_header(self, inputs: types.Object, step_number: int) -> None:
+        inputs.view(
+            f"{STAGE_SECTION_FIELD_PREFIX}_{step_number}",
+            types.Header(
+                label=f"Stage {step_number}",
+                description=f"Configure augmentation stage {step_number} of the ordered pipeline.",
             ),
         )
 
@@ -138,28 +171,6 @@ class DynamicAugmentFormBuilder:
                     parameter_fields=parameter_fields,
                 ),
                 step_number=step_number,
-            ),
-        )
-
-    def _render_execution_fields(self, inputs: types.Object) -> None:
-        self.renderer.render_into(
-            inputs,
-            (
-                FormFieldSchema(
-                    name=OUTPUTS_PER_SAMPLE_FIELD_NAME,
-                    kind=FieldKind.INTEGER,
-                    label="Outputs per sample",
-                    required=False,
-                    default=1,
-                    min_value=1,
-                    max_value=MAX_OUTPUTS_PER_SAMPLE,
-                ),
-                FormFieldSchema(
-                    name=DRY_RUN_FIELD_NAME,
-                    kind=FieldKind.BOOLEAN,
-                    label="Dry run",
-                    default=False,
-                ),
             ),
         )
 

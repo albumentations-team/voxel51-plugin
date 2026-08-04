@@ -52,6 +52,11 @@ Step 1 keeps the original fixed-form field names (`transform`, `p`, `height`,
 and similar) for compatibility. Later steps use prefixed field names such as
 `step_2_transform`, `step_2_p`, and `step_3_height`.
 
+VOX-27 groups the prompt into a general settings section followed by one
+visible section for each active augmentation stage. General settings include the
+stage count, output count, and dry-run flag. Only active stages are rendered, so
+later-stage validation is not shown before those stages are enabled.
+
 The fixed execution form applies MVP-specific defaults over the raw albu-spec
 schema: transform probability defaults to `1.0`, `RandomCrop` height and width
 default to `32`, and optional JSON fallback advanced parameters are hidden for

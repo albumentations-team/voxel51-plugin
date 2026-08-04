@@ -105,6 +105,29 @@ def test_view_run_operator_resolves_samples_grid_placement() -> None:
     assert view_json["name"] == "Button"
     assert view_json["label"] == "View AlbumentationsX Run"
     assert view_json["prompt"] is True
+    assert view_json["disabled"] is True
+
+
+@pytest.mark.unit
+def test_view_run_operator_enables_samples_grid_placement_with_dataset_runs(monkeypatch) -> None:
+    operator = ViewAlbumentationsXRun()
+
+    class Context:
+        dataset = object()
+        params = {}
+
+    monkeypatch.setattr(
+        view_run_operator_module,
+        "list_available_run_keys",
+        lambda dataset, **kwargs: ("albumentationsx-20260731T150000Z-run",),
+    )
+
+    placement_json = operator.resolve_placement(Context()).to_json()
+    view_json = placement_json["view"]
+
+    assert isinstance(view_json, dict)
+    assert view_json["disabled"] is False
+    assert view_json["title"] is None
 
 
 @pytest.mark.unit

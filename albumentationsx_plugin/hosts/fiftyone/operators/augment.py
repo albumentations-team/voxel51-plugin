@@ -12,6 +12,7 @@ from albumentationsx_plugin.core import JSONDict
 
 OPERATOR_NAME = "augment_with_albumentationsx"
 OPERATOR_LABEL = "Augment with AlbumentationsX"
+NO_SELECTION_ERROR_CODE = "no_selected_samples"
 RUNTIME_DEPENDENCY_PACKAGES = {
     "albumentations": "albumentationsx",
     "albu_spec": "albu-spec",
@@ -44,7 +45,11 @@ class AugmentWithAlbumentationsX(foo.Operator):
             inputs = _missing_dependency_inputs(error)
         return types.Property(
             inputs,
-            view=types.View(label=OPERATOR_LABEL),
+            view=types.PromptView(
+                label=OPERATOR_LABEL,
+                submit_button_label="Run augmentation",
+                cancel_button_label="Close",
+            ),
         )
 
     # pyrefly: ignore[bad-override]
@@ -65,25 +70,35 @@ class AugmentWithAlbumentationsX(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
+        selected_sample_ids = _selected_sample_ids(ctx)
+        disabled = not selected_sample_ids
         return types.Placement(
             types.Places.SAMPLES_GRID_ACTIONS,
-            types.Button(label=OPERATOR_LABEL, prompt=True),
+            types.Button(
+                label=OPERATOR_LABEL,
+                prompt=True,
+                disabled=disabled,
+                title="Select samples to augment." if disabled else None,
+            ),
         )
 
     def execute(self, ctx: Any) -> JSONDict:
         params = getattr(ctx, "params", {}) or {}
-        selected = getattr(ctx, "selected", ()) or ()
+        selected_sample_ids = _selected_sample_ids(ctx)
+        if not selected_sample_ids:
+            return _no_selected_samples_result(params)
         try:
             result = _execute_fixed_augmentation(
                 dataset=ctx.dataset,
                 view=getattr(ctx, "view", None),
-                selected_sample_ids=tuple(str(sample_id) for sample_id in selected),
+                selected_sample_ids=selected_sample_ids,
                 params=params,
             )
         except ModuleNotFoundError as error:
             if not _is_missing_runtime_dependency(error):
                 raise
             return _missing_dependency_result(error)
+        _trigger_dataset_reload(ctx, result)
         return result.to_dict()
 
 
@@ -132,6 +147,50 @@ def _missing_dependency_result(error: ModuleNotFoundError) -> JSONDict:
             }
         ],
     }
+
+
+def _no_selected_samples_result(params: object) -> JSONDict:
+    return {
+        "run_key": "",
+        "processed_count": 0,
+        "created_count": 0,
+        "skipped_count": 0,
+        "error_count": 1,
+        "dry_run": _dry_run_param(params),
+        "output_tag": "",
+        "output_dir": "",
+        "manifest_path": "",
+        "fiftyone_run_key": "",
+        "errors": [
+            {
+                "code": NO_SELECTION_ERROR_CODE,
+                "message": "Select one or more samples before running augmentation.",
+                "context": {"reason": "empty_selection"},
+            }
+        ],
+    }
+
+
+def _selected_sample_ids(ctx: Any | None) -> tuple[str, ...]:
+    selected = getattr(ctx, "selected", ()) if ctx is not None else ()
+    return tuple(str(sample_id) for sample_id in (selected or ()))
+
+
+def _dry_run_param(params: object) -> bool:
+    return isinstance(params, dict) and params.get("dry_run") is True
+
+
+def _trigger_dataset_reload(ctx: Any, result: Any) -> None:
+    if getattr(result, "dry_run", False) or getattr(result, "created_count", 0) < 1:
+        return
+
+    trigger = getattr(ctx, "trigger", None)
+    if not callable(trigger):
+        return
+    try:
+        trigger("reload_dataset")
+    except ValueError:
+        return
 
 
 def _is_missing_runtime_dependency(error: ModuleNotFoundError) -> bool:
