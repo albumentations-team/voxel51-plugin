@@ -4,7 +4,13 @@ from datetime import UTC, datetime
 
 import pytest
 
-from albumentationsx_plugin.storage.paths import build_dataset_run_dir, build_run_key, default_storage_root
+from albumentationsx_plugin.storage.paths import (
+    MAX_RUN_LABEL_SLUG_LENGTH,
+    build_dataset_run_dir,
+    build_run_key,
+    default_storage_root,
+    slugify_run_label,
+)
 
 
 @pytest.mark.unit
@@ -12,6 +18,40 @@ def test_build_run_key_is_readable_unique_and_safe() -> None:
     run_key = build_run_key(now=datetime(2026, 7, 31, 12, 30, 5, tzinfo=UTC), suffix="VOX 10 / first")
 
     assert run_key == "albumentationsx-20260731T123005Z-VOX-10-first"
+
+
+@pytest.mark.unit
+def test_build_run_key_prefixes_sanitized_user_label() -> None:
+    run_key = build_run_key(
+        now=datetime(2026, 7, 31, 12, 30, 5, tzinfo=UTC),
+        suffix="a1b2c3d4",
+        run_label="Cats crop test",
+    )
+
+    assert run_key == "cats-crop-test-albumentationsx-20260731T123005Z-a1b2c3d4"
+
+
+@pytest.mark.unit
+def test_build_run_key_ignores_empty_or_invalid_user_label() -> None:
+    run_key = build_run_key(
+        now=datetime(2026, 7, 31, 12, 30, 5, tzinfo=UTC),
+        suffix="a1b2c3d4",
+        run_label="!!!",
+    )
+
+    assert run_key == "albumentationsx-20260731T123005Z-a1b2c3d4"
+
+
+@pytest.mark.unit
+def test_slugify_run_label_sanitizes_unsafe_characters_and_bounds_length() -> None:
+    long_label = "Cats / Crop Test!!! " + ("VeryLong " * 12)
+    label_slug = slugify_run_label(long_label)
+
+    assert label_slug.startswith("cats-crop-test-verylong")
+    assert len(label_slug) <= MAX_RUN_LABEL_SLUG_LENGTH
+    assert slugify_run_label(None) == ""
+    assert slugify_run_label("") == ""
+    assert slugify_run_label("!!!") == ""
 
 
 @pytest.mark.unit

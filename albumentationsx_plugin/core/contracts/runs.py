@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import cast
+from typing import Final, cast
 
 from albumentationsx_plugin.core.contracts.pipeline import PipelineConfig
 from albumentationsx_plugin.core.serialization import (
@@ -16,6 +16,9 @@ from albumentationsx_plugin.core.serialization import (
     require_str,
     string_tuple,
 )
+
+RUN_LABEL_FIELD_NAME: Final[str] = "run_label"
+RUN_LABEL_SLUG_METADATA_KEY: Final[str] = "run_label_slug"
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,3 +114,10 @@ class RunManifest:
             errors=mapping_tuple(value.get("errors"), "errors"),
             metadata=normalize_json_mapping(require_mapping(value.get("metadata", {}), "metadata")),
         )
+
+
+__all__ = [
+    "RUN_LABEL_FIELD_NAME",
+    "RUN_LABEL_SLUG_METADATA_KEY",
+    "RunManifest",
+]

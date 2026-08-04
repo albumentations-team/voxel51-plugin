@@ -42,7 +42,18 @@ def _manifest(
     *,
     run_key: str = "albumentationsx-20260731T150000Z-summary",
     output_paths: tuple[str, ...] = ("images/output.png",),
+    run_label: str = "",
+    run_label_slug: str = "",
 ) -> RunManifest:
+    metadata = {
+        "output_dir": "/tmp/outputs",
+        "output_tag": "albumentationsx-output",
+        "fiftyone_run_key": build_fiftyone_run_key(run_key),
+    }
+    if run_label_slug:
+        metadata["run_label"] = run_label
+        metadata["run_label_slug"] = run_label_slug
+
     return RunManifest(
         run_key=run_key,
         plugin_version="0.0.0",
@@ -63,11 +74,7 @@ def _manifest(
             },
         ),
         counters={"processed": 1, "created": 1, "skipped": 0, "errors": 0, "outputs": len(output_paths)},
-        metadata={
-            "output_dir": "/tmp/outputs",
-            "output_tag": "albumentationsx-output",
-            "fiftyone_run_key": build_fiftyone_run_key(run_key),
-        },
+        metadata=metadata,
     )
 
 
@@ -94,8 +101,29 @@ def test_build_run_summary_reads_values_from_manifest(tmp_path) -> None:
     assert summary.replay_count == 1
     assert summary.replay_available is True
     assert summary.output_tag == "albumentationsx-output"
+    assert summary.run_label == ""
+    assert summary.run_label_slug == ""
     assert summary.pipeline_summary == "HorizontalFlip(p=1.0)"
     assert '"HorizontalFlip"' in summary.pipeline_config_json
+
+
+@pytest.mark.unit
+def test_build_run_summary_exposes_run_label_metadata(tmp_path) -> None:
+    dataset = _Dataset()
+    store = FileRunStore(dataset.name, storage_root=tmp_path)
+    manifest = _manifest(
+        run_key="cats-crop-test-albumentationsx-20260731T150000Z-summary",
+        run_label="Cats crop test",
+        run_label_slug="cats-crop-test",
+    )
+    store.save_manifest(manifest)
+
+    summary = build_run_summary(dataset, manifest.run_key, storage_root=tmp_path)
+
+    assert summary.run_label == "Cats crop test"
+    assert summary.run_label_slug == "cats-crop-test"
+    assert summary.to_dict()["run_label"] == "Cats crop test"
+    assert summary.to_dict()["run_label_slug"] == "cats-crop-test"
 
 
 @pytest.mark.unit
