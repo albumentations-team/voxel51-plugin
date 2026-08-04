@@ -29,9 +29,17 @@ from albumentationsx_plugin.core import (
     UnsupportedTransformError,
     pipeline_step_field_name,
 )
+from albumentationsx_plugin.core.serialization import normalize_json_value
 from albumentationsx_plugin.hosts.fiftyone.forms.defaults import RandomCropDefaults, build_random_crop_defaults
 from albumentationsx_plugin.hosts.fiftyone.forms.guidance import TransformGuidance, build_transform_guidance
 from albumentationsx_plugin.hosts.fiftyone.forms.renderer import FiftyOneFormRenderer
+from albumentationsx_plugin.hosts.fiftyone.presets import (
+    PREVIOUS_RUN_KEY_FIELD_NAME,
+    list_previous_run_preset_keys,
+    params_with_previous_run_preset,
+    selected_previous_run_key,
+    storage_root_from_params,
+)
 
 SCHEMA_STATUS_JSON_FALLBACK: Final[str] = "json_fallback"
 TRANSFORM_FIELD_NAME: Final[str] = "transform"
@@ -44,6 +52,7 @@ RANDOM_CROP_TRANSFORM_NAME: Final[str] = "RandomCrop"
 GENERAL_SECTION_FIELD_NAME: Final[str] = "_general_settings"
 STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
 TARGET_GUIDANCE_FIELD_NAME: Final[str] = "_target_compatibility"
+PREVIOUS_RUN_WARNING_FIELD_NAME: Final[str] = "_previous_run_warning"
 FIXED_SLICE_PARAMETER_NAMES: Final[dict[str, tuple[str, ...]]] = {
     "HorizontalFlip": (PROBABILITY_FIELD_NAME,),
     "RandomBrightnessContrast": ("brightness_range", "contrast_range", PROBABILITY_FIELD_NAME),
@@ -62,13 +71,30 @@ class DynamicAugmentFormBuilder:
     def build(self, ctx: Any | None) -> types.Object:
         """Build the current operator input object for the selected transform."""
 
-        params = _ctx_params(ctx)
+        raw_params = _ctx_params(ctx)
+        dataset = getattr(ctx, "dataset", None) if ctx is not None else None
+        storage_root = storage_root_from_params(raw_params)
+        preset_run_keys = list_previous_run_preset_keys(dataset, storage_root=storage_root)
+        selected_preset_run_key = selected_previous_run_key(raw_params)
+        preset_warning = ""
+        try:
+            params = params_with_previous_run_preset(dataset, raw_params, storage_root=storage_root)
+        except Exception:
+            params = raw_params
+            preset_warning = "Previous run settings could not be loaded; current form values are unchanged."
         supported_transform_names = self._executable_transform_names()
         selected_step_count = _selected_step_count(params.get(PIPELINE_STEP_COUNT_FIELD_NAME))
         random_crop_defaults = build_random_crop_defaults(ctx)
 
         inputs = types.Object()
-        self._render_general_settings(inputs, selected_step_count)
+        self._render_general_settings(
+            inputs,
+            params,
+            selected_step_count=selected_step_count,
+            preset_run_keys=preset_run_keys,
+            selected_preset_run_key=selected_preset_run_key,
+            preset_warning=preset_warning,
+        )
         for step_number in range(1, selected_step_count + 1):
             self._render_stage_header(inputs, step_number)
             selected_transform_name = _selected_transform_name(
@@ -87,6 +113,7 @@ class DynamicAugmentFormBuilder:
                 inputs,
                 selected_transform_name,
                 step_number=step_number,
+                params=params,
                 random_crop_defaults=random_crop_defaults,
             )
         return inputs
@@ -98,7 +125,16 @@ class DynamicAugmentFormBuilder:
             if capability.status in {CapabilityStatus.SUPPORTED, CapabilityStatus.SUPPORTED_WITH_DEFAULTS}
         )
 
-    def _render_general_settings(self, inputs: types.Object, selected_step_count: int) -> None:
+    def _render_general_settings(
+        self,
+        inputs: types.Object,
+        params: Mapping[str, object],
+        *,
+        selected_step_count: int,
+        preset_run_keys: tuple[str, ...],
+        selected_preset_run_key: str,
+        preset_warning: str,
+    ) -> None:
         inputs.view(
             GENERAL_SECTION_FIELD_NAME,
             types.Header(
@@ -106,6 +142,16 @@ class DynamicAugmentFormBuilder:
                 description="Run settings are configured before individual augmentation stages.",
             ),
         )
+        self._render_previous_run_selector(
+            inputs,
+            preset_run_keys=preset_run_keys,
+            selected_preset_run_key=selected_preset_run_key,
+        )
+        if preset_warning:
+            inputs.view(
+                PREVIOUS_RUN_WARNING_FIELD_NAME,
+                types.Warning(label="Previous run", description=preset_warning),
+            )
         self.renderer.render_into(
             inputs,
             (
@@ -123,7 +169,7 @@ class DynamicAugmentFormBuilder:
                     kind=FieldKind.STRING,
                     label="Run label",
                     required=False,
-                    default="",
+                    default=_selected_string(params.get(RUN_LABEL_FIELD_NAME)),
                     help_text="Optional short prefix for generated run keys.",
                 ),
                 FormFieldSchema(
@@ -131,7 +177,7 @@ class DynamicAugmentFormBuilder:
                     kind=FieldKind.INTEGER,
                     label="Outputs per sample",
                     required=False,
-                    default=1,
+                    default=_selected_outputs_per_sample(params.get(OUTPUTS_PER_SAMPLE_FIELD_NAME)),
                     min_value=1,
                     max_value=MAX_OUTPUTS_PER_SAMPLE,
                 ),
@@ -139,9 +185,33 @@ class DynamicAugmentFormBuilder:
                     name=DRY_RUN_FIELD_NAME,
                     kind=FieldKind.BOOLEAN,
                     label="Dry run",
-                    default=False,
+                    default=_selected_bool(params.get(DRY_RUN_FIELD_NAME), default=False),
                 ),
             ),
+        )
+
+    def _render_previous_run_selector(
+        self,
+        inputs: types.Object,
+        *,
+        preset_run_keys: tuple[str, ...],
+        selected_preset_run_key: str,
+    ) -> None:
+        if not preset_run_keys and not selected_preset_run_key:
+            return
+
+        choices = types.AutocompleteView(label="Previous run", allow_user_input=False)
+        choices.add_choice("", label="Do not load previous settings")
+        for run_key in _preset_choice_run_keys(preset_run_keys, selected_preset_run_key):
+            choices.add_choice(run_key, label=run_key)
+        inputs.enum(
+            PREVIOUS_RUN_KEY_FIELD_NAME,
+            choices.values(),
+            label="Previous run",
+            default=selected_preset_run_key,
+            required=False,
+            description="Optionally prefill this form from a saved run in the current dataset.",
+            view=choices,
         )
 
     def _render_stage_header(self, inputs: types.Object, step_number: int) -> None:
@@ -198,6 +268,7 @@ class DynamicAugmentFormBuilder:
         selected_transform_name: str,
         *,
         step_number: int,
+        params: Mapping[str, object],
         random_crop_defaults: RandomCropDefaults | None,
     ) -> None:
         parameter_fields = self.parameter_schema_provider.get_parameter_schema(selected_transform_name)
@@ -207,6 +278,8 @@ class DynamicAugmentFormBuilder:
                 parameter_fields=_executable_ui_fields(
                     selected_transform_name=selected_transform_name,
                     parameter_fields=parameter_fields,
+                    params=params,
+                    step_number=step_number,
                     random_crop_defaults=random_crop_defaults,
                 ),
                 step_number=step_number,
@@ -234,6 +307,20 @@ def _selected_step_count(raw_value: object) -> int:
     if isinstance(raw_value, int) and not isinstance(raw_value, bool) and 1 <= raw_value <= MAX_PIPELINE_STEPS:
         return raw_value
     return 1
+
+
+def _selected_outputs_per_sample(raw_value: object) -> int:
+    if isinstance(raw_value, int) and not isinstance(raw_value, bool) and 1 <= raw_value <= MAX_OUTPUTS_PER_SAMPLE:
+        return raw_value
+    return 1
+
+
+def _selected_bool(raw_value: object, *, default: bool) -> bool:
+    return raw_value if isinstance(raw_value, bool) else default
+
+
+def _selected_string(raw_value: object) -> str:
+    return raw_value if isinstance(raw_value, str) else ""
 
 
 def _selected_transform_name(
@@ -274,20 +361,37 @@ def _executable_ui_fields(
     *,
     selected_transform_name: str,
     parameter_fields: tuple[FormFieldSchema, ...],
+    params: Mapping[str, object],
+    step_number: int,
     random_crop_defaults: RandomCropDefaults | None,
 ) -> tuple[FormFieldSchema, ...]:
     supported_parameter_names = FIXED_SLICE_PARAMETER_NAMES.get(selected_transform_name)
 
-    return tuple(
-        _executable_ui_field(
+    fields: list[FormFieldSchema] = []
+    for schema_field in parameter_fields:
+        if not _is_visible_parameter(schema_field):
+            continue
+        if supported_parameter_names is not None and schema_field.name not in supported_parameter_names:
+            continue
+        ui_field = _executable_ui_field(
             selected_transform_name=selected_transform_name,
-            field=field,
+            field=schema_field,
             random_crop_defaults=random_crop_defaults,
         )
-        for field in parameter_fields
-        if _is_visible_parameter(field)
-        if supported_parameter_names is None or field.name in supported_parameter_names
-    )
+        fields.append(_with_current_default(ui_field, params=params, step_number=step_number))
+    return tuple(fields)
+
+
+def _with_current_default(
+    field: FormFieldSchema,
+    *,
+    params: Mapping[str, object],
+    step_number: int,
+) -> FormFieldSchema:
+    parameter_name = pipeline_step_field_name(step_number, field.name)
+    if parameter_name not in params:
+        return field
+    return replace(field, required=False, default=normalize_json_value(params[parameter_name]))
 
 
 def _is_visible_parameter(field: FormFieldSchema) -> bool:
@@ -365,3 +469,11 @@ def _step_parameter_fields(
 
 def _step_label(step_number: int, label: str) -> str:
     return f"Step {step_number} {label}"
+
+
+def _preset_choice_run_keys(preset_run_keys: tuple[str, ...], selected_preset_run_key: str) -> tuple[str, ...]:
+    return (
+        tuple(dict.fromkeys((*preset_run_keys, selected_preset_run_key)))
+        if selected_preset_run_key
+        else preset_run_keys
+    )

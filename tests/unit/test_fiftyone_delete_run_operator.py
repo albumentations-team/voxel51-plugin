@@ -123,6 +123,11 @@ def test_delete_run_operator_execute_delegates_to_cleanup_service(monkeypatch) -
             CONFIRM_FIELD_NAME: True,
             STORAGE_ROOT_PARAM_NAME: "/tmp/plugin-storage",
         }
+        triggered: list[str] = []
+
+        @classmethod
+        def trigger(cls, event_name: str) -> None:
+            cls.triggered.append(event_name)
 
     def fake_cleanup_run(dataset: object, run_key: str, **kwargs) -> RunCleanupResult:
         assert dataset is Context.dataset
@@ -157,3 +162,36 @@ def test_delete_run_operator_execute_delegates_to_cleanup_service(monkeypatch) -
         "confirmed": True,
         "errors_json": "[]",
     }
+    assert Context.triggered == ["reload_dataset"]
+
+
+@pytest.mark.unit
+def test_delete_run_operator_does_not_reload_when_cleanup_does_not_mutate(monkeypatch) -> None:
+    operator = DeleteAlbumentationsXRun()
+
+    class Context:
+        dataset = object()
+        params = {
+            "run_key": "albumentationsx-20260731T150000Z-run",
+            CONFIRM_FIELD_NAME: False,
+        }
+        triggered: list[str] = []
+
+        @classmethod
+        def trigger(cls, event_name: str) -> None:
+            cls.triggered.append(event_name)
+
+    def fake_cleanup_run(dataset: object, run_key: str, **kwargs) -> RunCleanupResult:
+        return RunCleanupResult(
+            run_key=run_key,
+            status="confirmation_required",
+            message="confirm first",
+            confirmed=False,
+        )
+
+    monkeypatch.setattr(delete_run_operator_module, "cleanup_run", fake_cleanup_run)
+
+    result = operator.execute(Context())
+
+    assert result["status"] == "confirmation_required"
+    assert Context.triggered == []

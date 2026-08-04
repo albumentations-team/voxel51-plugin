@@ -4,17 +4,21 @@ import importlib
 import pathlib
 import sys
 from collections.abc import Iterable, Iterator
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 import yaml
 
 import albumentationsx_plugin.hosts.fiftyone.operators.augment as augment_operator_module
+from albumentationsx_plugin.core import PipelineConfig, RunManifest, TransformConfig
 from albumentationsx_plugin.hosts.fiftyone.augmentation import FixedAugmentationExecutionResult
 from albumentationsx_plugin.hosts.fiftyone.operators.augment import (
     OPERATOR_NAME,
     AugmentWithAlbumentationsX,
 )
+from albumentationsx_plugin.hosts.fiftyone.presets import PREVIOUS_RUN_KEY_FIELD_NAME, STORAGE_ROOT_PARAM_NAME
+from albumentationsx_plugin.storage import FileRunStore
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -66,6 +70,35 @@ def _load_manifest() -> dict[str, Any]:
     return value
 
 
+def _preset_manifest(run_key: str = "albumentationsx-20260731T150000Z-preset") -> RunManifest:
+    return RunManifest(
+        run_key=run_key,
+        plugin_version="0.1.0",
+        dependency_versions={"albumentationsx": "2.3.7", "albu-spec": "0.0.6", "fiftyone": "1.19.0"},
+        pipeline=PipelineConfig(
+            transforms=(
+                TransformConfig(
+                    name="RandomBrightnessContrast",
+                    params={
+                        "brightness_range": [0.1, 0.2],
+                        "contrast_range": [0.3, 0.4],
+                        "p": 0.8,
+                    },
+                ),
+                TransformConfig(
+                    name="RandomCrop",
+                    params={
+                        "height": 12,
+                        "width": 10,
+                        "p": 1.0,
+                    },
+                ),
+            ),
+            outputs_per_sample=2,
+        ),
+    )
+
+
 @pytest.mark.unit
 def test_augment_operator_config_matches_manifest() -> None:
     manifest = _load_manifest()
@@ -76,6 +109,7 @@ def test_augment_operator_config_matches_manifest() -> None:
     assert OPERATOR_NAME in manifest["operators"]
     assert config.name == OPERATOR_NAME
     assert config.label == "Augment with AlbumentationsX"
+    assert config.description == "Build and apply AlbumentationsX augmentation pipelines to selected samples."
     assert config.dynamic is True
     assert config.allow_immediate_execution is True
     assert config.allow_delegated_execution is False
@@ -170,6 +204,39 @@ def test_augment_operator_resolves_ordered_pipeline_steps() -> None:
     assert "step_2_brightness_by_max" not in input_properties
     assert "step_2_ensure_safe_output" not in input_properties
     assert "step_3_transform" not in input_properties
+
+
+@pytest.mark.unit
+def test_augment_operator_prefills_form_from_previous_run_manifest(tmp_path) -> None:
+    operator = AugmentWithAlbumentationsX()
+    dataset_name = "preset-dataset"
+    manifest = _preset_manifest()
+    FileRunStore(dataset_name, storage_root=tmp_path).save_manifest(manifest)
+
+    context = SimpleNamespace(
+        dataset=SimpleNamespace(name=dataset_name),
+        params={
+            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+        },
+    )
+
+    input_json = operator.resolve_input(context).to_json()
+    input_properties = input_json["type"]["properties"]
+
+    assert input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["type"]["name"] == "Enum"
+    assert input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["default"] == manifest.run_key
+    assert manifest.run_key in input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["type"]["values"]
+    assert input_properties["pipeline_step_count"]["default"] == 2
+    assert input_properties["outputs_per_sample"]["default"] == 2
+    assert input_properties["transform"]["default"] == "RandomBrightnessContrast"
+    assert input_properties["brightness_range"]["default"] == [0.1, 0.2]
+    assert input_properties["contrast_range"]["default"] == [0.3, 0.4]
+    assert input_properties["p"]["default"] == 0.8
+    assert input_properties["step_2_transform"]["default"] == "RandomCrop"
+    assert input_properties["step_2_height"]["default"] == 12
+    assert input_properties["step_2_width"]["default"] == 10
+    assert input_properties["step_2_p"]["default"] == 1.0
 
 
 @pytest.mark.unit
@@ -559,6 +626,7 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
         assert kwargs["view"] is Context.view
         assert kwargs["selected_sample_ids"] == ("sample-1",)
         assert kwargs["params"] == {"transform": "HorizontalFlip"}
+        assert kwargs["storage_root"] is None
         return FixedAugmentationExecutionResult(
             run_key="albumentationsx-20260731T120000Z-test",
             processed_count=1,
@@ -588,6 +656,60 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
         "errors": [],
     }
     assert Context.triggered == ["reload_dataset"]
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_applies_previous_run_preset_without_submitted_defaults(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    operator = AugmentWithAlbumentationsX()
+    dataset_name = "preset-execute-dataset"
+    manifest = _preset_manifest()
+    FileRunStore(dataset_name, storage_root=tmp_path).save_manifest(manifest)
+
+    class Context:
+        dataset = SimpleNamespace(name=dataset_name)
+        view = object()
+        selected = ("sample-1",)
+        params = {
+            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+        }
+
+    def fake_execute_fixed_augmentation(**kwargs):
+        params = kwargs["params"]
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["view"] is Context.view
+        assert kwargs["selected_sample_ids"] == ("sample-1",)
+        assert kwargs["storage_root"] == str(tmp_path)
+        assert params[PREVIOUS_RUN_KEY_FIELD_NAME] == manifest.run_key
+        assert params["pipeline_step_count"] == 2
+        assert params["outputs_per_sample"] == 2
+        assert params["transform"] == "RandomBrightnessContrast"
+        assert params["brightness_range"] == [0.1, 0.2]
+        assert params["contrast_range"] == [0.3, 0.4]
+        assert params["p"] == 0.8
+        assert params["step_2_transform"] == "RandomCrop"
+        assert params["step_2_height"] == 12
+        assert params["step_2_width"] == 10
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-preset-copy",
+            processed_count=1,
+            created_count=0,
+            skipped_count=0,
+            error_count=0,
+            dry_run=True,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["run_key"] == "albumentationsx-20260731T120000Z-preset-copy"
+    assert result["error_count"] == 0
 
 
 @pytest.mark.unit

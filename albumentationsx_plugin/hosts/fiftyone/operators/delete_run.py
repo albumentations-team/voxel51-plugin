@@ -11,7 +11,7 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
-from albumentationsx_plugin.hosts.fiftyone.run_cleanup import cleanup_run
+from albumentationsx_plugin.hosts.fiftyone.run_cleanup import CLEANUP_STATUS_OK, CLEANUP_STATUS_PARTIAL, cleanup_run
 from albumentationsx_plugin.hosts.fiftyone.run_summary import list_deletable_run_keys
 
 OPERATOR_NAME = "delete_albumentationsx_run"
@@ -116,6 +116,7 @@ class DeleteAlbumentationsXRun(foo.Operator):
             confirmed=_confirmed(params.get(CONFIRM_FIELD_NAME)),
             storage_root=_storage_root(params),
         )
+        _trigger_dataset_reload(ctx, result)
         return result.to_dict()
 
 
@@ -144,6 +145,19 @@ def _has_available_runs(ctx: Any | None) -> bool:
         return bool(list_deletable_run_keys(dataset, storage_root=_storage_root(_ctx_params(ctx))))
     except Exception:
         return False
+
+
+def _trigger_dataset_reload(ctx: Any, result: Any) -> None:
+    if getattr(result, "status", "") not in {CLEANUP_STATUS_OK, CLEANUP_STATUS_PARTIAL}:
+        return
+
+    trigger = getattr(ctx, "trigger", None)
+    if not callable(trigger):
+        return
+    try:
+        trigger("reload_dataset")
+    except ValueError:
+        return
 
 
 def _storage_root(params: Mapping[str, object]) -> str | PathLike[str] | None:

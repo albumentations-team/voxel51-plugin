@@ -59,8 +59,16 @@ and similar) for compatibility. Later steps use prefixed field names such as
 
 VOX-27 groups the prompt into a general settings section followed by one
 visible section for each active augmentation stage. General settings include the
-stage count, output count, and dry-run flag. Only active stages are rendered, so
-later-stage validation is not shown before those stages are enabled.
+optional previous-run preset selector, stage count, output count, run label, and
+dry-run flag. Only active stages are rendered, so later-stage validation is not
+shown before those stages are enabled.
+
+When a previous run is selected, the form loads that run's `manifest.json` from
+the current dataset and overlays its saved `pipeline` config under any current
+form edits. The same overlay is applied during operator execution, so submitting
+only the previous run key still applies the saved pipeline template to the new
+selection. Replay records are not reused; the new run samples fresh random
+parameters.
 
 VOX-30 adds per-stage target compatibility guidance. Each active stage shows
 image, bbox, mask, keypoint, and label handling from the selected transform

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import fiftyone.operators as foo
@@ -9,6 +10,11 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
+from albumentationsx_plugin.hosts.fiftyone.presets import (
+    params_with_previous_run_preset,
+    selected_previous_run_key,
+    storage_root_from_params,
+)
 
 OPERATOR_NAME = "augment_with_albumentationsx"
 OPERATOR_LABEL = "Augment with AlbumentationsX"
@@ -27,7 +33,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
         return foo.OperatorConfig(
             name=OPERATOR_NAME,
             label=OPERATOR_LABEL,
-            description="Build and preview AlbumentationsX augmentation pipelines.",
+            description="Build and apply AlbumentationsX augmentation pipelines to selected samples.",
             dynamic=True,
             allow_immediate_execution=True,
             allow_delegated_execution=False,
@@ -83,16 +89,22 @@ class AugmentWithAlbumentationsX(foo.Operator):
         )
 
     def execute(self, ctx: Any) -> JSONDict:
-        params = getattr(ctx, "params", {}) or {}
+        params = _ctx_params(ctx)
         selected_sample_ids = _selected_sample_ids(ctx)
         if not selected_sample_ids:
             return _no_selected_samples_result(params)
+        storage_root = storage_root_from_params(params)
+        try:
+            execution_params = params_with_previous_run_preset(ctx.dataset, params, storage_root=storage_root)
+        except Exception as error:
+            return _previous_run_preset_error_result(params, error)
         try:
             result = _execute_fixed_augmentation(
                 dataset=ctx.dataset,
                 view=getattr(ctx, "view", None),
                 selected_sample_ids=selected_sample_ids,
-                params=params,
+                params=execution_params,
+                storage_root=storage_root,
             )
         except ModuleNotFoundError as error:
             if not _is_missing_runtime_dependency(error):
@@ -112,6 +124,11 @@ def _execute_fixed_augmentation(**kwargs: Any):
     from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
 
     return execute_fixed_augmentation(**kwargs)
+
+
+def _ctx_params(ctx: Any | None) -> dict[str, object]:
+    params = getattr(ctx, "params", {}) if ctx is not None else {}
+    return dict(params) if isinstance(params, Mapping) else {}
 
 
 def _missing_dependency_inputs(error: ModuleNotFoundError):
@@ -166,6 +183,31 @@ def _no_selected_samples_result(params: object) -> JSONDict:
                 "code": NO_SELECTION_ERROR_CODE,
                 "message": "Select one or more samples before running augmentation.",
                 "context": {"reason": "empty_selection"},
+            }
+        ],
+    }
+
+
+def _previous_run_preset_error_result(params: object, error: Exception) -> JSONDict:
+    return {
+        "run_key": "",
+        "processed_count": 0,
+        "created_count": 0,
+        "skipped_count": 0,
+        "error_count": 1,
+        "dry_run": _dry_run_param(params),
+        "output_tag": "",
+        "output_dir": "",
+        "manifest_path": "",
+        "fiftyone_run_key": "",
+        "errors": [
+            {
+                "code": "previous_run_preset_unavailable",
+                "message": "Previous run settings could not be loaded; choose another run key or clear the field.",
+                "context": {
+                    "previous_run_key": selected_previous_run_key(params) if isinstance(params, dict) else "",
+                    "error_type": type(error).__name__,
+                },
             }
         ],
     }
