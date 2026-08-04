@@ -32,7 +32,7 @@ operator. The repository currently contains:
 - a `pyproject.toml` that defines the development tools and the test groups;
 - a `pre-commit` configuration that runs file checks, Ruff, and Pyrefly;
 - `fiftyone.yml`, a Python package skeleton, and a registered operator that can
-  create augmented image samples from selected FiftyOne samples or views;
+  create augmented image samples from selected FiftyOne samples;
 - direct dependencies on `albumentationsx>=2.3,<3` and `albu-spec>=0.0.6,<1`;
   AlbumentationsX is installed as `albumentationsx` and imported at runtime as
   `albumentations`;
@@ -41,7 +41,7 @@ operator. The repository currently contains:
 - host-neutral albu-spec parameter schemas for transforms exposed by the MVP
   catalog;
 - a dynamic FiftyOne operator form that renders catalog-backed transform
-  parameters;
+  parameters in general settings and per-stage sections;
 - a catalog-driven AlbumentationsX image pipeline factory that validates
   transform parameters, constructs runtime transforms, and records JSON-safe
   replay data;
@@ -63,10 +63,14 @@ operator. The repository currently contains:
 - The executable App flow currently applies an ordered chain of up to three transforms from the catalog-backed normal MVP choices.
 - Transforms classified as `unsupported_target`, `requires_external_data`, `blocked_media_target`, `unsupported_output`, `hidden`, or `requires_manual_schema` stay out of normal executable choices but remain visible in the capability report with exclusion reasons.
 - Dynamic forms hide advanced optional JSON fallback parameters for `supported_with_defaults` transforms and use documented defaults until richer controls are implemented.
+- Toolbar actions are context-aware: augmentation requires selected samples,
+  while run summary and cleanup actions require existing persisted runs.
+- Successful non-dry augmentation runs trigger a FiftyOne App dataset reload
+  after generated samples and run metadata are persisted.
 - Cleanup deletes generated output samples, manifest-listed output files, and the FiftyOne custom run; it intentionally retains `manifest.json` as an audit trail.
 
-The next implementation pull requests will improve the augmentation UX and
-broaden target-aware transform coverage. See the [design document](DESIGN.md#план-работы-небольшими-pull-request)
+The next implementation pull requests will broaden target-aware transform
+coverage and add richer preview/progress UX. See the [design document](DESIGN.md#план-работы-небольшими-pull-request)
 for the complete sequence and acceptance criteria.
 
 ## Implementation rules

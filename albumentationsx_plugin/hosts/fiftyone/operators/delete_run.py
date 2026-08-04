@@ -97,9 +97,15 @@ class DeleteAlbumentationsXRun(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
+        disabled = not _has_available_runs(ctx)
         return types.Placement(
             types.Places.SAMPLES_GRID_ACTIONS,
-            types.Button(label=OPERATOR_LABEL, prompt=True),
+            types.Button(
+                label=OPERATOR_LABEL,
+                prompt=True,
+                disabled=disabled,
+                title="Create an AlbumentationsX run before deleting it." if disabled else None,
+            ),
         )
 
     def execute(self, ctx: Any) -> JSONDict:
@@ -126,6 +132,18 @@ def _selected_run_key(raw_value: object, run_keys: tuple[str, ...]) -> str:
 
 def _confirmed(raw_value: object) -> bool:
     return raw_value is True
+
+
+def _has_available_runs(ctx: Any | None) -> bool:
+    if ctx is None:
+        return False
+    dataset = getattr(ctx, "dataset", None)
+    if dataset is None:
+        return False
+    try:
+        return bool(list_available_run_keys(dataset, storage_root=_storage_root(_ctx_params(ctx))))
+    except Exception:
+        return False
 
 
 def _storage_root(params: Mapping[str, object]) -> str | PathLike[str] | None:

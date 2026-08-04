@@ -90,6 +90,12 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     input_properties = input_json["type"]["properties"]
 
     assert input_json["view"]["label"] == "Augment with AlbumentationsX"
+    assert input_json["view"]["name"] == "PromptView"
+    assert input_json["view"]["submit_button_label"] == "Run augmentation"
+    assert input_properties["_general_settings"]["view"]["name"] == "Header"
+    assert input_properties["_general_settings"]["view"]["label"] == "General"
+    assert input_properties["_pipeline_stage_1"]["view"]["name"] == "Header"
+    assert input_properties["_pipeline_stage_1"]["view"]["label"] == "Stage 1"
     assert input_properties["pipeline_step_count"]["type"]["name"] == "Number"
     assert input_properties["pipeline_step_count"]["default"] == 1
     assert input_properties["pipeline_step_count"]["required"] is False
@@ -135,7 +141,9 @@ def test_augment_operator_resolves_ordered_pipeline_steps() -> None:
     input_properties = input_json["type"]["properties"]
 
     assert input_properties["pipeline_step_count"]["default"] == 2
+    assert input_properties["_pipeline_stage_1"]["view"]["label"] == "Stage 1"
     assert input_properties["transform"]["default"] == "HorizontalFlip"
+    assert input_properties["_pipeline_stage_2"]["view"]["label"] == "Stage 2"
     assert input_properties["step_2_transform"]["default"] == "RandomBrightnessContrast"
     assert input_properties["step_2_brightness_range"]["type"]["name"] == "Tuple"
     assert input_properties["step_2_contrast_range"]["type"]["name"] == "Tuple"
@@ -350,7 +358,10 @@ def test_augment_operator_ignores_excluded_catalog_transform_selection() -> None
 def test_augment_operator_resolves_samples_grid_placement() -> None:
     operator = AugmentWithAlbumentationsX()
 
-    placement_json = operator.resolve_placement(ctx=None).to_json()
+    class Context:
+        selected = ("sample-1",)
+
+    placement_json = operator.resolve_placement(Context()).to_json()
     view_json = placement_json["view"]
 
     assert placement_json["place"] == "samples-grid-actions"
@@ -358,6 +369,19 @@ def test_augment_operator_resolves_samples_grid_placement() -> None:
     assert view_json["name"] == "Button"
     assert view_json["label"] == "Augment with AlbumentationsX"
     assert view_json["prompt"] is True
+    assert view_json["disabled"] is False
+
+
+@pytest.mark.unit
+def test_augment_operator_disables_samples_grid_placement_without_selection() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    placement_json = operator.resolve_placement(ctx=None).to_json()
+    view_json = placement_json["view"]
+
+    assert isinstance(view_json, dict)
+    assert view_json["disabled"] is True
+    assert view_json["title"] == "Select samples to augment."
 
 
 @pytest.mark.unit
@@ -369,6 +393,11 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
         view = object()
         selected = ("sample-1",)
         params = {"transform": "HorizontalFlip"}
+        triggered: list[str] = []
+
+        @classmethod
+        def trigger(cls, operator_name: str):
+            cls.triggered.append(operator_name)
 
     def fake_execute_fixed_augmentation(**kwargs):
         assert kwargs["dataset"] is Context.dataset
@@ -403,6 +432,68 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
         "fiftyone_run_key": "albumentationsx_20260731T120000Z_test",
         "errors": [],
     }
+    assert Context.triggered == ["reload_dataset"]
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_does_not_refresh_dry_runs(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        selected = ("sample-1",)
+        params = {"transform": "HorizontalFlip", "dry_run": True}
+        triggered: list[str] = []
+
+        @classmethod
+        def trigger(cls, operator_name: str):
+            cls.triggered.append(operator_name)
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-test",
+            processed_count=1,
+            created_count=0,
+            skipped_count=0,
+            error_count=0,
+            dry_run=True,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+            fiftyone_run_key="albumentationsx_20260731T120000Z_test",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["dry_run"] is True
+    assert result["created_count"] == 0
+    assert Context.triggered == []
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_reports_empty_selection_without_backend_call(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        selected = ()
+        params = {"dry_run": True}
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise AssertionError("backend should not run without selected samples")
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["error_count"] == 1
+    assert result["dry_run"] is True
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = errors[0]
+    assert isinstance(first_error, dict)
+    assert first_error["code"] == "no_selected_samples"
 
 
 @pytest.mark.unit
@@ -411,7 +502,7 @@ def test_augment_operator_execute_reports_missing_runtime_dependency(monkeypatch
 
     class Context:
         dataset = object()
-        selected = ()
+        selected = ("sample-1",)
         params: dict[str, object] = {}
 
     def fake_execute_fixed_augmentation(**_kwargs: object):
