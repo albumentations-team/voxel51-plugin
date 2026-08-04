@@ -71,6 +71,8 @@ def test_view_run_operator_resolves_run_selector_and_output(monkeypatch) -> None
     assert input_properties["run_key"]["default"] == "albumentationsx-20260731T150000Z-first"
     assert input_properties["run_key"]["view"]["name"] == "AutocompleteView"
     assert output_properties["status"]["type"]["name"] == "String"
+    assert output_properties["cleanup_status"]["type"]["name"] == "String"
+    assert output_properties["cleaned_at"]["type"]["name"] == "String"
     assert output_properties["run_label"]["type"]["name"] == "String"
     assert output_properties["run_label_slug"]["type"]["name"] == "String"
     assert output_properties["source_count"]["type"]["name"] == "Number"
@@ -151,6 +153,8 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
             run_key=run_key,
             status="ok",
             message="loaded",
+            cleanup_status="",
+            cleaned_at="",
             run_label="Cats crop test",
             run_label_slug="cats-crop-test",
             source_count=2,
@@ -166,6 +170,8 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
         "message": "loaded",
         "manifest_path": "",
         "fiftyone_run_key": "",
+        "cleanup_status": "",
+        "cleaned_at": "",
         "run_label": "Cats crop test",
         "run_label_slug": "cats-crop-test",
         "source_count": 2,

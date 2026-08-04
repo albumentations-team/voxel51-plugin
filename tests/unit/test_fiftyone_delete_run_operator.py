@@ -51,12 +51,12 @@ def test_delete_run_operator_resolves_run_selector_confirmation_and_output(monke
         dataset = object()
         params = {}
 
-    def fake_list_available_run_keys(dataset: object, **kwargs) -> tuple[str, ...]:
+    def fake_list_deletable_run_keys(dataset: object, **kwargs) -> tuple[str, ...]:
         assert dataset is Context.dataset
         assert kwargs["storage_root"] is None
         return ("albumentationsx-20260731T150000Z-first",)
 
-    monkeypatch.setattr(delete_run_operator_module, "list_available_run_keys", fake_list_available_run_keys)
+    monkeypatch.setattr(delete_run_operator_module, "list_deletable_run_keys", fake_list_deletable_run_keys)
 
     input_json = operator.resolve_input(Context()).to_json()
     output_json = operator.resolve_output(ctx=None).to_json()
@@ -100,7 +100,7 @@ def test_delete_run_operator_enables_samples_grid_placement_with_dataset_runs(mo
 
     monkeypatch.setattr(
         delete_run_operator_module,
-        "list_available_run_keys",
+        "list_deletable_run_keys",
         lambda dataset, **kwargs: ("albumentationsx-20260731T150000Z-run",),
     )
 

@@ -15,7 +15,14 @@ from albumentationsx_plugin.hosts.fiftyone.operators.delete_run import (
     STORAGE_ROOT_PARAM_NAME,
     DeleteAlbumentationsXRun,
 )
-from albumentationsx_plugin.hosts.fiftyone.run_cleanup import CLEANUP_STATUS_OK
+from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
+    STORAGE_ROOT_PARAM_NAME as VIEW_STORAGE_ROOT_PARAM_NAME,
+)
+from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
+    ViewAlbumentationsXRun,
+)
+from albumentationsx_plugin.hosts.fiftyone.run_cleanup import CLEANUP_STATUS_CLEANED, CLEANUP_STATUS_OK
+from albumentationsx_plugin.hosts.fiftyone.run_summary import RUN_STATUS_CLEANED
 from albumentationsx_plugin.storage import FileRunStore
 from albumentationsx_plugin.storage.images import write_rgb_image
 
@@ -98,9 +105,34 @@ def test_delete_run_operator_removes_outputs_without_touching_source_and_is_idem
         assert store.manifest_path(result.run_key).exists()
         assert not dataset.has_run(result.fiftyone_run_key)
 
+        delete_input = (
+            DeleteAlbumentationsXRun()
+            .resolve_input(SimpleNamespace(dataset=dataset, params={STORAGE_ROOT_PARAM_NAME: str(storage_root)}))
+            .to_json()
+        )
+        delete_run_key_property = delete_input["type"]["properties"]["run_key"]
+        assert delete_run_key_property["type"]["name"] == "String"
+        assert "No deletable AlbumentationsX runs" in delete_run_key_property["view"]["description"]
+
+        view_input = (
+            ViewAlbumentationsXRun()
+            .resolve_input(SimpleNamespace(dataset=dataset, params={VIEW_STORAGE_ROOT_PARAM_NAME: str(storage_root)}))
+            .to_json()
+        )
+        assert result.run_key in view_input["type"]["properties"]["run_key"]["type"]["values"]
+        view_summary = ViewAlbumentationsXRun().execute(
+            SimpleNamespace(
+                dataset=dataset,
+                params={"run_key": result.run_key, VIEW_STORAGE_ROOT_PARAM_NAME: str(storage_root)},
+            )
+        )
+        assert view_summary["status"] == RUN_STATUS_CLEANED
+        assert view_summary["cleanup_status"] == "cleaned"
+        assert isinstance(view_summary["cleaned_at"], str)
+
         repeated_result = DeleteAlbumentationsXRun().execute(context)
 
-        assert repeated_result["status"] == CLEANUP_STATUS_OK
+        assert repeated_result["status"] == CLEANUP_STATUS_CLEANED
         assert repeated_result["deleted_sample_count"] == 0
         assert repeated_result["skipped_sample_count"] == 1
         assert repeated_result["deleted_file_count"] == 0
