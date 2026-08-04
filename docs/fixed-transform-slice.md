@@ -60,8 +60,10 @@ summary/cleanup actions are disabled until persisted runs exist.
 For `supported_with_defaults` transforms, advanced optional JSON fallback
 parameters stay hidden and their albu-spec/Albumentations defaults are used.
 Simple parameters remain visible. The executable form also keeps MVP-specific
-manual-check defaults: `p` defaults to `1.0`, and `RandomCrop` `height` and
-`width` default to `32`.
+manual-check defaults: `p` defaults to `1.0`. `RandomCrop` `height` and `width`
+default to values derived from selected-sample image metadata when available,
+limited to the smallest selected image for mixed dimensions, and otherwise fall
+back to `32`.
 
 For compatibility with the original fixed form, the runner also accepts
 `brightness_range_min`, `brightness_range_max`, `contrast_range_min`,
