@@ -30,6 +30,7 @@ from albumentationsx_plugin.core import (
 )
 from albumentationsx_plugin.hosts.fiftyone.forms.renderer import FiftyOneFormRenderer
 
+SCHEMA_STATUS_JSON_FALLBACK: Final[str] = "json_fallback"
 TRANSFORM_FIELD_NAME: Final[str] = "transform"
 PROBABILITY_FIELD_NAME: Final[str] = "p"
 OUTPUTS_PER_SAMPLE_FIELD_NAME: Final[str] = "outputs_per_sample"
@@ -77,12 +78,11 @@ class DynamicAugmentFormBuilder:
         return inputs
 
     def _executable_transform_names(self) -> tuple[str, ...]:
-        supported_names = {
+        return tuple(
             capability.name
             for capability in self.catalog_provider.list_transform_capabilities()
             if capability.status in {CapabilityStatus.SUPPORTED, CapabilityStatus.SUPPORTED_WITH_DEFAULTS}
-        }
-        return tuple(transform_name for transform_name in FIXED_TRANSFORM_NAMES if transform_name in supported_names)
+        )
 
     def _render_pipeline_step_count(self, inputs: types.Object, selected_step_count: int) -> None:
         self.renderer.render_into(
@@ -133,7 +133,7 @@ class DynamicAugmentFormBuilder:
         self.renderer.render_into(
             inputs,
             _step_parameter_fields(
-                parameter_fields=_fixed_slice_ui_fields(
+                parameter_fields=_executable_ui_fields(
                     selected_transform_name=selected_transform_name,
                     parameter_fields=parameter_fields,
                 ),
@@ -215,23 +215,26 @@ def _default_transform_name_for_step(
     return candidate if candidate in supported_transform_names else None
 
 
-def _fixed_slice_ui_fields(
+def _executable_ui_fields(
     *,
     selected_transform_name: str,
     parameter_fields: tuple[FormFieldSchema, ...],
 ) -> tuple[FormFieldSchema, ...]:
     supported_parameter_names = FIXED_SLICE_PARAMETER_NAMES.get(selected_transform_name)
-    if supported_parameter_names is None:
-        return parameter_fields
 
     return tuple(
-        _fixed_slice_ui_field(selected_transform_name=selected_transform_name, field=field)
+        _executable_ui_field(selected_transform_name=selected_transform_name, field=field)
         for field in parameter_fields
-        if field.name in supported_parameter_names
+        if _is_visible_parameter(field)
+        if supported_parameter_names is None or field.name in supported_parameter_names
     )
 
 
-def _fixed_slice_ui_field(*, selected_transform_name: str, field: FormFieldSchema) -> FormFieldSchema:
+def _is_visible_parameter(field: FormFieldSchema) -> bool:
+    return field.metadata.get("schema_status") != SCHEMA_STATUS_JSON_FALLBACK
+
+
+def _executable_ui_field(*, selected_transform_name: str, field: FormFieldSchema) -> FormFieldSchema:
     if field.name == PROBABILITY_FIELD_NAME:
         return replace(field, required=False, default=DEFAULT_TRANSFORM_PROBABILITY)
     if selected_transform_name == "RandomBrightnessContrast" and field.name == "brightness_range":

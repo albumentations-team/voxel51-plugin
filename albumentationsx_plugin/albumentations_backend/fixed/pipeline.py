@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TypeAlias
+from typing import Final, TypeAlias
 
 import numpy as np
 import numpy.typing as npt
 
+from albumentationsx_plugin.albumentations_backend.catalog import AlbuSpecCatalogProvider
+from albumentationsx_plugin.albumentations_backend.parameters import AlbuSpecParameterSchemaProvider
 from albumentationsx_plugin.albumentations_backend.pipeline import (
     AlbumentationsImagePipelineRunner,
     build_default_pipeline_factory,
@@ -23,16 +25,21 @@ from albumentationsx_plugin.core import (
     MAX_OUTPUTS_PER_SAMPLE,
     MAX_PIPELINE_STEPS,
     PIPELINE_STEP_COUNT_FIELD_NAME,
+    FieldKind,
+    FormFieldSchema,
     InvalidParameterError,
+    ParameterSchemaProvider,
     PipelineConfig,
+    TransformCatalogProvider,
     TransformConfig,
-    UnsupportedTransformError,
     pipeline_step_field_name,
 )
-from albumentationsx_plugin.core.serialization import JSONDict
+from albumentationsx_plugin.core.serialization import JSONDict, normalize_json_value
 
 RGBArray: TypeAlias = npt.NDArray[np.uint8]
 _ImageShape: TypeAlias = tuple[int, int, int]
+_MISSING: Final[object] = object()
+SCHEMA_STATUS_JSON_FALLBACK: Final[str] = "json_fallback"
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,8 +69,18 @@ class FixedImagePipeline:
         return FixedImagePipelineResult(image=result.image, replay=result.replay)
 
 
-def build_fixed_pipeline_config(params: Mapping[str, object]) -> PipelineConfig:
-    """Create the fixed-slice pipeline config from FiftyOne operator params."""
+def build_fixed_pipeline_config(
+    params: Mapping[str, object],
+    *,
+    catalog_provider: TransformCatalogProvider | None = None,
+    parameter_schema_provider: ParameterSchemaProvider | None = None,
+) -> PipelineConfig:
+    """Create the executable MVP pipeline config from FiftyOne operator params."""
+
+    catalog_provider = catalog_provider or AlbuSpecCatalogProvider()
+    parameter_schema_provider = parameter_schema_provider or AlbuSpecParameterSchemaProvider(
+        catalog_provider=catalog_provider,
+    )
 
     outputs_per_sample = _int_param(
         params,
@@ -74,13 +91,20 @@ def build_fixed_pipeline_config(params: Mapping[str, object]) -> PipelineConfig:
         transform_name="<pipeline>",
     )
     step_count = _pipeline_step_count(params)
-    transforms = tuple(_step_transform_config(params, step_number) for step_number in range(1, step_count + 1))
+    transforms = tuple(
+        _step_transform_config(
+            params,
+            step_number,
+            parameter_schema_provider=parameter_schema_provider,
+        )
+        for step_number in range(1, step_count + 1)
+    )
 
     config = PipelineConfig(
         transforms=transforms,
         outputs_per_sample=outputs_per_sample,
         use_replay=True,
-        options={"source": "fixed_mvp_slice"},
+        options={"source": "catalog_mvp_pipeline"},
     )
     validate_fixed_pipeline_config(config)
     return config
@@ -95,7 +119,7 @@ def create_fixed_image_pipeline(config: PipelineConfig) -> FixedImagePipeline:
 
 
 def validate_fixed_pipeline_config(config: PipelineConfig, *, image_shape: _ImageShape | None = None) -> None:
-    """Validate a pipeline config against the temporary fixed transform set."""
+    """Validate a pipeline config against the executable MVP transform set."""
 
     if not config.transforms:
         raise InvalidParameterError(
@@ -119,72 +143,180 @@ def validate_fixed_pipeline_config(config: PipelineConfig, *, image_shape: _Imag
             context={"value": config.outputs_per_sample, "max_value": MAX_OUTPUTS_PER_SAMPLE},
         )
 
+    build_default_pipeline_factory().validate(config)
     for transform in config.transforms:
-        _validate_fixed_transform_config(transform, image_shape=image_shape)
+        _validate_image_shape_constraints(transform, image_shape=image_shape)
 
 
-def _step_transform_config(params: Mapping[str, object], step_number: int) -> TransformConfig:
+def _step_transform_config(
+    params: Mapping[str, object],
+    step_number: int,
+    *,
+    parameter_schema_provider: ParameterSchemaProvider,
+) -> TransformConfig:
     transform_name = _str_param(
         params,
         pipeline_step_field_name(step_number, "transform"),
         default=_default_transform_name(step_number),
     )
-    probability = _float_param(
-        params,
-        pipeline_step_field_name(step_number, "p"),
-        default=DEFAULT_TRANSFORM_PROBABILITY,
-        min_value=0.0,
-        max_value=1.0,
-        transform_name=transform_name,
-        aliases=_legacy_step_aliases(step_number, "p"),
+    parameter_schema = parameter_schema_provider.get_parameter_schema(transform_name)
+    return TransformConfig(
+        name=transform_name,
+        params=_step_transform_params(
+            params,
+            transform_name=transform_name,
+            parameter_fields=_executable_parameter_fields(
+                selected_transform_name=transform_name,
+                parameter_fields=parameter_schema,
+            ),
+            step_number=step_number,
+        ),
     )
 
-    transform_params: dict[str, object] = {"p": probability}
+
+def _executable_parameter_fields(
+    *,
+    selected_transform_name: str,
+    parameter_fields: tuple[FormFieldSchema, ...],
+) -> tuple[FormFieldSchema, ...]:
+    supported_parameter_names = _fixed_slice_parameter_names(selected_transform_name)
+    return tuple(
+        _executable_parameter_field(selected_transform_name=selected_transform_name, field=field)
+        for field in parameter_fields
+        if _is_visible_parameter(field)
+        if supported_parameter_names is None or field.name in supported_parameter_names
+    )
+
+
+def _fixed_slice_parameter_names(transform_name: str) -> tuple[str, ...] | None:
     match transform_name:
         case "HorizontalFlip":
-            pass
+            return ("p",)
         case "RandomBrightnessContrast":
-            transform_params["brightness_range"] = _range_param(
-                params,
-                pipeline_step_field_name(step_number, "brightness_range"),
-                default_lower=DEFAULT_BRIGHTNESS_RANGE[0],
-                default_upper=DEFAULT_BRIGHTNESS_RANGE[1],
-                transform_name=transform_name,
-                aliases=_legacy_step_aliases(step_number, "brightness_range"),
-            )
-            transform_params["contrast_range"] = _range_param(
-                params,
-                pipeline_step_field_name(step_number, "contrast_range"),
-                default_lower=DEFAULT_CONTRAST_RANGE[0],
-                default_upper=DEFAULT_CONTRAST_RANGE[1],
-                transform_name=transform_name,
-                aliases=_legacy_step_aliases(step_number, "contrast_range"),
-            )
+            return ("brightness_range", "contrast_range", "p")
         case "RandomCrop":
-            transform_params["height"] = _int_param(
-                params,
-                pipeline_step_field_name(step_number, "height"),
-                default=DEFAULT_CROP_SIZE,
-                min_value=1,
-                max_value=None,
-                transform_name=transform_name,
-                aliases=_legacy_step_aliases(step_number, "height", "crop_height"),
-            )
-            transform_params["width"] = _int_param(
-                params,
-                pipeline_step_field_name(step_number, "width"),
-                default=DEFAULT_CROP_SIZE,
-                min_value=1,
-                max_value=None,
-                transform_name=transform_name,
-                aliases=_legacy_step_aliases(step_number, "width", "crop_width"),
-            )
+            return ("height", "width", "p")
         case _:
-            raise UnsupportedTransformError(
-                transform_name,
-                context={"supported_transforms": list(FIXED_TRANSFORM_NAMES)},
-            )
-    return TransformConfig(name=transform_name, params=transform_params)
+            return None
+
+
+def _is_visible_parameter(field: FormFieldSchema) -> bool:
+    return field.metadata.get("schema_status") != SCHEMA_STATUS_JSON_FALLBACK
+
+
+def _executable_parameter_field(*, selected_transform_name: str, field: FormFieldSchema) -> FormFieldSchema:
+    if field.name == "p":
+        return FormFieldSchema(
+            name=field.name,
+            kind=field.kind,
+            label=field.label,
+            required=False,
+            default=DEFAULT_TRANSFORM_PROBABILITY,
+            min_value=field.min_value,
+            max_value=field.max_value,
+            choices=field.choices,
+            item_schema=field.item_schema,
+            help_text=field.help_text,
+            metadata=field.metadata,
+        )
+    if selected_transform_name == "RandomBrightnessContrast" and field.name == "brightness_range":
+        return _field_with_default(field, [DEFAULT_BRIGHTNESS_RANGE[0], DEFAULT_BRIGHTNESS_RANGE[1]])
+    if selected_transform_name == "RandomBrightnessContrast" and field.name == "contrast_range":
+        return _field_with_default(field, [DEFAULT_CONTRAST_RANGE[0], DEFAULT_CONTRAST_RANGE[1]])
+    if selected_transform_name == "RandomCrop" and field.name in {"height", "width"}:
+        return _field_with_default(field, DEFAULT_CROP_SIZE)
+    return field
+
+
+def _field_with_default(field: FormFieldSchema, default: object) -> FormFieldSchema:
+    json_default = normalize_json_value(default)
+    return FormFieldSchema(
+        name=field.name,
+        kind=field.kind,
+        label=field.label,
+        required=False,
+        default=json_default,
+        min_value=field.min_value,
+        max_value=field.max_value,
+        choices=field.choices,
+        item_schema=field.item_schema,
+        help_text=field.help_text,
+        metadata=field.metadata,
+    )
+
+
+def _step_transform_params(
+    params: Mapping[str, object],
+    *,
+    transform_name: str,
+    parameter_fields: tuple[FormFieldSchema, ...],
+    step_number: int,
+) -> dict[str, object]:
+    transform_params: dict[str, object] = {}
+    for field in parameter_fields:
+        value = _step_parameter_value(params, field, step_number=step_number)
+        if value is _MISSING:
+            value = _default_parameter_value(field)
+        if value is not _MISSING:
+            transform_params[field.name] = value
+    return transform_params
+
+
+def _step_parameter_value(
+    params: Mapping[str, object],
+    field: FormFieldSchema,
+    *,
+    step_number: int,
+) -> object:
+    parameter_name = pipeline_step_field_name(step_number, field.name)
+    aliases = _legacy_parameter_aliases(step_number, field.name)
+    if field.kind == FieldKind.NUMBER_RANGE:
+        return _number_range_param_value(params, parameter_name, field=field, aliases=aliases)
+    return _optional_param_value(params, parameter_name, aliases=aliases, default=_MISSING)
+
+
+def _number_range_param_value(
+    params: Mapping[str, object],
+    parameter_name: str,
+    *,
+    field: FormFieldSchema,
+    aliases: tuple[str, ...],
+) -> object:
+    direct_value = _optional_param_value(params, parameter_name, aliases=aliases, default=_MISSING)
+    if direct_value is not _MISSING:
+        return direct_value
+
+    lower = _optional_param_value(
+        params,
+        f"{parameter_name}_min",
+        aliases=tuple(f"{alias}_min" for alias in aliases),
+        default=_MISSING,
+    )
+    upper = _optional_param_value(
+        params,
+        f"{parameter_name}_max",
+        aliases=tuple(f"{alias}_max" for alias in aliases),
+        default=_MISSING,
+    )
+    if lower is _MISSING and upper is _MISSING:
+        return _MISSING
+
+    default_lower, default_upper = _range_default_values(field)
+    return [
+        default_lower if lower is _MISSING else lower,
+        default_upper if upper is _MISSING else upper,
+    ]
+
+
+def _range_default_values(field: FormFieldSchema) -> tuple[object, object]:
+    default = field.default
+    if isinstance(default, list | tuple) and len(default) == 2:
+        return default[0], default[1]
+    return None, None
+
+
+def _default_parameter_value(field: FormFieldSchema) -> object:
+    return _MISSING if field.default is None else field.default
 
 
 def _pipeline_step_count(params: Mapping[str, object]) -> int:
@@ -205,111 +337,29 @@ def _default_transform_name(step_number: int) -> str:
         return FIXED_TRANSFORM_NAMES[0]
 
 
-def _legacy_step_aliases(step_number: int, *aliases: str) -> tuple[str, ...]:
-    return tuple(aliases) if step_number == 1 else ()
+def _legacy_parameter_aliases(step_number: int, parameter_name: str) -> tuple[str, ...]:
+    if step_number != 1:
+        return ()
+    match parameter_name:
+        case "height":
+            return ("crop_height",)
+        case "width":
+            return ("crop_width",)
+        case _:
+            return ()
 
 
-def _validate_fixed_transform_config(transform: TransformConfig, *, image_shape: _ImageShape | None = None) -> None:
-    if transform.name not in FIXED_TRANSFORM_NAMES:
-        raise UnsupportedTransformError(
-            transform.name,
-            context={"supported_transforms": list(FIXED_TRANSFORM_NAMES)},
-        )
+def _validate_image_shape_constraints(transform: TransformConfig, *, image_shape: _ImageShape | None = None) -> None:
+    if transform.name != "RandomCrop" or image_shape is None:
+        return
 
-    _validate_probability(transform)
-    match transform.name:
-        case "HorizontalFlip":
-            _reject_unknown_params(transform, allowed={"p"})
-        case "RandomBrightnessContrast":
-            _reject_unknown_params(transform, allowed={"p", "brightness_range", "contrast_range"})
-            _range_config_param(
-                transform,
-                "brightness_range",
-                default_lower=DEFAULT_BRIGHTNESS_RANGE[0],
-                default_upper=DEFAULT_BRIGHTNESS_RANGE[1],
-            )
-            _range_config_param(
-                transform,
-                "contrast_range",
-                default_lower=DEFAULT_CONTRAST_RANGE[0],
-                default_upper=DEFAULT_CONTRAST_RANGE[1],
-            )
-        case "RandomCrop":
-            _reject_unknown_params(transform, allowed={"p", "height", "width"})
-            height = _positive_int_config_param(transform, "height")
-            width = _positive_int_config_param(transform, "width")
-            if image_shape is not None:
-                image_height, image_width, _channels = image_shape
-                if height > image_height:
-                    _raise_crop_size_error(transform, "height", value=height, image_value=image_height)
-                if width > image_width:
-                    _raise_crop_size_error(transform, "width", value=width, image_value=image_width)
-
-
-def _validate_probability(transform: TransformConfig) -> float:
-    raw_probability = transform.params.get("p", DEFAULT_TRANSFORM_PROBABILITY)
-    if not isinstance(raw_probability, int | float) or isinstance(raw_probability, bool):
-        raise InvalidParameterError(
-            transform_name=transform.name,
-            parameter_name="p",
-            message="p must be a number between 0 and 1.",
-            context={"value": raw_probability},
-        )
-    probability = float(raw_probability)
-    if probability < 0.0 or probability > 1.0:
-        raise InvalidParameterError(
-            transform_name=transform.name,
-            parameter_name="p",
-            message="p must be a number between 0 and 1.",
-            context={"value": probability},
-        )
-    return probability
-
-
-def _reject_unknown_params(transform: TransformConfig, *, allowed: set[str]) -> None:
-    unknown = sorted(set(transform.params) - allowed)
-    if unknown:
-        raise InvalidParameterError(
-            transform_name=transform.name,
-            parameter_name=unknown[0],
-            message=f"{transform.name} received unsupported fixed-slice parameters.",
-            context={"unknown_parameters": unknown, "allowed_parameters": sorted(allowed)},
-        )
-
-
-def _range_config_param(
-    transform: TransformConfig,
-    parameter_name: str,
-    *,
-    default_lower: float,
-    default_upper: float,
-) -> tuple[float, float]:
-    raw_range = transform.params.get(parameter_name, [default_lower, default_upper])
-    if not isinstance(raw_range, list | tuple) or len(raw_range) != 2:
-        raise InvalidParameterError(
-            transform_name=transform.name,
-            parameter_name=parameter_name,
-            message=f"{parameter_name} must be a two-value numeric range.",
-            context={"value": raw_range},
-        )
-
-    lower = _numeric_config_param(transform, parameter_name, raw_range[0])
-    upper = _numeric_config_param(transform, parameter_name, raw_range[1])
-    if lower < -1.0 or upper > 1.0:
-        raise InvalidParameterError(
-            transform_name=transform.name,
-            parameter_name=parameter_name,
-            message=f"{parameter_name} values must be between -1.0 and 1.0.",
-            context={"value": [lower, upper], "min_value": -1.0, "max_value": 1.0},
-        )
-    if lower > upper:
-        raise InvalidParameterError(
-            transform_name=transform.name,
-            parameter_name=parameter_name,
-            message=f"{parameter_name} lower bound must be less than or equal to the upper bound.",
-            context={"value": [lower, upper]},
-        )
-    return lower, upper
+    height = _positive_int_config_param(transform, "height")
+    width = _positive_int_config_param(transform, "width")
+    image_height, image_width, _channels = image_shape
+    if height > image_height:
+        _raise_crop_size_error(transform, "height", value=height, image_value=image_height)
+    if width > image_width:
+        _raise_crop_size_error(transform, "width", value=width, image_value=image_width)
 
 
 def _positive_int_config_param(transform: TransformConfig, parameter_name: str) -> int:
@@ -329,89 +379,6 @@ def _positive_int_config_param(transform: TransformConfig, parameter_name: str) 
             context={"value": raw_value},
         )
     return raw_value
-
-
-def _numeric_config_param(transform: TransformConfig, parameter_name: str, value: object) -> float:
-    if not isinstance(value, int | float) or isinstance(value, bool):
-        raise InvalidParameterError(
-            transform_name=transform.name,
-            parameter_name=parameter_name,
-            message=f"{parameter_name} must contain only numbers.",
-            context={"value": value},
-        )
-    return float(value)
-
-
-def _range_param(
-    params: Mapping[str, object],
-    parameter_prefix: str,
-    *,
-    default_lower: float,
-    default_upper: float,
-    transform_name: str,
-    aliases: tuple[str, ...] = (),
-) -> list[float]:
-    direct_value = _optional_param_value(params, parameter_prefix, aliases=aliases)
-    if direct_value is not None:
-        return _direct_range_param(
-            direct_value,
-            parameter_prefix=parameter_prefix,
-            transform_name=transform_name,
-        )
-
-    lower = _float_param(
-        params,
-        f"{parameter_prefix}_min",
-        default=default_lower,
-        min_value=-1.0,
-        max_value=1.0,
-        transform_name=transform_name,
-        aliases=tuple(f"{alias}_min" for alias in aliases),
-    )
-    upper = _float_param(
-        params,
-        f"{parameter_prefix}_max",
-        default=default_upper,
-        min_value=-1.0,
-        max_value=1.0,
-        transform_name=transform_name,
-        aliases=tuple(f"{alias}_max" for alias in aliases),
-    )
-    if lower > upper:
-        raise InvalidParameterError(
-            transform_name=transform_name,
-            parameter_name=parameter_prefix,
-            message=f"{parameter_prefix}_min must be less than or equal to {parameter_prefix}_max.",
-            context={"value": [lower, upper]},
-        )
-    return [lower, upper]
-
-
-def _direct_range_param(value: object, *, parameter_prefix: str, transform_name: str) -> list[float]:
-    if not isinstance(value, list | tuple) or len(value) != 2:
-        raise InvalidParameterError(
-            transform_name=transform_name,
-            parameter_name=parameter_prefix,
-            message=f"{parameter_prefix} must be a two-value numeric range.",
-            context={"value": value},
-        )
-    lower = _numeric_config_param(TransformConfig(name=transform_name), parameter_prefix, value[0])
-    upper = _numeric_config_param(TransformConfig(name=transform_name), parameter_prefix, value[1])
-    if lower < -1.0 or upper > 1.0:
-        raise InvalidParameterError(
-            transform_name=transform_name,
-            parameter_name=parameter_prefix,
-            message=f"{parameter_prefix} values must be between -1.0 and 1.0.",
-            context={"value": [lower, upper], "min_value": -1.0, "max_value": 1.0},
-        )
-    if lower > upper:
-        raise InvalidParameterError(
-            transform_name=transform_name,
-            parameter_name=parameter_prefix,
-            message=f"{parameter_prefix} lower bound must be less than or equal to the upper bound.",
-            context={"value": [lower, upper]},
-        )
-    return [lower, upper]
 
 
 def _str_param(params: Mapping[str, object], parameter_name: str, *, default: str) -> str:
@@ -481,42 +448,14 @@ def _optional_param_value(
     parameter_name: str,
     *,
     aliases: tuple[str, ...] = (),
+    default: object = None,
 ) -> object:
     if parameter_name in params:
         return params[parameter_name]
     for alias in aliases:
         if alias in params:
             return params[alias]
-    return None
-
-
-def _float_param(
-    params: Mapping[str, object],
-    parameter_name: str,
-    *,
-    default: float,
-    min_value: float,
-    max_value: float,
-    transform_name: str,
-    aliases: tuple[str, ...] = (),
-) -> float:
-    raw_value = _param_value(params, parameter_name, default=default, aliases=aliases)
-    if not isinstance(raw_value, int | float) or isinstance(raw_value, bool):
-        raise InvalidParameterError(
-            transform_name=transform_name,
-            parameter_name=parameter_name,
-            message=f"{parameter_name} must be a number.",
-            context={"value": raw_value},
-        )
-    value = float(raw_value)
-    if value < min_value or value > max_value:
-        raise InvalidParameterError(
-            transform_name=transform_name,
-            parameter_name=parameter_name,
-            message=f"{parameter_name} must be between {min_value} and {max_value}.",
-            context={"value": value, "min_value": min_value, "max_value": max_value},
-        )
-    return value
+    return default
 
 
 def _raise_crop_size_error(

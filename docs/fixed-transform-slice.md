@@ -1,9 +1,9 @@
-# Fixed Transform Slice
+# Executable Transform Slice
 
-VOX-10 implements the first executable augmentation path with a deliberately
-small transform allowlist. This is not the final catalog model; it is the
-end-to-end slice that proves the plugin can read FiftyOne image samples, execute
-AlbumentationsX, write plugin-owned output files, and add new FiftyOne samples.
+VOX-10 implemented the first executable augmentation path with a deliberately
+small transform allowlist. VOX-25 keeps the same end-to-end FiftyOne execution
+path, but replaces the normal transform choices with albu-spec catalog-backed
+MVP choices.
 
 ## Runtime Dependency
 
@@ -14,28 +14,29 @@ from the `albumentationsx` package, but the runtime API remains:
 import albumentations as A
 ```
 
-The current lockfile resolves AlbumentationsX `2.3.7`. The fixed slice uses the
-2.3 parameter names for `RandomBrightnessContrast`: `brightness_range` and
-`contrast_range`.
+The current lockfile resolves AlbumentationsX `2.3.7`. The executable path uses
+2.3 parameter names from albu-spec, including `RandomBrightnessContrast`
+`brightness_range` and `contrast_range`.
 
 ## Supported Transforms
 
-The temporary allowlist is:
+Normal executable choices are generated from the albu-spec capability catalog.
+The UI includes transforms classified as:
 
-- `HorizontalFlip`
-- `RandomBrightnessContrast`
-- `RandomCrop`
+- `supported`
+- `supported_with_defaults`
 
-These three transforms cover the first important execution cases: geometric
-image changes without resizing, pixel-level changes, and geometric crop output.
-The full MVP should replace this allowlist with an albu-spec-backed dynamic
-pipeline rather than growing the fixed list by hand.
+With the current lockfile this exposes `109` normal MVP choices. Transforms
+classified as `unsupported_target`, `requires_external_data`,
+`blocked_media_target`, `unsupported_output`, `hidden`, or
+`requires_manual_schema` are not shown in normal executable choices; they remain
+visible in the capability report with concrete exclusion reasons.
 
 ## Operator Parameters
 
 - `pipeline_step_count`: number of ordered transform steps, from `1` to `3`;
   defaults to `1`.
-- `transform`: step 1 transform, one of the three fixed transform names;
+- `transform`: step 1 transform, selected from the catalog-backed MVP choices;
   defaults to `HorizontalFlip`.
 - `p`: step 1 transform probability, from `0.0` to `1.0`; defaults to
   `1.0` for deterministic manual checks.
@@ -44,23 +45,18 @@ pipeline rather than growing the fixed list by hand.
 - `step_2_p` / `step_3_p`: transform probability for later steps.
 - `outputs_per_sample`: number of augmented samples to create per source sample,
   from `1` to `3`; defaults to `1`.
-- `brightness_range`: mapped to
-  step 1 `RandomBrightnessContrast(brightness_range=(min, max))`; defaults
-  to `[-0.2, 0.2]`.
-- `contrast_range`: mapped to
-  step 1 `RandomBrightnessContrast(contrast_range=(min, max))`; defaults to
-  `[-0.2, 0.2]`.
-- `width` and `height`: mapped to step 1
-  `RandomCrop(width=..., height=...)`; both default to `32`.
+- Transform parameters are rendered from albu-spec schemas. For step 1, names
+  are unprefixed, such as `brightness_range`, `height`, `width`, and `method`.
 - Later-step transform parameters use the same names with the step prefix, such
-  as `step_2_brightness_range`, `step_2_height`, and `step_3_width`.
+  as `step_2_brightness_range`, `step_2_height`, and `step_3_method`.
 - `dry_run`: validates selection and parameters without writing output files or
   creating samples.
 
-The fixed form intentionally renders only parameters that the fixed executor
-uses. Extra albu-spec parameters such as `pad_if_needed`, `border_mode`,
-`brightness_by_max`, and `ensure_safe_output` stay hidden until the catalog-wide
-pipeline path can execute them faithfully.
+For `supported_with_defaults` transforms, advanced optional JSON fallback
+parameters stay hidden and their albu-spec/Albumentations defaults are used.
+Simple parameters remain visible. The executable form also keeps MVP-specific
+manual-check defaults: `p` defaults to `1.0`, and `RandomCrop` `height` and
+`width` default to `32`.
 
 For compatibility with the original fixed form, the runner also accepts
 `brightness_range_min`, `brightness_range_max`, `contrast_range_min`,
@@ -68,8 +64,9 @@ For compatibility with the original fixed form, the runner also accepts
 
 VOX-13 renders these fields from albu-spec schemas. VOX-14 moved transform
 construction and replay execution behind the shared catalog-driven pipeline
-factory. VOX-22 lets the FiftyOne execution UI build an ordered chain from the
-three fixed transforms.
+factory. VOX-22 lets the FiftyOne execution UI build an ordered chain. VOX-25
+generates normal executable choices from the catalog instead of the original
+three-transform allowlist.
 
 ## Output Behavior
 

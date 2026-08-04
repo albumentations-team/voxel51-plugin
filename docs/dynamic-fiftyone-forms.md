@@ -28,22 +28,25 @@ The current renderer maps:
 - `json` to a JSON string input
 
 Required complex fields that cannot be rendered safely are marked invalid and
-read-only. Normal optional complex fields are rendered as JSON strings so they
-remain editable without inventing transform-specific UI code.
+read-only. The generic renderer can render optional complex fields as JSON
+strings, but the executable augmentation form hides optional JSON fallback
+parameters for `supported_with_defaults` transforms and relies on documented
+defaults.
 
 ## Execution Scope
 
 VOX-14 adds a catalog-driven backend pipeline factory. The execution path now
 uses that shared factory internally. VOX-22 adds ordered pipeline editing for up
-to three steps from the temporary fixed transform set that the MVP runner can
-execute. Catalog-wide support remains visible through the capability report, not
-as executable App choices.
+to three steps. VOX-25 exposes catalog-backed normal MVP transform choices in
+the executable App flow.
 
-The fixed runner remains executable for:
+Executable choices include transforms whose catalog status is:
 
-- `HorizontalFlip`
-- `RandomBrightnessContrast`
-- `RandomCrop`
+- `supported`
+- `supported_with_defaults`
+
+Excluded catalog statuses remain visible through the capability report, not as
+normal executable App choices.
 
 Step 1 keeps the original fixed-form field names (`transform`, `p`, `height`,
 and similar) for compatibility. Later steps use prefixed field names such as
@@ -51,4 +54,5 @@ and similar) for compatibility. Later steps use prefixed field names such as
 
 The fixed execution form applies MVP-specific defaults over the raw albu-spec
 schema: transform probability defaults to `1.0`, `RandomCrop` height and width
-default to `32`, and only parameters consumed by the fixed runner are shown.
+default to `32`, and optional JSON fallback advanced parameters are hidden for
+`supported_with_defaults` transforms.

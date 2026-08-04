@@ -43,19 +43,18 @@ media, write outputs, and create host records.
 
 ## Current Scope
 
-The fixed FiftyOne execution path exposes ordered chains of up to three steps
-from:
+The FiftyOne execution path exposes ordered chains of up to three steps selected
+from the albu-spec capability catalog. Normal executable choices are transforms
+classified as:
 
-- `HorizontalFlip`
-- `RandomBrightnessContrast`
-- `RandomCrop`
+- `supported`
+- `supported_with_defaults`
 
-Internally, those transforms are created by the shared catalog-driven factory.
-The factory can construct other image-only MVP transforms when given a
-`PipelineConfig`, but the operator execution UI has not yet been broadened from
-the fixed slice to catalog-wide pipelines.
+Internally, transforms are created by the shared catalog-driven factory. The
+operator form hides advanced optional JSON fallback parameters for
+`supported_with_defaults` transforms and lets the factory supply their defaults.
 
-Annotation targets remain outside VOX-14. Bounding boxes, masks, and keypoints
+Annotation targets remain outside VOX-25. Bounding boxes, masks, and keypoints
 should be added through separate adapter modules with geometry tests.
 
 ## Verification

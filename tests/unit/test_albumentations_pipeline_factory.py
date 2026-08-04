@@ -12,6 +12,7 @@ from albumentationsx_plugin.albumentations_backend.pipeline import (
     AlbumentationsTransformRegistry,
 )
 from albumentationsx_plugin.albumentations_backend.pipeline.coercion import coerce_transform_params
+from albumentationsx_plugin.albumentations_backend.pipeline.replay import extract_replay
 from albumentationsx_plugin.core import (
     FieldKind,
     FormFieldSchema,
@@ -181,6 +182,26 @@ def test_pipeline_runner_seed_is_deterministic_for_new_runners() -> None:
 
     np.testing.assert_array_equal(first.image, second.image)
     assert first.replay == second.replay
+
+
+@pytest.mark.unit
+def test_replay_extraction_normalizes_numpy_values() -> None:
+    replay = extract_replay(
+        {
+            "replay": {
+                "array": np.asarray([[1, 2], [3, 4]], dtype=np.int64),
+                "scalar": np.float32(0.5),
+                "nested": [{"values": np.asarray([1.0, 2.0], dtype=np.float32)}],
+            }
+        }
+    )
+
+    assert replay == {
+        "array": [[1, 2], [3, 4]],
+        "scalar": pytest.approx(0.5),
+        "nested": [{"values": [pytest.approx(1.0), pytest.approx(2.0)]}],
+    }
+    assert json.loads(json.dumps(replay)) == replay
 
 
 class _RejectingTransform(A.ImageOnlyTransform):

@@ -171,6 +171,70 @@ def test_fixed_augmentation_executor_persists_ordered_transform_chain(tmp_path) 
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize(
+    ("transform_name", "params", "expected_group"),
+    (
+        ("VerticalFlip", {"p": 1.0}, "geometry"),
+        ("ToGray", {"method": "average", "p": 1.0}, "color"),
+        ("Blur", {"blur_range": [3, 3], "p": 1.0}, "blur"),
+        ("CoarseDropout", {"p": 1.0}, "dropout"),
+    ),
+)
+def test_fixed_augmentation_executor_runs_catalog_backed_transform_groups(
+    tmp_path,
+    transform_name: str,
+    params: dict[str, object],
+    expected_group: str,
+) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, f"source-{expected_group}", width=8, height=6)
+        sample_id = dataset.add_sample(_sample(source_path, width=8, height=6))
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params={
+                "transform": transform_name,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+                **params,
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        assert result.error_count == 0
+        created = _output_samples(dataset)
+        assert len(created) == 1
+
+        source_image = load_rgb_image(source_path).data
+        output_image = load_rgb_image(created[0].filepath).data
+        assert output_image.shape == source_image.shape
+        assert output_image.dtype == source_image.dtype
+        if expected_group == "geometry":
+            np.testing.assert_array_equal(output_image, source_image[::-1, :, :])
+        if expected_group == "color":
+            np.testing.assert_array_equal(output_image[..., 0], output_image[..., 1])
+            np.testing.assert_array_equal(output_image[..., 1], output_image[..., 2])
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        assert [transform.name for transform in manifest.pipeline.transforms] == [transform_name]
+        replay = manifest.replay_records[0]["replay"]
+        assert isinstance(replay, dict)
+        replay_transforms = replay["transforms"]
+        assert isinstance(replay_transforms, list)
+        replay_transform = replay_transforms[0]
+        assert isinstance(replay_transform, dict)
+        assert replay_transform["__class_fullname__"] == transform_name
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
 def test_fixed_augmentation_executor_dry_run_does_not_write_outputs(tmp_path) -> None:
     dataset_name = _dataset_name()
     try:
