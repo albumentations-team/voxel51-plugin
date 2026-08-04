@@ -258,6 +258,60 @@ def test_augment_operator_limits_random_crop_defaults_to_selected_sample_dimensi
 
 
 @pytest.mark.unit
+def test_augment_operator_limits_random_crop_defaults_to_selected_samples_context() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        selected_samples = _SampleCollection(
+            (
+                _Sample("sample-1", width=29, height=27),
+                _Sample("sample-2", width=21, height=19),
+            )
+        )
+        params = {"transform": "RandomCrop"}
+
+    input_json = operator.resolve_input(Context()).to_json()
+    input_properties = input_json["type"]["properties"]
+
+    assert input_properties["height"]["default"] == 19
+    assert input_properties["width"]["default"] == 21
+    assert input_properties["height"]["view"]["description"].endswith(
+        "Selected images have mixed dimensions; default is limited by the smallest selected image."
+    )
+    assert input_properties["width"]["view"]["description"].endswith(
+        "Selected images have mixed dimensions; default is limited by the smallest selected image."
+    )
+
+
+@pytest.mark.unit
+def test_augment_operator_limits_random_crop_defaults_to_selected_view_samples() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        view = _SampleCollection(
+            (
+                _Sample("sample-1", width=7, height=5),
+                _Sample("sample-2", width=30, height=28),
+                _Sample("sample-3", width=22, height=24),
+            )
+        )
+        selected = ("sample-2", "sample-3")
+        params = {"transform": "RandomCrop"}
+
+    input_json = operator.resolve_input(Context()).to_json()
+    input_properties = input_json["type"]["properties"]
+
+    assert input_properties["height"]["default"] == 24
+    assert input_properties["width"]["default"] == 22
+    assert input_properties["height"]["view"]["description"].endswith(
+        "Selected images have mixed dimensions; default is limited by the smallest selected image."
+    )
+    assert input_properties["width"]["view"]["description"].endswith(
+        "Selected images have mixed dimensions; default is limited by the smallest selected image."
+    )
+
+
+@pytest.mark.unit
 def test_augment_operator_uses_static_random_crop_defaults_when_selected_metadata_is_missing() -> None:
     operator = AugmentWithAlbumentationsX()
 
