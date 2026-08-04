@@ -25,7 +25,7 @@ Core DTOs and FiftyOne form rendering must not import it directly.
 
 The catalog exposes every transform known to albu-spec with one status:
 
-- `supported`: safe to expose as a normal image-only MVP choice.
+- `supported`: safe to expose as a normal MVP image transform choice.
 - `supported_with_defaults`: safe to expose with simple fields while advanced
   parameters stay hidden or JSON-backed later.
 - `hidden`: valid metadata, intentionally not shown in normal UI choices.
@@ -33,8 +33,8 @@ The catalog exposes every transform known to albu-spec with one status:
   the MVP pipeline.
 - `requires_manual_schema`: needs explicit schema handling before UI exposure.
 - `blocked_media_target`: not a 2D image transform.
-- `unsupported_target`: depends on annotation targets that are not wired into
-  the image-only MVP.
+- `unsupported_target`: depends on catalog-wide annotation target handling that
+  is not wired into the MVP transform picker yet.
 - `unsupported_output`: can produce output arrays that are not safe image files
   for the current storage adapter.
 - `unsupported_schema`: reserved for schema failures that cannot be represented

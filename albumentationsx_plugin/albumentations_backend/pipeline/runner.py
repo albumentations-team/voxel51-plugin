@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
-from typing import TypeAlias, cast
+from dataclasses import dataclass, field
+from typing import Any, TypeAlias, cast
 
 import albumentations as A
 import numpy as np
@@ -23,6 +23,7 @@ class AlbumentationsImagePipelineResult:
 
     image: RGBArray
     replay: JSONDict
+    targets: Mapping[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,14 +33,25 @@ class AlbumentationsImagePipelineRunner:
     config: PipelineConfig
     transforms: tuple[A.BasicTransform, ...]
 
-    def apply(self, image: object) -> AlbumentationsImagePipelineResult:
+    def apply(
+        self,
+        image: object,
+        *,
+        targets: Mapping[str, object] | None = None,
+    ) -> AlbumentationsImagePipelineResult:
         """Apply the configured pipeline to one RGB image array."""
 
         transform_name = _pipeline_name(self.config)
         source_image = validate_rgb_array(image, transform_name=transform_name)
-        compose = A.ReplayCompose(list(self.transforms), seed=self.config.seed)
+        target_values = dict(targets or {})
+        compose = A.ReplayCompose(
+            list(self.transforms),
+            bbox_params=_bbox_params(target_values),
+            keypoint_params=_keypoint_params(target_values),
+            seed=self.config.seed,
+        )
         try:
-            output = compose(image=source_image)
+            output = cast(Mapping[str, Any], compose(image=source_image, **cast(dict[str, Any], target_values)))
         except Exception as error:
             raise InvalidParameterError(
                 transform_name=transform_name,
@@ -54,6 +66,7 @@ class AlbumentationsImagePipelineRunner:
         return AlbumentationsImagePipelineResult(
             image=output_image,
             replay=extract_replay(cast(Mapping[str, object], output)),
+            targets=_output_targets(output, target_values),
         )
 
 
@@ -101,6 +114,32 @@ def _pipeline_name(config: PipelineConfig) -> str:
 
 def _transform_name(transform: TransformConfig) -> str:
     return transform.name
+
+
+def _bbox_params(targets: Mapping[str, object]) -> A.BboxParams | None:
+    if "bboxes" not in targets:
+        return None
+    return A.BboxParams(
+        coord_format="pascal_voc",
+        label_fields=("bbox_indices",),
+        filter_invalid_bboxes=True,
+        clip_bboxes_on_input=True,
+    )
+
+
+def _keypoint_params(targets: Mapping[str, object]) -> A.KeypointParams | None:
+    if "keypoints" not in targets:
+        return None
+    return A.KeypointParams(
+        coord_format="xy",
+        label_fields=("keypoint_indices",),
+        remove_invisible=True,
+        label_mapping={},
+    )
+
+
+def _output_targets(output: Mapping[str, Any], input_targets: Mapping[str, object]) -> dict[str, object]:
+    return {name: output[name] for name in input_targets if name in output}
 
 
 def _shape_context(image: np.ndarray) -> list[int]:

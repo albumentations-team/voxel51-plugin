@@ -11,6 +11,8 @@ these files hold development workflow, review, and release notes.
 - [Demo dataset](demo-dataset.md): deterministic local dataset workflow.
 - [Fixed transform slice](fixed-transform-slice.md): executable
   catalog-backed transform choices and output behavior.
+- [Annotation-aware execution](annotation-aware-execution.md): supported
+  FiftyOne label conversion through Albumentations targets.
 - [albu-spec catalog](albu-spec-catalog.md): version-aware transform capability
   registry and review report.
 - [Parameter schema](parameter-schema.md): host-neutral parameter field
@@ -18,7 +20,7 @@ these files hold development workflow, review, and release notes.
 - [Dynamic FiftyOne forms](dynamic-fiftyone-forms.md): rendering catalog-backed
   transform schemas in the FiftyOne operator.
 - [Pipeline factory](pipeline-factory.md): catalog-driven transform construction,
-  image-only execution, and replay extraction.
+  optional target execution, and replay extraction.
 - [Run manifest](run-manifest.md): saved run metadata, relative output paths,
   replay records, and FiftyOne custom run registration.
 - [Run summary operator](run-summary-operator.md): read-only FiftyOne run

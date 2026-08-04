@@ -22,14 +22,15 @@ def test_readme_documents_declared_fiftyone_operator_uris() -> None:
 
 
 @pytest.mark.unit
-def test_readme_documents_mvp_limitations_without_overclaiming_annotation_support() -> None:
+def test_readme_documents_mvp_limitations_without_overclaiming_annotation_coverage() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "## MVP limitations" in readme
-    assert "image-only" in readme
-    assert "Bounding boxes, segmentation masks, and keypoints are deferred" in readme
     assert "catalog-backed normal MVP choices" in readme
     assert "supported_with_defaults" in readme
+    assert "Annotation-aware execution covers supported FiftyOne classification" in readme
+    assert "Unsupported label classes" in readme
+    assert "Dynamic forms hide advanced optional JSON fallback parameters" in readme
 
 
 @pytest.mark.unit

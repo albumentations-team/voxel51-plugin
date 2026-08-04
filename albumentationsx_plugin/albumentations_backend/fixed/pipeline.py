@@ -48,6 +48,7 @@ class FixedImagePipelineResult:
 
     image: RGBArray
     replay: JSONDict
+    targets: Mapping[str, object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,13 +61,18 @@ class FixedImagePipeline:
     def __post_init__(self) -> None:
         validate_fixed_pipeline_config(self.config)
 
-    def apply(self, image: object) -> FixedImagePipelineResult:
+    def apply(
+        self,
+        image: object,
+        *,
+        targets: Mapping[str, object] | None = None,
+    ) -> FixedImagePipelineResult:
         """Apply the configured transform to one RGB image array."""
 
         source_image = validate_rgb_array(image, transform_name=self.config.transforms[0].name)
         validate_fixed_pipeline_config(self.config, image_shape=source_image.shape)
-        result = self.runner.apply(source_image)
-        return FixedImagePipelineResult(image=result.image, replay=result.replay)
+        result = self.runner.apply(source_image, targets=targets)
+        return FixedImagePipelineResult(image=result.image, replay=result.replay, targets=result.targets)
 
 
 def build_fixed_pipeline_config(
