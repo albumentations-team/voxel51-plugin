@@ -28,6 +28,7 @@ from albumentationsx_plugin.core import (
     UnsupportedTransformError,
     pipeline_step_field_name,
 )
+from albumentationsx_plugin.hosts.fiftyone.forms.defaults import RandomCropDefaults, build_random_crop_defaults
 from albumentationsx_plugin.hosts.fiftyone.forms.renderer import FiftyOneFormRenderer
 
 SCHEMA_STATUS_JSON_FALLBACK: Final[str] = "json_fallback"
@@ -37,10 +38,11 @@ OUTPUTS_PER_SAMPLE_FIELD_NAME: Final[str] = "outputs_per_sample"
 DRY_RUN_FIELD_NAME: Final[str] = "dry_run"
 DEFAULT_DYNAMIC_TRANSFORM_NAME: Final[str] = "HorizontalFlip"
 PIPELINE_STEP_COUNT_LABEL: Final[str] = "Pipeline steps"
+RANDOM_CROP_TRANSFORM_NAME: Final[str] = "RandomCrop"
 FIXED_SLICE_PARAMETER_NAMES: Final[dict[str, tuple[str, ...]]] = {
     "HorizontalFlip": (PROBABILITY_FIELD_NAME,),
     "RandomBrightnessContrast": ("brightness_range", "contrast_range", PROBABILITY_FIELD_NAME),
-    "RandomCrop": ("height", "width", PROBABILITY_FIELD_NAME),
+    RANDOM_CROP_TRANSFORM_NAME: ("height", "width", PROBABILITY_FIELD_NAME),
 }
 
 
@@ -58,6 +60,7 @@ class DynamicAugmentFormBuilder:
         params = _ctx_params(ctx)
         supported_transform_names = self._executable_transform_names()
         selected_step_count = _selected_step_count(params.get(PIPELINE_STEP_COUNT_FIELD_NAME))
+        random_crop_defaults = build_random_crop_defaults(ctx)
 
         inputs = types.Object()
         self._render_pipeline_step_count(inputs, selected_step_count)
@@ -73,7 +76,12 @@ class DynamicAugmentFormBuilder:
                 selected_transform_name=selected_transform_name,
                 step_number=step_number,
             )
-            self._render_transform_parameters(inputs, selected_transform_name, step_number=step_number)
+            self._render_transform_parameters(
+                inputs,
+                selected_transform_name,
+                step_number=step_number,
+                random_crop_defaults=random_crop_defaults,
+            )
         self._render_execution_fields(inputs)
         return inputs
 
@@ -128,6 +136,7 @@ class DynamicAugmentFormBuilder:
         selected_transform_name: str,
         *,
         step_number: int,
+        random_crop_defaults: RandomCropDefaults | None,
     ) -> None:
         parameter_fields = self.parameter_schema_provider.get_parameter_schema(selected_transform_name)
         self.renderer.render_into(
@@ -136,6 +145,7 @@ class DynamicAugmentFormBuilder:
                 parameter_fields=_executable_ui_fields(
                     selected_transform_name=selected_transform_name,
                     parameter_fields=parameter_fields,
+                    random_crop_defaults=random_crop_defaults,
                 ),
                 step_number=step_number,
             ),
@@ -219,11 +229,16 @@ def _executable_ui_fields(
     *,
     selected_transform_name: str,
     parameter_fields: tuple[FormFieldSchema, ...],
+    random_crop_defaults: RandomCropDefaults | None,
 ) -> tuple[FormFieldSchema, ...]:
     supported_parameter_names = FIXED_SLICE_PARAMETER_NAMES.get(selected_transform_name)
 
     return tuple(
-        _executable_ui_field(selected_transform_name=selected_transform_name, field=field)
+        _executable_ui_field(
+            selected_transform_name=selected_transform_name,
+            field=field,
+            random_crop_defaults=random_crop_defaults,
+        )
         for field in parameter_fields
         if _is_visible_parameter(field)
         if supported_parameter_names is None or field.name in supported_parameter_names
@@ -234,15 +249,20 @@ def _is_visible_parameter(field: FormFieldSchema) -> bool:
     return field.metadata.get("schema_status") != SCHEMA_STATUS_JSON_FALLBACK
 
 
-def _executable_ui_field(*, selected_transform_name: str, field: FormFieldSchema) -> FormFieldSchema:
+def _executable_ui_field(
+    *,
+    selected_transform_name: str,
+    field: FormFieldSchema,
+    random_crop_defaults: RandomCropDefaults | None,
+) -> FormFieldSchema:
     if field.name == PROBABILITY_FIELD_NAME:
         return replace(field, required=False, default=DEFAULT_TRANSFORM_PROBABILITY)
     if selected_transform_name == "RandomBrightnessContrast" and field.name == "brightness_range":
         return replace(field, required=False, default=_number_range_default(DEFAULT_BRIGHTNESS_RANGE))
     if selected_transform_name == "RandomBrightnessContrast" and field.name == "contrast_range":
         return replace(field, required=False, default=_number_range_default(DEFAULT_CONTRAST_RANGE))
-    if selected_transform_name == "RandomCrop":
-        return _random_crop_ui_field(field)
+    if selected_transform_name == RANDOM_CROP_TRANSFORM_NAME:
+        return _random_crop_ui_field(field, random_crop_defaults=random_crop_defaults)
     return field
 
 
@@ -250,15 +270,37 @@ def _number_range_default(values: tuple[float, float]) -> list[JSONValue]:
     return [values[0], values[1]]
 
 
-def _random_crop_ui_field(field: FormFieldSchema) -> FormFieldSchema:
+def _random_crop_ui_field(
+    field: FormFieldSchema,
+    *,
+    random_crop_defaults: RandomCropDefaults | None,
+) -> FormFieldSchema:
     if field.name not in {"height", "width"}:
         return field
 
+    default = _random_crop_field_default(field.name, random_crop_defaults)
     return replace(
         field,
         required=False,
-        default=DEFAULT_CROP_SIZE,
+        default=default,
+        help_text=_field_help_text(field, random_crop_defaults),
     )
+
+
+def _random_crop_field_default(field_name: str, random_crop_defaults: RandomCropDefaults | None) -> int:
+    if random_crop_defaults is None:
+        return DEFAULT_CROP_SIZE
+    if field_name == "height":
+        return random_crop_defaults.height
+    return random_crop_defaults.width
+
+
+def _field_help_text(field: FormFieldSchema, random_crop_defaults: RandomCropDefaults | None) -> str | None:
+    if random_crop_defaults is None:
+        return field.help_text
+    if field.help_text is None:
+        return random_crop_defaults.help_text
+    return f"{field.help_text} {random_crop_defaults.help_text}"
 
 
 def _step_parameter_fields(

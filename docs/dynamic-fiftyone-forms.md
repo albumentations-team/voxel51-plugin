@@ -8,6 +8,8 @@ catalog and neutral parameter schemas.
 The FiftyOne host layer owns the UI mapping:
 
 - `hosts/fiftyone/forms/augment.py` composes the operator form.
+- `hosts/fiftyone/forms/defaults.py` derives host-context defaults without
+  changing backend schema metadata.
 - `hosts/fiftyone/forms/renderer.py` maps `FormFieldSchema` to
   `fiftyone.operators.types`.
 
@@ -53,6 +55,7 @@ and similar) for compatibility. Later steps use prefixed field names such as
 `step_2_transform`, `step_2_p`, and `step_3_height`.
 
 The fixed execution form applies MVP-specific defaults over the raw albu-spec
-schema: transform probability defaults to `1.0`, `RandomCrop` height and width
-default to `32`, and optional JSON fallback advanced parameters are hidden for
-`supported_with_defaults` transforms.
+schema without mutating catalog metadata: transform probability defaults to
+`1.0`, `RandomCrop` height and width use selected-sample image metadata when
+available and otherwise fall back to `32`, and optional JSON fallback advanced
+parameters are hidden for `supported_with_defaults` transforms.
