@@ -112,7 +112,7 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 | Annotation handling | Classification, detections, keypoints, and in-memory semantic masks travel through the supported execution path. |
 | Provenance and cleanup | Manifests, FiftyOne custom runs, source links, replay metadata, run inspection, and containment-checked cleanup are implemented. |
 | Local verification | The repository has unit, integration, and smoke tests, a deterministic demo dataset, and a documented local verification gate. |
-| Publication automation | The publication-readiness pull request adds lockfile, full pre-commit, and test checks across Ubuntu, macOS, and Windows; Python 3.10–3.12 are required, while 3.13 and 3.14 are visible compatibility probes. |
+| Publication automation | The publication-readiness pull request adds lockfile, full pre-commit, and test checks across Ubuntu, macOS, and Windows; Python 3.10–3.14 are required. |
 
 ## Remaining plan
 
@@ -152,8 +152,7 @@ Work is ordered by release risk and user impact. Each item has an observable com
 
 ## Release and quality policy
 
-- Python 3.10, 3.11, and 3.12 are the supported, release-blocking runtimes for the current dependency set.
-- Python 3.13 and 3.14 run as non-blocking compatibility probes until FiftyOne support is validated for them.
+- Python 3.10–3.14 are the supported, release-blocking runtimes for the current dependency set.
 - The complete quality gate runs the full pre-commit configuration and the test suite on Ubuntu, macOS, and Windows. A release tag reruns release verification on the same operating systems.
 - Every behavior change must update the user-facing [README](README.md) or the relevant document in [docs/](docs/README.md), add focused tests, and retain the source-data and cleanup invariants above.
 

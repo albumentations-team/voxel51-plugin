@@ -72,7 +72,7 @@ FiftyOne registers these operators:
 
 ## Develop locally
 
-Contributors need Python 3.10, 3.11, or 3.12,
+Contributors need Python 3.10 through 3.14,
 [uv](https://docs.astral.sh/uv/getting-started/installation/), and Git.
 
 ```bash

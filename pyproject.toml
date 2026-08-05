@@ -3,7 +3,7 @@ name = "fiftyone-albumentationsx-plugin"
 version = "0.1.0"
 description = "FiftyOne plugin for building and applying AlbumentationsX augmentation pipelines."
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10"
 license = "AGPL-3.0-only"
 dependencies = [
   "albu-spec>=0.0.6,<1",
@@ -73,7 +73,7 @@ skip-magic-trailing-comma = false
 select = ["B", "E4", "E7", "E9", "F", "I", "UP"]
 
 [tool.pyrefly]
-python-version = "3.11"
+python-version = "3.10"
 search-path = ["."]
 project-includes = [
   "__init__.py",
