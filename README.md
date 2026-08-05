@@ -151,10 +151,10 @@ uv run pre-commit install
 Run the complete local gate from [Verification](docs/verification.md) before
 opening a pull request.
 
-For local FiftyOne plugin discovery from this checkout, point FiftyOne at the parent directory that contains this repository:
+For local FiftyOne plugin discovery from this checkout, point FiftyOne at this repository only. Avoid using a broad workspace directory: FiftyOne recursively scans the configured path for plugins.
 
 ```bash
-export FIFTYONE_PLUGINS_DIR="$(dirname "$PWD")"
+export FIFTYONE_PLUGINS_DIR="$PWD"
 uv run fiftyone operators list
 ```
 

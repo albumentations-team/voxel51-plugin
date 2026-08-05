@@ -20,7 +20,7 @@ EXPECTED_OPERATOR_URIS = {
 @pytest.mark.smoke
 def test_fiftyone_discovers_local_plugin_from_plugins_dir() -> None:
     env = os.environ.copy()
-    env["FIFTYONE_PLUGINS_DIR"] = str(ROOT.parent)
+    env["FIFTYONE_PLUGINS_DIR"] = str(ROOT)
     env["PYTHONPATH"] = _prepend_pythonpath(ROOT, env.get("PYTHONPATH"))
 
     result = subprocess.run(
