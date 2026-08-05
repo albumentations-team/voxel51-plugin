@@ -20,6 +20,8 @@ def test_ci_covers_operating_systems_and_python_versions() -> None:
 
     assert workflow.count("runs-on: ${{ matrix.os }}") == 3
     assert "pre-commit run --all-files --show-diff-on-failure" in workflow
+    assert 'python-version: ["3.10", "3.11", "3.12"]' in workflow
+    assert 'python-version: ["3.13", "3.14"]' in workflow
     assert "experimental-python:" in workflow
     assert "continue-on-error: true" in workflow
     assert "runs-on: ${{ matrix.os }}" in release_workflow

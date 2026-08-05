@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-import tomllib
 from pathlib import Path
+
+import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 _MANIFEST_VERSION = re.compile(r"^version:\s*(?P<version>\S+)\s*$", re.MULTILINE)

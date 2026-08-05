@@ -3,14 +3,15 @@ name = "fiftyone-albumentationsx-plugin"
 version = "0.1.0"
 description = "FiftyOne plugin for building and applying AlbumentationsX augmentation pipelines."
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.10,<3.13"
 license = "AGPL-3.0-only"
 dependencies = [
   "albu-spec>=0.0.6,<1",
   "albumentationsx>=2.3,<3",
   "fiftyone>=1.19,<2",
-  "numpy>=2.4,<3",
+  "numpy>=2.2.6,<3",
   "Pillow>=10,<13",
+  "tomli>=2,<3",
 ]
 
 [dependency-groups]
@@ -58,7 +59,7 @@ skip_covered = false
 output = "coverage.xml"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py310"
 line-length = 120
 indent-width = 4
 
