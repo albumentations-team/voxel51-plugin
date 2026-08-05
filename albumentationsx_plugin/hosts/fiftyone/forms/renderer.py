@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Final, TypeGuard, cast
 
@@ -24,6 +24,32 @@ SUPPORTED_FIELD_KINDS: Final[frozenset[FieldKind]] = frozenset(
     },
 )
 UNSUPPORTED_REQUIRED_SCHEMA_STATUS: Final[str] = "unsupported_required"
+OPENCV_INTERPOLATION_LABELS: Final[dict[int, str]] = {
+    0: "Nearest",
+    1: "Linear",
+    2: "Cubic",
+    3: "Area",
+    4: "Lanczos4",
+    5: "Linear exact",
+    6: "Nearest exact",
+}
+OPENCV_BORDER_LABELS: Final[dict[int, str]] = {
+    0: "Constant",
+    1: "Replicate",
+    2: "Reflect",
+    3: "Wrap",
+    4: "Reflect 101",
+}
+RESPONSIVE_GRID_ITEM_PROPS: Final[dict[str, object]] = {
+    "item": {
+        "sx": {
+            "width": {
+                "xs": "100%",
+                "md": "calc(50% - 8px)",
+            }
+        }
+    }
+}
 
 
 class UnsupportedFormFieldError(HostAdapterError):
@@ -67,20 +93,44 @@ class FiftyOneFormRenderer:
         kwargs = _property_kwargs(field)
         match field.kind:
             case FieldKind.BOOLEAN:
-                target.bool(field.name, **kwargs)
+                target.bool(field.name, view=_field_view(field, types.SwitchView), **kwargs)
             case FieldKind.INTEGER:
-                target.int(field.name, min=field.min_value, max=field.max_value, **kwargs)
+                target.int(
+                    field.name,
+                    min=field.min_value,
+                    max=field.max_value,
+                    view=_field_view(field, types.FieldView),
+                    **kwargs,
+                )
             case FieldKind.FLOAT:
-                target.float(field.name, min=field.min_value, max=field.max_value, **kwargs)
+                target.float(
+                    field.name,
+                    min=field.min_value,
+                    max=field.max_value,
+                    view=_field_view(field, types.FieldView),
+                    **kwargs,
+                )
             case FieldKind.STRING:
-                target.str(field.name, allow_empty=not field.required, **kwargs)
+                target.str(
+                    field.name,
+                    allow_empty=not field.required,
+                    view=_field_view(field, types.FieldView),
+                    **kwargs,
+                )
             case FieldKind.ENUM:
-                target.enum(field.name, _enum_values(field), **kwargs)
+                target.enum(field.name, _enum_values(field), view=_enum_view(field), **kwargs)
             case FieldKind.NUMBER_RANGE:
+                tuple_view_kwargs: dict[str, object] = {
+                    "caption": field.help_text,
+                    "componentsProps": RESPONSIVE_GRID_ITEM_PROPS,
+                }
+                if _is_unsupported_required_schema(field):
+                    tuple_view_kwargs["read_only"] = True
                 target.tuple(
                     field.name,
                     _number_type_from_item_schema(field.item_schema),
                     _number_type_from_item_schema(field.item_schema),
+                    **tuple_view_kwargs,
                     **kwargs,
                 )
             case FieldKind.LIST:
@@ -89,6 +139,7 @@ class FiftyOneFormRenderer:
                     _type_from_item_schema(field.item_schema),
                     min_items=_list_min_items(field),
                     max_items=_list_max_items(field),
+                    view=_field_view(field, types.ListView),
                     **kwargs,
                 )
             case FieldKind.JSON:
@@ -96,6 +147,7 @@ class FiftyOneFormRenderer:
                     field.name,
                     allow_empty=not field.required,
                     default=_json_string_default(field),
+                    view=_field_view(field, types.FieldView),
                     **_json_property_kwargs(field, kwargs),
                 )
             case _:
@@ -112,65 +164,43 @@ def _property_kwargs(field: FormFieldSchema) -> dict[str, object]:
     kwargs: dict[str, object] = {"required": field.required}
     if field.label is not None:
         kwargs["label"] = field.label
-    description = _field_description(field)
-    if description is not None:
-        kwargs["description"] = description
     if field.default is not None:
         kwargs["default"] = field.default
     if _is_unsupported_required_schema(field):
         kwargs["invalid"] = True
         kwargs["error_message"] = "This required parameter cannot be rendered safely yet."
-        kwargs["view"] = types.View(read_only=True)
     return kwargs
 
 
-def _field_description(field: FormFieldSchema) -> str | None:
-    parts = [field.help_text] if field.help_text is not None else []
-    constraint_description = _constraint_description(field)
-    if constraint_description is not None:
-        parts.append(constraint_description)
-    return " ".join(parts) if parts else None
+def _field_view(field: FormFieldSchema, view_cls: type[types.View]) -> types.View:
+    kwargs: dict[str, object] = {
+        "caption": field.help_text,
+        "componentsProps": RESPONSIVE_GRID_ITEM_PROPS,
+    }
+    if _is_unsupported_required_schema(field):
+        kwargs["read_only"] = True
+    return view_cls(**kwargs)
 
 
-def _constraint_description(field: FormFieldSchema) -> str | None:
-    constraints = _metadata_mapping(field, "constraints")
-    if not constraints:
-        return None
-
-    parts = [
-        description
-        for field_name, formatter in _constraint_formatters()
-        if (description := _constraint_part(constraints, field_name, formatter)) is not None
-    ]
-    return "Constraints: " + ", ".join(parts) + "." if parts else None
+def _enum_view(field: FormFieldSchema) -> types.DropdownView:
+    view = cast(types.DropdownView, _field_view(field, types.DropdownView))
+    for choice in _enum_values(field):
+        view.add_choice(choice, label=_enum_choice_label(field.name, choice))
+    return view
 
 
-def _constraint_formatters() -> tuple[tuple[str, str], ...]:
-    return (
-        ("ge", ">="),
-        ("gt", ">"),
-        ("le", "<="),
-        ("lt", "<"),
-        ("min_value", "min"),
-        ("max_value", "max"),
-        ("min_length", "min length"),
-        ("max_length", "max length"),
-        ("multiple_of", "multiple of"),
-        ("pattern", "pattern"),
-    )
-
-
-def _constraint_part(constraints: Mapping[str, object], field_name: str, formatter: str) -> str | None:
-    value = constraints.get(field_name)
-    if value is None:
-        return None
-    return f"{formatter} {_format_constraint_value(value)}"
-
-
-def _format_constraint_value(value: object) -> str:
-    if isinstance(value, float) and value.is_integer():
-        return str(int(value))
-    return str(value)
+def _enum_choice_label(field_name: str, choice: str | int | float | bool | None) -> str:
+    if isinstance(choice, int) and not isinstance(choice, bool):
+        labels = OPENCV_BORDER_LABELS if field_name.endswith("border_mode") else OPENCV_INTERPOLATION_LABELS
+        if field_name.endswith("interpolation") or field_name.endswith("border_mode"):
+            label = labels.get(choice)
+            if label is not None:
+                return f"{label} ({choice})"
+    if choice is None:
+        return "Default"
+    if isinstance(choice, str):
+        return choice.replace("_", " ").capitalize()
+    return str(choice)
 
 
 def _enum_values(field: FormFieldSchema) -> list[str | int | float | bool | None]:
