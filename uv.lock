@@ -38,7 +38,7 @@ wheels = [
 
 [[package]]
 name = "albucore"
-version = "0.2.5"
+version = "0.2.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numkong" },
@@ -47,14 +47,14 @@ dependencies = [
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "stringzilla" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ac/69/c5846a4e520935a8125c5a83be11326eae838a1dfb280c7b38fa1b9c5f33/albucore-0.2.5.tar.gz", hash = "sha256:6653da52223987af3bcf264ff4c1672595ed8c13b6f66ffd28c5a353a68cb43f", size = 153595, upload-time = "2026-07-22T13:55:02.478Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2e/d2/cfcbe0778e60e091d0594c87269a8fe37ef83f5cf5d11c7db04e27230545/albucore-0.2.9.tar.gz", hash = "sha256:c7d94e902371a533237cf4894b42881229b64e3afb8780d0de4ba254ace445a3", size = 170347, upload-time = "2026-07-31T13:46:17.704Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/ef/dd7fddfc3ce4d25d51923eb68a09e9a29e23740f731d1b9116d99c338f8a/albucore-0.2.5-py3-none-any.whl", hash = "sha256:946a28bbe1c6078a72ef9220955239db7d4b4fec4ba90b552c25e3daa5d2f2ae", size = 42535, upload-time = "2026-07-22T13:55:00.939Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/ea/83fca154d58f695adf07540c79817af4dd2e51b2ae6e59aafd3d34892b83/albucore-0.2.9-py3-none-any.whl", hash = "sha256:5180bcc0cb2643a6916fda8bd8334eea018071795ec71654b4062ecc6e747365", size = 46851, upload-time = "2026-07-31T13:46:16.398Z" },
 ]
 
 [[package]]
 name = "albumentationsx"
-version = "2.3.7"
+version = "2.3.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "albucore" },
@@ -69,9 +69,9 @@ dependencies = [
     { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5e/c2/83e17e9f8a554220a13458e5d0b06bb800a945ebfc5bda26399f0fda0cca/albumentationsx-2.3.7.tar.gz", hash = "sha256:ba0f9dfb33efbd893fe37a41176f5190df15d658840d73b87fc2da879bad7c96", size = 790168, upload-time = "2026-07-29T13:36:01.061Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/88/db42aa23020e5919586b05e106c14b2b7bfceeda846f1925d50bea80a723/albumentationsx-2.3.8.tar.gz", hash = "sha256:8fdae28d822ae53ce9314985845cecbac27ce781649e451cad364196026d6d03", size = 797885, upload-time = "2026-08-02T13:42:04.742Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/df/e9/ff8d5103ae29fdb01e32d2e06272edcd6ec05761d59830d7959ff63076dc/albumentationsx-2.3.7-py3-none-any.whl", hash = "sha256:85a43a2cc1d329a4d4fdff3534b9fa6c545ae729f716f99287938bd7a53a41be", size = 563487, upload-time = "2026-07-29T13:35:59.359Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/0d/6fe78a149f0c2e1fc1e49e1eb1859a1b61e4c6409c06cfc425c666364009/albumentationsx-2.3.8-py3-none-any.whl", hash = "sha256:52ab4dcb8e0626a8d6a49cf2ec20ff40efbcaa522195257f2c3e309ab0716a36", size = 569613, upload-time = "2026-08-02T13:42:02.733Z" },
 ]
 
 [[package]]
@@ -855,10 +855,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "albu-spec", specifier = ">=0.0.6,<1" },
-    { name = "albumentationsx", specifier = ">=2.3,<3" },
+    { name = "albumentationsx", specifier = ">=2.3.8,<3" },
     { name = "fiftyone", specifier = ">=1.19,<2" },
-    { name = "numpy", specifier = ">=2.2.6,<3" },
-    { name = "pillow", specifier = ">=12.2,<13" },
+    { name = "numpy" },
+    { name = "pillow" },
     { name = "tomli", specifier = ">=2,<3" },
 ]
 

@@ -48,7 +48,7 @@ FiftyOne registers these operators:
 
 ## Current capabilities
 
-- The form exposes 109 catalog-backed image transforms from the current locked
+- The form exposes 110 catalog-backed image transforms from the current locked
   dependency set. The [capability report](docs/capability-report-v0.1.0.md)
   records the complete transform-by-transform snapshot and exclusion reasons.
 - A pipeline can contain up to three ordered stages.

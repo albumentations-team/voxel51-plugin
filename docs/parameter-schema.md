@@ -71,4 +71,4 @@ Tests snapshot representative transforms against the current lockfile:
 - `D4`
 
 The current version key is
-`albumentationsx-2.3.7__albu-spec-0.0.6`.
+`albumentationsx-2.3.8__albu-spec-0.0.6`.
