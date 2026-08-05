@@ -15,9 +15,13 @@ concurrency:
 
 jobs:
   quality:
-    name: Quality checks
-    runs-on: ubuntu-latest
+    name: Quality checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
     steps:
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -42,12 +46,13 @@ jobs:
         run: uv run pre-commit run --all-files --show-diff-on-failure
 
   test:
-    name: Tests (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    name: Tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.11", "3.12"]
     steps:
       - name: Check out source
@@ -72,13 +77,14 @@ jobs:
   experimental-python:
     # The locked AlbumentationsX/NumPy dependency set supports 3.11–3.12.
     # Keep compatibility probes on adjacent Python versions visible but non-blocking.
-    name: Experimental tests (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    name: Experimental tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.10", "3.13", "3.14"]
     steps:
       - name: Check out source
@@ -95,15 +101,11 @@ jobs:
             pyproject.toml
             requirements.txt
 
-      - name: Create an isolated test environment
-        run: uv venv --python ${{ matrix.python-version }} .experimental-venv
-
-      - name: Install runtime and test dependencies
-        run: >-
-          uv pip install --python .experimental-venv/bin/python -r requirements.txt
-          "pytest>=9.1.1" "pytest-cov>=7.1.0" "pyyaml>=6.0"
-
       - name: Run the complete test suite
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: .experimental-venv/bin/python -m pytest --cov-fail-under=85
+        run: >-
+          uv run --isolated --no-project --python ${{ matrix.python-version }}
+          --with-requirements requirements.txt --with "pytest>=9.1.1"
+          --with "pytest-cov>=7.1.0" --with "pyyaml>=6.0"
+          python -m pytest --cov-fail-under=85
