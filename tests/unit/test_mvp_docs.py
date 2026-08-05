@@ -22,15 +22,16 @@ def test_readme_documents_declared_fiftyone_operator_uris() -> None:
 
 
 @pytest.mark.unit
-def test_readme_documents_mvp_limitations_without_overclaiming_annotation_coverage() -> None:
+def test_readme_documents_installation_and_current_limits() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert "## MVP limitations" in readme
-    assert "catalog-backed normal MVP choices" in readme
-    assert "supported_with_defaults" in readme
-    assert "Annotation-aware execution covers supported FiftyOne classification" in readme
-    assert "Unsupported label classes" in readme
-    assert "Dynamic forms hide advanced optional JSON fallback parameters" in readme
+    assert "fiftyone plugins download albumentations-team/voxel51-plugin/<release-tag>" in readme
+    assert "fiftyone plugins requirements @albumentations/albumentationsx --install" in readme
+    assert "## Current limits" in readme
+    assert "up to three ordered stages" in readme
+    for label_type in ("`Classification`", "`Detections`", "`Keypoints`", "`Segmentation`"):
+        assert label_type in readme
+    assert "DESIGN.md" not in readme
 
 
 @pytest.mark.unit
@@ -40,8 +41,9 @@ def test_verification_doc_is_the_complete_local_gate_source() -> None:
 
     for command in (
         "uv sync --group dev",
+        "uv lock --check",
         "uv run pre-commit run --all-files",
-        "uv run pytest",
+        "uv run pytest --cov-fail-under=85",
         "uv run pyrefly check",
     ):
         assert command in verification

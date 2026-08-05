@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from hashlib import sha256
 from os import PathLike
 from pathlib import Path
@@ -26,7 +26,7 @@ def build_run_key(
 ) -> str:
     """Build a readable unique key for one augmentation run."""
 
-    timestamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     unique_suffix = suffix or uuid.uuid4().hex[:8]
     run_key = f"albumentationsx-{timestamp}-{_safe_component(unique_suffix, default='run')}"
     label_slug = slugify_run_label(run_label)

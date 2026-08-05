@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import Final
+
+from albumentationsx_plugin._compat import StrEnum
 
 
 class TargetKind(StrEnum):

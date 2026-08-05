@@ -6,6 +6,8 @@ these files hold development workflow, review, and release notes.
 
 ## Documents
 
+- [Design and roadmap](../DESIGN.md): current MVP boundary, durable design
+  decisions, completed work, and the remaining plan.
 - [Gitflow](gitflow.md): branch model and merge flow for MVP work.
 - [Architecture](architecture.md): layered code boundaries and extension points.
 - [Demo dataset](demo-dataset.md): deterministic local dataset workflow.
@@ -27,13 +29,12 @@ these files hold development workflow, review, and release notes.
   inspection and stale manifest handling.
 - [Run cleanup operator](run-cleanup-operator.md): confirmed cleanup for
   generated samples, manifest-listed files, and custom runs.
-- [Release v0.1.0](release-v0.1.0.md): first public MVP release scope,
+- [Release v0.1.0](release-v0.1.0.md): historic first-release scope,
   verification checklist, known limitations, and tag flow.
 - [Capability report v0.1.0](capability-report-v0.1.0.md): final albu-spec
   transform capability snapshot for the first public release.
 - [PR checklist](pr-checklist.md): required checks before review and merge.
 - [Verification](verification.md): local gate, targeted tests, and manual checks.
-- [Design document](../DESIGN.md): implementation contract for the plugin.
 
 ## Documentation rules
 

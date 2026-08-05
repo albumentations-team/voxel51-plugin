@@ -1,0 +1,2 @@
+# Keep the working tree stable across Unix and Windows runners.
+* text=auto eol=lf

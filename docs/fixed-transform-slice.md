@@ -7,14 +7,14 @@ MVP choices.
 
 ## Runtime Dependency
 
-The plugin depends on `albumentationsx>=2.3,<3`. AlbumentationsX is installed
+The plugin depends on `albumentationsx>=2.3.8,<3`. AlbumentationsX is installed
 from the `albumentationsx` package, but the runtime API remains:
 
 ```python
 import albumentations as A
 ```
 
-The current lockfile resolves AlbumentationsX `2.3.7`. The executable path uses
+The current lockfile resolves AlbumentationsX `2.3.8`. The executable path uses
 2.3 parameter names from albu-spec, including `RandomBrightnessContrast`
 `brightness_range` and `contrast_range`.
 
@@ -26,7 +26,7 @@ The UI includes transforms classified as:
 - `supported`
 - `supported_with_defaults`
 
-With the current lockfile this exposes `109` normal MVP choices. Transforms
+With the current lockfile this exposes `110` normal MVP choices. Transforms
 classified as `unsupported_target`, `requires_external_data`,
 `blocked_media_target`, `unsupported_output`, `hidden`, or
 `requires_manual_schema` are not shown in normal executable choices; they remain

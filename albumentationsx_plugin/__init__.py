@@ -1,8 +1,9 @@
 """AlbumentationsX plugin internals for FiftyOne."""
 
-import tomllib
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+
+from albumentationsx_plugin._compat import tomllib
 
 _PACKAGE_NAME = "fiftyone-albumentationsx-plugin"
 

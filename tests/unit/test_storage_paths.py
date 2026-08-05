@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -15,7 +15,7 @@ from albumentationsx_plugin.storage.paths import (
 
 @pytest.mark.unit
 def test_build_run_key_is_readable_unique_and_safe() -> None:
-    run_key = build_run_key(now=datetime(2026, 7, 31, 12, 30, 5, tzinfo=UTC), suffix="VOX 10 / first")
+    run_key = build_run_key(now=datetime(2026, 7, 31, 12, 30, 5, tzinfo=timezone.utc), suffix="VOX 10 / first")
 
     assert run_key == "albumentationsx-20260731T123005Z-VOX-10-first"
 
@@ -23,7 +23,7 @@ def test_build_run_key_is_readable_unique_and_safe() -> None:
 @pytest.mark.unit
 def test_build_run_key_prefixes_sanitized_user_label() -> None:
     run_key = build_run_key(
-        now=datetime(2026, 7, 31, 12, 30, 5, tzinfo=UTC),
+        now=datetime(2026, 7, 31, 12, 30, 5, tzinfo=timezone.utc),
         suffix="a1b2c3d4",
         run_label="Cats crop test",
     )
@@ -34,7 +34,7 @@ def test_build_run_key_prefixes_sanitized_user_label() -> None:
 @pytest.mark.unit
 def test_build_run_key_ignores_empty_or_invalid_user_label() -> None:
     run_key = build_run_key(
-        now=datetime(2026, 7, 31, 12, 30, 5, tzinfo=UTC),
+        now=datetime(2026, 7, 31, 12, 30, 5, tzinfo=timezone.utc),
         suffix="a1b2c3d4",
         run_label="!!!",
     )
