@@ -10,7 +10,7 @@ dependencies = [
   "albumentationsx>=2.3,<3",
   "fiftyone>=1.19,<2",
   "numpy>=2.2.6,<3",
-  "Pillow>=10,<13",
+  "Pillow>=12.2,<13",
   "tomli>=2,<3",
 ]
 

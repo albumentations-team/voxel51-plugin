@@ -858,7 +858,7 @@ requires-dist = [
     { name = "albumentationsx", specifier = ">=2.3,<3" },
     { name = "fiftyone", specifier = ">=1.19,<2" },
     { name = "numpy", specifier = ">=2.2.6,<3" },
-    { name = "pillow", specifier = ">=10,<13" },
+    { name = "pillow", specifier = ">=12.2,<13" },
     { name = "tomli", specifier = ">=2,<3" },
 ]
 

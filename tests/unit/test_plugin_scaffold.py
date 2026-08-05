@@ -42,6 +42,8 @@ def test_plugin_metadata_matches_package_version() -> None:
     assert manifest["version"] == pyproject["project"]["version"] == albumentationsx_plugin.__version__
     assert pyproject["project"]["requires-python"] == ">=3.10,<3.13"
     assert pyproject["tool"]["ruff"]["target-version"] == "py310"
+    assert "numpy>=2.2.6,<3" in pyproject["project"]["dependencies"]
+    assert "Pillow>=12.2,<13" in pyproject["project"]["dependencies"]
     assert manifest["fiftyone"]["version"] == ">=1.19,<2"
 
 
