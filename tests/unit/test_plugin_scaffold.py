@@ -40,6 +40,7 @@ def test_plugin_metadata_matches_package_version() -> None:
     assert manifest["name"] == "@albumentations/albumentationsx"
     assert manifest["type"] == "plugin"
     assert manifest["version"] == pyproject["project"]["version"] == albumentationsx_plugin.__version__
+    assert pyproject["project"]["requires-python"] == ">=3.11,<3.13"
     assert manifest["fiftyone"]["version"] == ">=1.19,<2"
 
 

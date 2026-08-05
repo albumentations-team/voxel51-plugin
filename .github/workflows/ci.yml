@@ -68,3 +68,42 @@ jobs:
 
       - name: Run the complete test suite
         run: uv run pytest --cov-fail-under=85
+
+  experimental-python:
+    # The locked AlbumentationsX/NumPy dependency set supports 3.11–3.12.
+    # Keep compatibility probes on adjacent Python versions visible but non-blocking.
+    name: Experimental tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13", "3.14"]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # v8.3.1
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            requirements.txt
+
+      - name: Create an isolated test environment
+        run: uv venv --python ${{ matrix.python-version }} .experimental-venv
+
+      - name: Install runtime and test dependencies
+        run: >-
+          uv pip install --python .experimental-venv/bin/python -r requirements.txt
+          "pytest>=9.1.1" "pytest-cov>=7.1.0" "pyyaml>=6.0"
+
+      - name: Run the complete test suite
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: .experimental-venv/bin/python -m pytest --cov-fail-under=85

@@ -72,7 +72,8 @@ FiftyOne registers these operators:
 
 ## Develop locally
 
-Contributors need Python 3.11 or 3.12, [uv](https://docs.astral.sh/uv/getting-started/installation/), and Git.
+Contributors need Python 3.11 or 3.12,
+[uv](https://docs.astral.sh/uv/getting-started/installation/), and Git.
 
 ```bash
 git clone https://github.com/albumentations-team/voxel51-plugin.git
