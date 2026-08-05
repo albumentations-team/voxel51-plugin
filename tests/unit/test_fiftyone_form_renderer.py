@@ -84,7 +84,9 @@ def test_fiftyone_form_renderer_maps_supported_field_kinds() -> None:
 
     assert properties["enabled"]["type"]["name"] == "Boolean"
     assert properties["enabled"]["default"] is True
-    assert properties["enabled"]["view"]["description"] == "Whether this option is enabled."
+    assert properties["enabled"]["view"]["name"] == "SwitchView"
+    assert properties["enabled"]["view"]["description"] is None
+    assert properties["enabled"]["view"]["caption"] == "Whether this option is enabled."
     assert properties["count"]["type"] == {
         "name": "Number",
         "int": True,
@@ -100,23 +102,31 @@ def test_fiftyone_form_renderer_maps_supported_field_kinds() -> None:
         "min": 0.0,
         "max": 1.0,
     }
-    assert properties["probability"]["view"]["description"] == (
-        "How often to apply the transform. Constraints: >= 0, <= 1."
-    )
+    assert properties["probability"]["view"]["name"] == "FieldView"
+    assert properties["probability"]["view"]["description"] is None
+    assert properties["probability"]["view"]["caption"] == "How often to apply the transform."
     assert properties["note"]["type"] == {"name": "String", "allow_empty": True}
     assert properties["mode"]["type"] == {"name": "Enum", "values": ["fast", "accurate"]}
+    assert properties["mode"]["view"]["name"] == "DropdownView"
+    assert [choice["label"] for choice in properties["mode"]["view"]["choices"]] == ["Fast", "Accurate"]
     assert properties["optional_mode"]["type"] == {"name": "Enum", "values": ["auto", None]}
+    assert [choice["label"] for choice in properties["optional_mode"]["view"]["choices"]] == [
+        "Auto",
+        "Default",
+    ]
     assert properties["crop_size"]["type"]["name"] == "Tuple"
     assert properties["crop_size"]["type"]["items"] == [
         {"name": "Number", "min": None, "max": None, "int": True, "float": False},
         {"name": "Number", "min": None, "max": None, "int": True, "float": False},
     ]
+    assert properties["crop_size"]["view"]["name"] == "TupleView"
     assert properties["channel_order"]["type"] == {
         "name": "List",
         "element_type": {"name": "Number", "min": None, "max": None, "int": True, "float": False},
         "min_items": 3,
         "max_items": 3,
     }
+    assert properties["channel_order"]["view"]["name"] == "ListView"
     assert properties["fill"]["type"] == {"name": "String", "allow_empty": True}
     assert properties["fill"]["default"] == "0.0"
 
@@ -138,6 +148,22 @@ def test_fiftyone_form_renderer_raises_for_unsupported_field_kind() -> None:
         "field_name": "advanced",
         "field_kind": "object",
     }
+
+
+@pytest.mark.unit
+def test_fiftyone_form_renderer_marks_required_json_fallback_read_only() -> None:
+    field = FormFieldSchema(
+        name="advanced",
+        kind=FieldKind.JSON,
+        required=True,
+        metadata={"schema_status": "unsupported_required"},
+    )
+
+    property_json = render_form((field,)).to_json()["properties"]["advanced"]
+
+    assert property_json["invalid"] is True
+    assert property_json["error_message"] == "This required parameter cannot be rendered safely yet."
+    assert property_json["view"]["read_only"] is True
 
 
 @pytest.mark.unit

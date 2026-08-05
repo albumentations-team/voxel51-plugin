@@ -64,12 +64,11 @@ shows a dedicated section for each active pipeline stage. Toolbar placement is
 context-aware: augmentation is disabled until samples are selected, and run
 summary/cleanup actions are disabled until persisted runs exist.
 
-Each stage includes target compatibility guidance generated from the
-albu-spec-backed capability catalog. The guidance summarizes image, bbox, mask,
-keypoint, and classification-label handling, and switches to a warning when the
-active dataset schema contains label targets that the selected transform does
-not declare support for. Parameter descriptions include albu-spec constraints
-when available.
+Each stage uses the stage heading to show pipeline order, so its field labels do
+not repeat the step number. Parameters use short captions, readable enum labels,
+and switches for booleans. Parameter controls use two columns on desktop and
+one column on narrower screens. Defaults remain visible in the controls, while
+numeric bounds remain part of field validation rather than repeated prose.
 
 For `supported_with_defaults` transforms, advanced optional JSON fallback
 parameters stay hidden and their albu-spec/Albumentations defaults are used.

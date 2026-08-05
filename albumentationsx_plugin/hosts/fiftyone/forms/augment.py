@@ -30,8 +30,11 @@ from albumentationsx_plugin.core import (
     pipeline_step_field_name,
 )
 from albumentationsx_plugin.core.serialization import normalize_json_value
+from albumentationsx_plugin.hosts.fiftyone.form_params import (
+    flatten_stage_parameter_groups,
+    stage_parameter_group_name,
+)
 from albumentationsx_plugin.hosts.fiftyone.forms.defaults import RandomCropDefaults, build_random_crop_defaults
-from albumentationsx_plugin.hosts.fiftyone.forms.guidance import TransformGuidance, build_transform_guidance
 from albumentationsx_plugin.hosts.fiftyone.forms.renderer import FiftyOneFormRenderer
 from albumentationsx_plugin.hosts.fiftyone.presets import (
     PREVIOUS_RUN_KEY_FIELD_NAME,
@@ -51,7 +54,6 @@ PIPELINE_STEP_COUNT_LABEL: Final[str] = "Pipeline steps"
 RANDOM_CROP_TRANSFORM_NAME: Final[str] = "RandomCrop"
 GENERAL_SECTION_FIELD_NAME: Final[str] = "_general_settings"
 STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
-TARGET_GUIDANCE_FIELD_NAME: Final[str] = "_target_compatibility"
 PREVIOUS_RUN_WARNING_FIELD_NAME: Final[str] = "_previous_run_warning"
 FIXED_SLICE_PARAMETER_NAMES: Final[dict[str, tuple[str, ...]]] = {
     "HorizontalFlip": (PROBABILITY_FIELD_NAME,),
@@ -108,7 +110,6 @@ class DynamicAugmentFormBuilder:
                 selected_transform_name=selected_transform_name,
                 step_number=step_number,
             )
-            self._render_transform_guidance(inputs, selected_transform_name, step_number=step_number, ctx=ctx)
             self._render_transform_parameters(
                 inputs,
                 selected_transform_name,
@@ -219,7 +220,6 @@ class DynamicAugmentFormBuilder:
             f"{STAGE_SECTION_FIELD_PREFIX}_{step_number}",
             types.Header(
                 label=f"Stage {step_number}",
-                description=f"Configure augmentation stage {step_number} of the ordered pipeline.",
             ),
         )
 
@@ -231,7 +231,7 @@ class DynamicAugmentFormBuilder:
         selected_transform_name: str,
         step_number: int,
     ) -> None:
-        label = _step_label(step_number, "Transform")
+        label = "Transform"
         choices = types.AutocompleteView(label=label, allow_user_input=False)
         for transform_name in supported_transform_names:
             choices.add_choice(transform_name, label=transform_name)
@@ -245,23 +245,6 @@ class DynamicAugmentFormBuilder:
             view=choices,
         )
 
-    def _render_transform_guidance(
-        self,
-        inputs: types.Object,
-        selected_transform_name: str,
-        *,
-        step_number: int,
-        ctx: Any | None,
-    ) -> None:
-        guidance = build_transform_guidance(
-            capability=self.catalog_provider.get_transform_capability(selected_transform_name),
-            ctx=ctx,
-        )
-        inputs.view(
-            pipeline_step_field_name(step_number, TARGET_GUIDANCE_FIELD_NAME),
-            _guidance_view(guidance),
-        )
-
     def _render_transform_parameters(
         self,
         inputs: types.Object,
@@ -272,8 +255,13 @@ class DynamicAugmentFormBuilder:
         random_crop_defaults: RandomCropDefaults | None,
     ) -> None:
         parameter_fields = self.parameter_schema_provider.get_parameter_schema(selected_transform_name)
+        parameter_group = inputs.grid(
+            stage_parameter_group_name(step_number),
+            orientation="2d",
+            gap=2,
+        )
         self.renderer.render_into(
-            inputs,
+            parameter_group,
             _step_parameter_fields(
                 parameter_fields=_executable_ui_fields(
                     selected_transform_name=selected_transform_name,
@@ -295,12 +283,7 @@ def build_dynamic_augment_form(ctx: Any | None) -> types.Object:
 
 def _ctx_params(ctx: Any | None) -> Mapping[str, object]:
     params = getattr(ctx, "params", {}) if ctx is not None else {}
-    return params if isinstance(params, Mapping) else {}
-
-
-def _guidance_view(guidance: TransformGuidance) -> types.View:
-    view_cls = types.Warning if guidance.warning else types.Notice
-    return view_cls(label=guidance.label, description=guidance.description)
+    return flatten_stage_parameter_groups(params) if isinstance(params, Mapping) else {}
 
 
 def _selected_step_count(raw_value: object) -> int:
@@ -378,7 +361,8 @@ def _executable_ui_fields(
             field=schema_field,
             random_crop_defaults=random_crop_defaults,
         )
-        fields.append(_with_current_default(ui_field, params=params, step_number=step_number))
+        compact_field = replace(ui_field, help_text=_compact_help_text(ui_field.help_text))
+        fields.append(_with_current_default(compact_field, params=params, step_number=step_number))
     return tuple(fields)
 
 
@@ -447,9 +431,26 @@ def _random_crop_field_default(field_name: str, random_crop_defaults: RandomCrop
 def _field_help_text(field: FormFieldSchema, random_crop_defaults: RandomCropDefaults | None) -> str | None:
     if random_crop_defaults is None:
         return field.help_text
-    if field.help_text is None:
-        return random_crop_defaults.help_text
-    return f"{field.help_text} {random_crop_defaults.help_text}"
+    return random_crop_defaults.help_text
+
+
+def _compact_help_text(help_text: str | None) -> str | None:
+    if help_text is None:
+        return None
+
+    summary = help_text.split("\n-", maxsplit=1)[0]
+    summary = summary.split('\n"', maxsplit=1)[0]
+    summary = summary.split("Default:", maxsplit=1)[0]
+    summary = " ".join(summary.split()).strip().rstrip(":")
+    for separator in (". ", "? ", "! "):
+        if separator in summary:
+            summary = summary.split(separator, maxsplit=1)[0] + separator[0]
+            break
+    if summary.startswith("Whether to use "):
+        summary = "Use " + summary.removeprefix("Whether to use ")
+    if summary:
+        summary = summary[0].upper() + summary[1:]
+    return summary or None
 
 
 def _step_parameter_fields(
@@ -461,14 +462,16 @@ def _step_parameter_fields(
         replace(
             field,
             name=pipeline_step_field_name(step_number, field.name),
-            label=_step_label(step_number, field.label or field.name),
+            label=_parameter_label(field),
         )
         for field in parameter_fields
     )
 
 
-def _step_label(step_number: int, label: str) -> str:
-    return f"Step {step_number} {label}"
+def _parameter_label(field: FormFieldSchema) -> str:
+    if field.name == PROBABILITY_FIELD_NAME:
+        return "Probability"
+    return field.label or field.name
 
 
 def _preset_choice_run_keys(preset_run_keys: tuple[str, ...], selected_preset_run_key: str) -> tuple[str, ...]:
