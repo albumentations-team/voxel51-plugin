@@ -6,6 +6,8 @@ these files hold development workflow, review, and release notes.
 
 ## Documents
 
+- [Design and roadmap](../DESIGN.md): current MVP boundary, durable design
+  decisions, completed work, and the remaining plan.
 - [Gitflow](gitflow.md): branch model and merge flow for MVP work.
 - [Architecture](architecture.md): layered code boundaries and extension points.
 - [Demo dataset](demo-dataset.md): deterministic local dataset workflow.
