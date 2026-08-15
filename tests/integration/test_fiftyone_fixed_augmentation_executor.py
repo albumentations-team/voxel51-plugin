@@ -11,6 +11,12 @@ import pytest
 
 from albumentationsx_plugin.core import InvalidParameterError, MediaIOError, RunManifest
 from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
+from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
+    EXECUTION_SCOPE_CURRENT_VIEW,
+    EXECUTION_SCOPE_ENTIRE_DATASET,
+    EXECUTION_SCOPE_FIELD_NAME,
+    EXECUTION_SCOPE_SELECTED_SAMPLES,
+)
 from albumentationsx_plugin.hosts.fiftyone.operators.delete_run import (
     STORAGE_ROOT_PARAM_NAME as DELETE_STORAGE_ROOT_PARAM_NAME,
 )
@@ -148,6 +154,9 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
 
         manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
         assert manifest.run_key == result.run_key
+        assert result.source_scope == EXECUTION_SCOPE_SELECTED_SAMPLES
+        assert manifest.metadata[EXECUTION_SCOPE_FIELD_NAME] == EXECUTION_SCOPE_SELECTED_SAMPLES
+        assert manifest.metadata["source_count"] == 2
         assert set(manifest.created_sample_ids) == {str(sample.id) for sample in created}
         assert set(manifest.output_paths) == {
             Path(sample.filepath).relative_to(Path(result.output_dir)).as_posix() for sample in created
@@ -166,6 +175,86 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
         assert run_results.plugin_run_key == result.run_key
         assert run_results.manifest["run_key"] == result.run_key
         assert run_results.manifest_path == result.manifest_path
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_processes_current_view_scope(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        kept_path = _write_source_image(tmp_path, "kept")
+        skipped_path = _write_source_image(tmp_path, "skipped", width=6, height=5)
+        kept_id = dataset.add_sample(_sample(kept_path, tag="keep"))
+        skipped_id = dataset.add_sample(_sample(skipped_path, width=6, height=5, tag="skip"))
+        view = dataset.match_tags("keep")
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            view=view,
+            selected_sample_ids=(),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+                EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW,
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.source_scope == EXECUTION_SCOPE_CURRENT_VIEW
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        created = _output_samples(dataset)
+        assert len(created) == 1
+        assert created[0].get_field(SOURCE_SAMPLE_ID_FIELD) == kept_id
+        assert created[0].get_field(SOURCE_SAMPLE_ID_FIELD) != skipped_id
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        assert manifest.source_sample_ids == (kept_id,)
+        assert manifest.metadata[EXECUTION_SCOPE_FIELD_NAME] == EXECUTION_SCOPE_CURRENT_VIEW
+        assert manifest.metadata["source_count"] == 1
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_entire_dataset_scope_ignores_view(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        first_id = dataset.add_sample(_sample(_write_source_image(tmp_path, "first"), tag="keep"))
+        second_id = dataset.add_sample(_sample(_write_source_image(tmp_path, "second"), tag="skip"))
+        view = dataset.match_tags("keep")
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            view=view,
+            selected_sample_ids=(),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+                EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_ENTIRE_DATASET,
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.source_scope == EXECUTION_SCOPE_ENTIRE_DATASET
+        assert result.processed_count == 2
+        assert result.created_count == 2
+        created_source_ids = {sample.get_field(SOURCE_SAMPLE_ID_FIELD) for sample in _output_samples(dataset)}
+        assert created_source_ids == {first_id, second_id}
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        assert set(manifest.source_sample_ids) == {first_id, second_id}
+        assert manifest.metadata[EXECUTION_SCOPE_FIELD_NAME] == EXECUTION_SCOPE_ENTIRE_DATASET
+        assert manifest.metadata["source_count"] == 2
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)
@@ -402,22 +491,27 @@ def test_fixed_augmentation_executor_dry_run_does_not_write_outputs(tmp_path) ->
     dataset_name = _dataset_name()
     try:
         dataset = fo.Dataset(dataset_name)
-        sample_id = dataset.add_sample(_sample(_write_source_image(tmp_path, "source")))
+        dataset.add_sample(_sample(_write_source_image(tmp_path, "source"), tag="keep"))
+        dataset.add_sample(_sample(_write_source_image(tmp_path, "other"), tag="skip"))
+        view = dataset.match_tags("keep")
 
         result = execute_fixed_augmentation(
             dataset=dataset,
-            selected_sample_ids=(sample_id,),
+            view=view,
+            selected_sample_ids=(),
             params={
                 "transform": "HorizontalFlip",
                 "dry_run": True,
+                EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW,
             },
             storage_root=tmp_path / "plugin-storage",
         )
 
+        assert result.source_scope == EXECUTION_SCOPE_CURRENT_VIEW
         assert result.processed_count == 1
         assert result.created_count == 0
         assert result.error_count == 0
-        assert len(dataset) == 1
+        assert len(dataset) == 2
         assert not Path(result.output_dir).exists()
         assert result.manifest_path == ""
         assert not dataset.has_run(result.fiftyone_run_key)

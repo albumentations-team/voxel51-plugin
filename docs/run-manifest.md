@@ -32,7 +32,8 @@ provenance fields, and manifest lookups.
 - per-output replay records;
 - counters for processed, created, skipped, errors, and outputs;
 - structured per-sample errors;
-- metadata with output directory, output tag, and FiftyOne run key.
+- metadata with output directory, output tag, FiftyOne run key, execution
+  scope, and resolved source count.
 
 Output paths must be relative to the run directory. Absolute paths and parent
 traversal are rejected before the manifest is saved. This makes the manifest the
