@@ -27,7 +27,7 @@ This page is the release note and checklist for the first public MVP release of
 
 - Execution is image-focused and writes generated image samples under
   plugin-owned run directories.
-- The executable picker exposes the `109` normal MVP choices classified as
+- The executable picker exposes the `110` normal MVP choices classified as
   `supported` or `supported_with_defaults` by the current albu-spec catalog.
   The default stage presets are `HorizontalFlip`,
   `RandomBrightnessContrast`, and `RandomCrop`, but they are not the complete
@@ -43,8 +43,9 @@ This page is the release note and checklist for the first public MVP release of
   `View AlbumentationsX Run` but are hidden from cleanup suggestions.
 - Successful or partial cleanup runs ask the FiftyOne App to reload the dataset
   so removed generated samples disappear without a manual browser refresh.
-- There is no packaged PyPI/GitHub release artifact yet; the first public
-  release is source-install oriented.
+- The original `v0.1.0` release was source-install oriented. Current public
+  tags should also publish the checksummed GitHub Release artifacts documented
+  in [Release artifacts](release-artifacts.md).
 - Manual FiftyOne App validation is still required before publishing the
   `v0.1.0` tag.
 
@@ -53,9 +54,9 @@ This page is the release note and checklist for the first public MVP release of
 The final catalog snapshot for this release is
 [Capability Report v0.1.0](capability-report-v0.1.0.md):
 
-- version key: `albumentationsx-2.3.7__albu-spec-0.0.6`
-- total transforms: `133`
-- normal MVP choices: `109`
+- version key: `albumentationsx-2.3.8__albu-spec-0.0.6`
+- total transforms: `134`
+- normal MVP choices: `110`
 
 Regenerate it with the release candidate check listed in
 [Verification](verification.md#release-candidate-checks) when AlbumentationsX,
@@ -111,7 +112,8 @@ git tag -a v0.1.0 -m "v0.1.0"
 git push origin v0.1.0
 ```
 
-8. Publish GitHub release notes that link this page and the capability report.
+8. Publish GitHub release notes that link this page, the capability report, the
+   attached install notes, and `SHA256SUMS`.
 
 ## Hotfix Pattern
 
@@ -123,8 +125,7 @@ the patch as `v0.1.1`.
 
 - Broaden target-aware transform coverage beyond the MVP executable slice.
 - Improve multi-step pipeline editing, previews, progress, and validation UX.
-- Decide whether to publish installable artifacts beyond source checkout
-  installation.
-- Add release automation only after the manual `v0.1.0` flow is proven.
+- Keep release artifacts and automation aligned with
+  [Release artifacts](release-artifacts.md).
 - Continue sending albu-spec bug fixes upstream instead of adding plugin-local
   workarounds.

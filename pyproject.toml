@@ -14,6 +14,10 @@ dependencies = [
   "tomli>=2,<3",
 ]
 
+[build-system]
+requires = ["setuptools>=80", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [dependency-groups]
 dev = [
   "pre-commit>=4.6.0",
@@ -45,6 +49,10 @@ markers = [
   "geometry: synthetic-image tests that keep bounding boxes, masks, and keypoints aligned through deterministic geometric transforms",
   "smoke: local discovery and end-to-end MVP workflow checks that prove the plugin can be found and exercised",
 ]
+
+[tool.setuptools.packages.find]
+include = ["albumentationsx_plugin*"]
+exclude = ["docs*", "sample_data*", "scripts*", "tests*"]
 
 [tool.coverage.run]
 branch = true

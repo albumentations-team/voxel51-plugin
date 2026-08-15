@@ -33,6 +33,8 @@ these files hold development workflow, review, and release notes.
   generated samples, manifest-listed files, and custom runs.
 - [Release v0.1.0](release-v0.1.0.md): historic first-release scope,
   verification checklist, known limitations, and tag flow.
+- [Release artifacts](release-artifacts.md): checksummed GitHub Release
+  artifact build, publication, and install flow.
 - [Capability report v0.1.0](capability-report-v0.1.0.md): final albu-spec
   transform capability snapshot for the first public release.
 - [PR checklist](pr-checklist.md): required checks before review and merge.

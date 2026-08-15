@@ -22,6 +22,11 @@ fiftyone plugins list --enabled --names-only
 
 The final command should list `@albumentations/albumentationsx`.
 
+Published tags also attach a checksummed FiftyOne plugin zip for workflows that
+cannot use the GitHub download helper. See
+[Release artifacts](docs/release-artifacts.md) for the zip install path and
+artifact verification commands.
+
 FiftyOne registers these operators:
 
 ```text

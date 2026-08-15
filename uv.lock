@@ -1140,7 +1140,7 @@ wheels = [
 [[package]]
 name = "fiftyone-albumentationsx-plugin"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "albu-spec" },
     { name = "albumentationsx" },

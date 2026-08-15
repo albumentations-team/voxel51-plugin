@@ -38,17 +38,23 @@ run, and verify source samples/files remain.
 ## Release candidate checks
 
 For release branches, run the complete local gate above and refresh the
-capability report:
+capability report, then build the release artifacts:
 
 ```bash
 uv run python scripts/report_transform_capabilities.py
 uv run python scripts/verify_release_tag.py <release-tag>
+uv build
+uv run python scripts/report_transform_capabilities.py --output dist/capability-report-<release-tag>.md
+uv run python scripts/build_release_artifacts.py --tag <release-tag>
 ```
 
 `<release-tag>` may use either `0.1.2` or `v0.1.2`; it must match the versions
-in `pyproject.toml` and `fiftyone.yml`. Attach or link the resulting capability
-snapshot from the release notes. The historic [Release v0.1.0](release-v0.1.0.md)
-records the first release's scope and manual App checks.
+in `pyproject.toml` and `fiftyone.yml`, and `uv.lock` must match the declared
+Python compatibility. Attach or link the resulting capability snapshot,
+install notes, and `SHA256SUMS` from the release notes. The historic
+[Release v0.1.0](release-v0.1.0.md) records the first release's scope and
+manual App checks. The reusable artifact process is documented in
+[Release artifacts](release-artifacts.md).
 
 ## Manual App checks
 
