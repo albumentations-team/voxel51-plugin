@@ -19,6 +19,7 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_FIELD_NAME,
     EXECUTION_SCOPE_SELECTED_SAMPLES,
 )
+from albumentationsx_plugin.hosts.fiftyone.form_params import stage_parameter_group_name
 from albumentationsx_plugin.hosts.fiftyone.operators.augment import (
     OPERATOR_NAME,
     AugmentWithAlbumentationsX,
@@ -53,19 +54,6 @@ class _SampleCollection:
 
     def get_sample(self, sample_id: str) -> _Sample:
         return self._samples[sample_id]
-
-
-class _DatasetSchema:
-    def __init__(self, fields: dict[str, str]) -> None:
-        self._fields = fields
-
-    def get_field_schema(self) -> dict[str, dict[str, str]]:
-        return {field_name: {"document_type": document_type} for field_name, document_type in self._fields.items()}
-
-
-class _BrokenDatasetSchema:
-    def get_field_schema(self) -> dict[str, object]:
-        raise RuntimeError("schema backend is unavailable")
 
 
 def _load_manifest() -> dict[str, Any]:
@@ -105,6 +93,19 @@ def _preset_manifest(run_key: str = "albumentationsx-20260731T150000Z-preset") -
     )
 
 
+def _form_properties(input_json: dict[str, Any]) -> dict[str, Any]:
+    properties = dict(input_json["type"]["properties"])
+    for step_number in range(1, 4):
+        group = properties.get(stage_parameter_group_name(step_number))
+        if isinstance(group, dict):
+            group_type = group.get("type")
+            if isinstance(group_type, dict):
+                group_properties = group_type.get("properties")
+                if isinstance(group_properties, dict):
+                    properties.update(group_properties)
+    return properties
+
+
 @pytest.mark.unit
 def test_augment_operator_config_matches_manifest() -> None:
     manifest = _load_manifest()
@@ -142,7 +143,7 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
 
     input_json = operator.resolve_input(ctx=None).to_json()
     output_json = operator.resolve_output(ctx=None).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_json["view"]["label"] == "Augment with AlbumentationsX"
     assert input_json["view"]["name"] == "PromptView"
@@ -151,8 +152,9 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["_general_settings"]["view"]["label"] == "General"
     assert input_properties["_pipeline_stage_1"]["view"]["name"] == "Header"
     assert input_properties["_pipeline_stage_1"]["view"]["label"] == "Stage 1"
-    assert input_properties["_target_compatibility"]["view"]["name"] == "Notice"
-    assert "Dataset labels: metadata unavailable" in input_properties["_target_compatibility"]["view"]["description"]
+    assert input_properties[stage_parameter_group_name(1)]["view"]["name"] == "GridView"
+    assert input_properties[stage_parameter_group_name(1)]["view"]["orientation"] == "2d"
+    assert "_target_compatibility" not in input_properties
     assert input_properties["pipeline_step_count"]["type"]["name"] == "Number"
     assert input_properties["pipeline_step_count"]["default"] == 1
     assert input_properties["pipeline_step_count"]["required"] is False
@@ -161,6 +163,7 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["transform"]["default"] == "HorizontalFlip"
     assert input_properties["transform"]["required"] is False
     assert input_properties["transform"]["view"]["name"] == "AutocompleteView"
+    assert input_properties["transform"]["view"]["label"] == "Transform"
     assert "HorizontalFlip" in transform_values
     assert "RandomBrightnessContrast" in transform_values
     assert "RandomCrop" in transform_values
@@ -182,7 +185,9 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     }
     assert input_properties["p"]["type"]["name"] == "Number"
     assert input_properties["p"]["default"] == 1.0
-    assert "Constraints: >= 0, <= 1." in input_properties["p"]["view"]["description"]
+    assert input_properties["p"]["view"]["label"] == "Probability"
+    assert input_properties["p"]["view"]["description"] is None
+    assert input_properties["p"]["view"]["caption"] == "Probability of applying the transform."
     assert input_properties["outputs_per_sample"]["type"]["name"] == "Number"
     assert input_properties["outputs_per_sample"]["required"] is False
     assert input_properties["outputs_per_sample"]["default"] == 1
@@ -208,7 +213,7 @@ def test_augment_operator_resolves_ordered_pipeline_steps() -> None:
         }
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["pipeline_step_count"]["default"] == 2
     assert input_properties["_pipeline_stage_1"]["view"]["label"] == "Stage 1"
@@ -253,7 +258,7 @@ def test_augment_operator_prefills_form_from_previous_run_manifest(tmp_path) -> 
     )
 
     input_json = operator.resolve_input(context).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["type"]["name"] == "Enum"
     assert input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["default"] == manifest.run_key
@@ -290,7 +295,7 @@ def test_augment_operator_prefill_overrides_stale_submitted_form_values(tmp_path
     )
 
     input_json = operator.resolve_input(context).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["pipeline_step_count"]["default"] == 2
     assert input_properties["outputs_per_sample"]["default"] == 2
@@ -316,7 +321,7 @@ def test_augment_operator_resolves_later_step_random_crop_defaults() -> None:
         }
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["step_3_height"]["required"] is False
     assert input_properties["step_3_height"]["default"] == 32
@@ -351,7 +356,7 @@ def test_augment_operator_resolves_selected_transform_parameter_schema() -> None
         params = {"transform": "RandomBrightnessContrast"}
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["brightness_range"]["type"]["name"] == "Tuple"
     assert input_properties["brightness_range"]["default"] == [-0.2, 0.2]
@@ -364,86 +369,6 @@ def test_augment_operator_resolves_selected_transform_parameter_schema() -> None
 
 
 @pytest.mark.unit
-def test_augment_operator_renders_target_compatibility_for_supported_dataset_labels() -> None:
-    operator = AugmentWithAlbumentationsX()
-
-    class Context:
-        dataset = _DatasetSchema(
-            {
-                "ground_truth": "Classification",
-                "detections": "Detections",
-                "keypoints": "Keypoints",
-                "segmentation": "Segmentation",
-            }
-        )
-        params = {"transform": "HorizontalFlip"}
-
-    input_json = operator.resolve_input(Context()).to_json()
-    target_guidance = input_json["type"]["properties"]["_target_compatibility"]["view"]
-
-    assert target_guidance["name"] == "Notice"
-    assert (
-        "Targets: image: supported; bboxes: supported; masks: supported; keypoints: supported; labels: copied."
-        in (target_guidance["description"])
-    )
-    assert (
-        "Dataset labels: bboxes (detections); masks (segmentation); keypoints (keypoints); labels (ground_truth)."
-        in (target_guidance["description"])
-    )
-
-
-@pytest.mark.unit
-def test_augment_operator_warns_when_transform_does_not_support_dataset_labels() -> None:
-    operator = AugmentWithAlbumentationsX()
-
-    class Context:
-        dataset = _DatasetSchema({"detections": "Detections"})
-        params = {"transform": "RandomBrightnessContrast"}
-
-    input_json = operator.resolve_input(Context()).to_json()
-    target_guidance = input_json["type"]["properties"]["_target_compatibility"]["view"]
-
-    assert target_guidance["name"] == "Warning"
-    assert "bboxes: not supported" in target_guidance["description"]
-    assert "Dataset labels: bboxes (detections)." in target_guidance["description"]
-    assert (
-        "Warning: selected transform does not declare support for bboxes fields detections."
-        in (target_guidance["description"])
-    )
-
-
-@pytest.mark.unit
-def test_augment_operator_renders_target_guidance_without_dataset_metadata() -> None:
-    operator = AugmentWithAlbumentationsX()
-
-    class Context:
-        dataset = object()
-        params = {"transform": "RandomCrop"}
-
-    input_json = operator.resolve_input(Context()).to_json()
-    target_guidance = input_json["type"]["properties"]["_target_compatibility"]["view"]
-
-    assert target_guidance["name"] == "Notice"
-    assert "Dataset labels: metadata unavailable" in target_guidance["description"]
-    assert "Hidden advanced parameters use Albumentations defaults:" in target_guidance["description"]
-
-
-@pytest.mark.unit
-def test_augment_operator_keeps_target_guidance_resilient_to_schema_errors() -> None:
-    operator = AugmentWithAlbumentationsX()
-
-    class Context:
-        dataset = _BrokenDatasetSchema()
-        params = {"transform": "HorizontalFlip"}
-
-    input_json = operator.resolve_input(Context()).to_json()
-    target_guidance = input_json["type"]["properties"]["_target_compatibility"]["view"]
-
-    assert target_guidance["name"] == "Notice"
-    assert "Dataset labels: metadata unavailable" in target_guidance["description"]
-
-
-@pytest.mark.unit
 def test_augment_operator_resolves_random_crop_without_initial_required_errors() -> None:
     operator = AugmentWithAlbumentationsX()
 
@@ -451,7 +376,7 @@ def test_augment_operator_resolves_random_crop_without_initial_required_errors()
         params = {"transform": "RandomCrop"}
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["height"]["required"] is False
     assert input_properties["height"]["default"] == 32
@@ -473,14 +398,14 @@ def test_augment_operator_limits_random_crop_defaults_to_selected_sample_dimensi
         params = {"transform": "RandomCrop"}
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["height"]["required"] is False
     assert input_properties["height"]["default"] == 18
     assert input_properties["width"]["required"] is False
     assert input_properties["width"]["default"] == 24
-    assert "Default is limited by the selected image dimensions." in input_properties["height"]["view"]["description"]
-    assert "Default is limited by the selected image dimensions." in input_properties["width"]["view"]["description"]
+    assert "Default is limited by the selected image dimensions." in input_properties["height"]["view"]["caption"]
+    assert "Default is limited by the selected image dimensions." in input_properties["width"]["view"]["caption"]
 
 
 @pytest.mark.unit
@@ -497,17 +422,17 @@ def test_augment_operator_limits_random_crop_defaults_to_selected_samples_contex
         params = {"transform": "RandomCrop"}
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["height"]["default"] == 19
     assert input_properties["width"]["default"] == 21
     assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
-        in (input_properties["height"]["view"]["description"])
+        in (input_properties["height"]["view"]["caption"])
     )
     assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
-        in (input_properties["width"]["view"]["description"])
+        in (input_properties["width"]["view"]["caption"])
     )
 
 
@@ -527,17 +452,17 @@ def test_augment_operator_limits_random_crop_defaults_to_selected_view_samples()
         params = {"transform": "RandomCrop"}
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["height"]["default"] == 24
     assert input_properties["width"]["default"] == 22
     assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
-        in (input_properties["height"]["view"]["description"])
+        in (input_properties["height"]["view"]["caption"])
     )
     assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
-        in (input_properties["width"]["view"]["description"])
+        in (input_properties["width"]["view"]["caption"])
     )
 
 
@@ -551,7 +476,7 @@ def test_augment_operator_uses_static_random_crop_defaults_when_selected_metadat
         params = {"transform": "RandomCrop"}
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["height"]["default"] == 32
     assert input_properties["width"]["default"] == 32
@@ -572,17 +497,17 @@ def test_augment_operator_uses_conservative_random_crop_defaults_for_mixed_selec
         params = {"transform": "RandomCrop"}
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["height"]["default"] == 16
     assert input_properties["width"]["default"] == 20
     assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
-        in (input_properties["height"]["view"]["description"])
+        in (input_properties["height"]["view"]["caption"])
     )
     assert (
         "Selected images have mixed dimensions; default is limited by the smallest selected image."
-        in (input_properties["width"]["view"]["description"])
+        in (input_properties["width"]["view"]["caption"])
     )
 
 
@@ -594,7 +519,7 @@ def test_augment_operator_resolves_catalog_transform_parameter_schema() -> None:
         params = {"transform": "ToGray"}
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["transform"]["default"] == "ToGray"
     assert input_properties["num_output_channels"]["type"]["name"] == "Number"
@@ -605,6 +530,44 @@ def test_augment_operator_resolves_catalog_transform_parameter_schema() -> None:
 
 
 @pytest.mark.unit
+def test_augment_operator_renders_compact_readable_transform_parameters() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        params = {"transform": "ElasticTransform"}
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+
+    assert input_properties["_pipeline_stage_1"]["view"]["description"] is None
+    assert input_properties["alpha"]["view"]["label"] == "Alpha"
+    assert input_properties["alpha"]["view"]["description"] is None
+    assert input_properties["alpha"]["view"]["caption"] == "Scaling factor for the random displacement fields."
+    assert input_properties["alpha"]["view"]["componentsProps"]["item"]["sx"]["width"] == {
+        "xs": "100%",
+        "md": "calc(50% - 8px)",
+    }
+    assert input_properties["approximate"]["view"]["name"] == "SwitchView"
+    assert input_properties["approximate"]["view"]["caption"] == (
+        "Use an approximate version of the elastic transform."
+    )
+    assert input_properties["interpolation"]["view"]["name"] == "DropdownView"
+    assert [choice["label"] for choice in input_properties["interpolation"]["view"]["choices"]] == [
+        "Nearest (0)",
+        "Linear (1)",
+        "Cubic (2)",
+        "Area (3)",
+        "Lanczos4 (4)",
+    ]
+    assert input_properties["noise_distribution"]["view"]["caption"] == (
+        "Distribution used to generate the displacement fields."
+    )
+    assert input_properties["map_resolution_range"]["view"]["caption"] == (
+        "Range for sampling the displacement map resolution relative to the target size."
+    )
+    assert input_properties["p"]["view"]["label"] == "Probability"
+
+
+@pytest.mark.unit
 def test_augment_operator_hides_supported_with_defaults_advanced_parameters() -> None:
     operator = AugmentWithAlbumentationsX()
 
@@ -612,7 +575,7 @@ def test_augment_operator_hides_supported_with_defaults_advanced_parameters() ->
         params = {"transform": "CoarseDropout"}
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["transform"]["default"] == "CoarseDropout"
     assert input_properties["num_holes_range"]["type"]["name"] == "Tuple"
@@ -631,7 +594,7 @@ def test_augment_operator_ignores_excluded_catalog_transform_selection() -> None
         params = {"transform": "Normalize"}
 
     input_json = operator.resolve_input(Context()).to_json()
-    input_properties = input_json["type"]["properties"]
+    input_properties = _form_properties(input_json)
 
     assert input_properties["transform"]["default"] == "HorizontalFlip"
     assert input_properties["p"]["type"]["name"] == "Number"

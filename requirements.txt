@@ -1,5 +1,6 @@
 albu-spec>=0.0.6,<1
-albumentationsx>=2.3,<3
+albumentationsx>=2.3.8,<3
 fiftyone>=1.19,<2
-numpy>=2.4,<3
-Pillow>=10,<13
+numpy
+Pillow
+tomli>=2,<3

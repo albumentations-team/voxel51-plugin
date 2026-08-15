@@ -20,18 +20,18 @@ from scripts import report_transform_capabilities
 def test_albu_spec_catalog_snapshot_detects_version_drift() -> None:
     snapshot = build_albu_spec_catalog_snapshot()
 
-    assert snapshot["version_key"] == "albumentationsx-2.3.7__albu-spec-0.0.6"
+    assert snapshot["version_key"] == "albumentationsx-2.3.8__albu-spec-0.0.6"
     assert snapshot["versions"] == {
         "albumentationsx": importlib.metadata.version("albumentationsx"),
         "albu_spec": importlib.metadata.version("albu-spec"),
     }
-    assert snapshot["total_count"] == 133
-    assert snapshot["supported_count"] == 109
+    assert snapshot["total_count"] == 134
+    assert snapshot["supported_count"] == 110
     assert snapshot["status_counts"] == {
         "blocked_media_target": 7,
         "hidden": 1,
         "requires_external_data": 7,
-        "supported": 68,
+        "supported": 69,
         "supported_with_defaults": 41,
         "unsupported_output": 2,
         "unsupported_target": 7,
@@ -101,8 +101,8 @@ def test_albu_spec_catalog_lists_supported_choices_without_fiftyone_ui_imports()
 def test_capability_report_groups_supported_and_excluded_transforms() -> None:
     report = build_capability_report()
 
-    assert "version key: albumentationsx-2.3.7__albu-spec-0.0.6" in report
-    assert "- supported: 68" in report
+    assert "version key: albumentationsx-2.3.8__albu-spec-0.0.6" in report
+    assert "- supported: 69" in report
     assert "- supported_with_defaults: 41" in report
     assert "- unsupported_output: Normalize, ToFloat" in report
     assert "- blocked_media_target: CenterCrop3D" in report
@@ -116,7 +116,7 @@ def test_capability_report_script_outputs_json_and_files(tmp_path, capsys) -> No
     stdout = capsys.readouterr().out
     payload = json.loads(stdout)
 
-    assert payload["version_key"] == "albumentationsx-2.3.7__albu-spec-0.0.6"
+    assert payload["version_key"] == "albumentationsx-2.3.8__albu-spec-0.0.6"
 
     assert report_transform_capabilities.main(["--format", "json", "--output", str(output_path)]) == 0
     written_payload = json.loads(output_path.read_text(encoding="utf-8"))

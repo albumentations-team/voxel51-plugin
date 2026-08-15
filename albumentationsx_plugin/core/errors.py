@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from enum import StrEnum
 
+from albumentationsx_plugin._compat import StrEnum
 from albumentationsx_plugin.core.serialization import JSONDict, JSONValue, normalize_json_mapping
 
 

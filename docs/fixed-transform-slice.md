@@ -7,14 +7,14 @@ MVP choices.
 
 ## Runtime Dependency
 
-The plugin depends on `albumentationsx>=2.3,<3`. AlbumentationsX is installed
+The plugin depends on `albumentationsx>=2.3.8,<3`. AlbumentationsX is installed
 from the `albumentationsx` package, but the runtime API remains:
 
 ```python
 import albumentations as A
 ```
 
-The current lockfile resolves AlbumentationsX `2.3.7`. The executable path uses
+The current lockfile resolves AlbumentationsX `2.3.8`. The executable path uses
 2.3 parameter names from albu-spec, including `RandomBrightnessContrast`
 `brightness_range` and `contrast_range`.
 
@@ -26,7 +26,7 @@ The UI includes transforms classified as:
 - `supported`
 - `supported_with_defaults`
 
-With the current lockfile this exposes `109` normal MVP choices. Transforms
+With the current lockfile this exposes `110` normal MVP choices. Transforms
 classified as `unsupported_target`, `requires_external_data`,
 `blocked_media_target`, `unsupported_output`, `hidden`, or
 `requires_manual_schema` are not shown in normal executable choices; they remain
@@ -64,12 +64,11 @@ shows a dedicated section for each active pipeline stage. Toolbar placement is
 context-aware: augmentation is disabled until samples are selected, and run
 summary/cleanup actions are disabled until persisted runs exist.
 
-Each stage includes target compatibility guidance generated from the
-albu-spec-backed capability catalog. The guidance summarizes image, bbox, mask,
-keypoint, and classification-label handling, and switches to a warning when the
-active dataset schema contains label targets that the selected transform does
-not declare support for. Parameter descriptions include albu-spec constraints
-when available.
+Each stage uses the stage heading to show pipeline order, so its field labels do
+not repeat the step number. Parameters use short captions, readable enum labels,
+and switches for booleans. Parameter controls use two columns on desktop and
+one column on narrower screens. Defaults remain visible in the controls, while
+numeric bounds remain part of field validation rather than repeated prose.
 
 For `supported_with_defaults` transforms, advanced optional JSON fallback
 parameters stay hidden and their albu-spec/Albumentations defaults are used.

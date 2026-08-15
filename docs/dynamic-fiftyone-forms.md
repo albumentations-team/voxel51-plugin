@@ -10,8 +10,6 @@ The FiftyOne host layer owns the UI mapping:
 - `hosts/fiftyone/forms/augment.py` composes the operator form.
 - `hosts/fiftyone/forms/defaults.py` derives host-context defaults without
   changing backend schema metadata.
-- `hosts/fiftyone/forms/guidance.py` derives target compatibility and dataset
-  label warnings from catalog and dataset metadata.
 - `hosts/fiftyone/forms/renderer.py` maps `FormFieldSchema` to
   `fiftyone.operators.types`.
 
@@ -32,11 +30,13 @@ The current renderer maps:
 - `json` to a JSON string input
 
 Required complex fields that cannot be rendered safely are marked invalid and
-read-only. Parameter descriptions and constraints from albu-spec metadata are
-rendered as field descriptions. The generic renderer can render optional
-complex fields as JSON strings, but the executable augmentation form hides
-optional JSON fallback parameters for `supported_with_defaults` transforms and
-relies on documented defaults.
+read-only. The executable form shortens albu-spec help, and the renderer places
+it in captions, uses switches for booleans, and gives enum choices readable
+labels while preserving their raw values. Numeric bounds remain attached to the
+field for validation instead of being repeated as prose. The generic renderer
+can render optional complex fields as JSON strings, but the executable
+augmentation form hides optional JSON fallback parameters for
+`supported_with_defaults` transforms and relies on documented defaults.
 
 ## Execution Scope
 
@@ -85,12 +85,14 @@ the new selection. Clear `Previous run` after loading if you want to keep editin
 the form without reapplying the saved pipeline. Replay records are not reused;
 the new run samples fresh random parameters.
 
-VOX-30 adds per-stage target compatibility guidance. Each active stage shows
-image, bbox, mask, keypoint, and label handling from the selected transform
-capability. When dataset label metadata is available, the form warns if selected
-dataset labels use targets that the transform does not declare support for.
-When dataset metadata is unavailable, the form keeps guidance visible and notes
-that execution validation still runs before processing.
+Stage headings provide the pipeline order, so transform and parameter labels do
+not repeat `Step N`. The form also removes default values and constraint lists
+from help text: the current default is visible in each control, and the field
+schema enforces available bounds. OpenCV interpolation and border-mode enums
+show names such as `Linear (1)` instead of unexplained integers. Parameter
+groups use two columns on desktop and one column below the desktop breakpoint.
+The host adapter flattens these visual groups before execution, so saved runs
+and the pipeline factory keep their existing parameter names.
 
 The fixed execution form applies MVP-specific defaults over the raw albu-spec
 schema without mutating catalog metadata: transform probability defaults to

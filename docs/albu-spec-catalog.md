@@ -8,7 +8,7 @@ metadata from `albu-spec` and converts it into host-neutral
 
 The catalog is built from:
 
-- `albumentationsx>=2.3,<3`, currently locked to `2.3.7`;
+- `albumentationsx>=2.3.8,<3`, currently locked to `2.3.8`;
 - `albu-spec>=0.0.6,<1`, currently locked to `0.0.6`.
 
 AlbumentationsX is installed as `albumentationsx`, but its public runtime import
@@ -61,14 +61,14 @@ supported choices, and excluded transform names by status.
 
 The current lockfile produces:
 
-- version key: `albumentationsx-2.3.7__albu-spec-0.0.6`;
-- total transforms: `133`;
-- normal MVP choices: `109`;
+- version key: `albumentationsx-2.3.8__albu-spec-0.0.6`;
+- total transforms: `134`;
+- normal MVP choices: `110`;
 - status counts:
   - `blocked_media_target`: `7`
   - `hidden`: `1`
   - `requires_external_data`: `7`
-  - `supported`: `68`
+  - `supported`: `69`
   - `supported_with_defaults`: `41`
   - `unsupported_output`: `2`
   - `unsupported_target`: `7`

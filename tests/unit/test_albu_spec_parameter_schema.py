@@ -107,7 +107,7 @@ def test_albu_spec_parameter_schema_is_json_serializable_and_deterministic() -> 
 
     decoded = json.loads(json.dumps(snapshot))
 
-    assert decoded["version_key"] == "albumentationsx-2.3.7__albu-spec-0.0.6"
+    assert decoded["version_key"] == "albumentationsx-2.3.8__albu-spec-0.0.6"
     assert decoded["transform_names"] == [
         "HorizontalFlip",
         "RandomBrightnessContrast",

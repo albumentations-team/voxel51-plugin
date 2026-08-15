@@ -10,8 +10,9 @@ changes user-visible behavior:
 
 ```bash
 uv sync --group dev
+uv lock --check
 uv run pre-commit run --all-files
-uv run pytest
+uv run pytest --cov-fail-under=85
 uv run pyrefly check
 ```
 
@@ -41,10 +42,13 @@ capability report:
 
 ```bash
 uv run python scripts/report_transform_capabilities.py
+uv run python scripts/verify_release_tag.py <release-tag>
 ```
 
-Attach or link the resulting snapshot from the release notes. For `v0.1.0`,
-the release checklist lives in [Release v0.1.0](release-v0.1.0.md).
+`<release-tag>` may use either `0.1.2` or `v0.1.2`; it must match the versions
+in `pyproject.toml` and `fiftyone.yml`. Attach or link the resulting capability
+snapshot from the release notes. The historic [Release v0.1.0](release-v0.1.0.md)
+records the first release's scope and manual App checks.
 
 ## Manual App checks
 

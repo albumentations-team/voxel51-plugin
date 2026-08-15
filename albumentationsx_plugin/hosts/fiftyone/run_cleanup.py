@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from os import PathLike
 from pathlib import Path
 from typing import Any, Protocol
@@ -271,7 +271,7 @@ def _mark_manifest_cleaned(run_store: FileRunStore, manifest: RunManifest) -> Me
 
 
 def _utc_timestamp() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _fiftyone_run_key(dataset: CleanupDataset, run_key: str) -> str:

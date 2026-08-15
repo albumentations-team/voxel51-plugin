@@ -18,6 +18,7 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     source_selected_sample_ids,
     source_view_from_context,
 )
+from albumentationsx_plugin.hosts.fiftyone.form_params import flatten_stage_parameter_groups
 from albumentationsx_plugin.hosts.fiftyone.presets import (
     params_with_previous_run_preset,
     selected_previous_run_key,
@@ -142,7 +143,7 @@ def _execute_fixed_augmentation(**kwargs: Any):
 
 def _ctx_params(ctx: Any | None) -> dict[str, object]:
     params = getattr(ctx, "params", {}) if ctx is not None else {}
-    return dict(params) if isinstance(params, Mapping) else {}
+    return flatten_stage_parameter_groups(params) if isinstance(params, Mapping) else {}
 
 
 def _missing_dependency_inputs(error: ModuleNotFoundError):
