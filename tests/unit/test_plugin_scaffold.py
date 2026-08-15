@@ -41,6 +41,8 @@ def test_plugin_metadata_matches_package_version() -> None:
     assert manifest["type"] == "plugin"
     assert manifest["version"] == pyproject["project"]["version"] == albumentationsx_plugin.__version__
     assert pyproject["project"]["requires-python"] == ">=3.10"
+    assert pyproject["build-system"]["build-backend"] == "setuptools.build_meta"
+    assert pyproject["tool"]["setuptools"]["packages"]["find"]["include"] == ["albumentationsx_plugin*"]
     assert pyproject["tool"]["ruff"]["target-version"] == "py310"
     assert pyproject["tool"]["pyrefly"]["python-version"] == "3.10"
     assert "albumentationsx>=2.3.8,<3" in pyproject["project"]["dependencies"]

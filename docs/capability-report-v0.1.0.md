@@ -1,31 +1,18 @@
-# Capability Report v0.1.0
+AlbumentationsX capability catalog
+version key: albumentationsx-2.3.8__albu-spec-0.0.6
+total transforms: 134
+supported choices: 110
 
-This snapshot was generated from the release candidate with:
+Status counts:
+- blocked_media_target: 7
+- hidden: 1
+- requires_external_data: 7
+- supported: 69
+- supported_with_defaults: 41
+- unsupported_output: 2
+- unsupported_target: 7
 
-```bash
-uv run python scripts/report_transform_capabilities.py
-```
-
-## Summary
-
-- version key: `albumentationsx-2.3.7__albu-spec-0.0.6`
-- total transforms: `133`
-- normal MVP choices: `109`
-- `supported`: `68`
-- `supported_with_defaults`: `41`
-
-## Status Counts
-
-- `blocked_media_target`: `7`
-- `hidden`: `1`
-- `requires_external_data`: `7`
-- `supported`: `68`
-- `supported_with_defaults`: `41`
-- `unsupported_output`: `2`
-- `unsupported_target`: `7`
-
-## Supported Transform Names
-
+Supported transform names:
 - AdditiveNoise
 - AdvancedBlur
 - Affine
@@ -53,6 +40,7 @@ uv run python scripts/report_transform_capabilities.py
 - Enhance
 - Equalize
 - Erasing
+- ExposureMatching
 - FancyPCA
 - FilmGrain
 - FrequencyMasking
@@ -136,43 +124,9 @@ uv run python scripts/report_transform_capabilities.py
 - XYMasking
 - ZoomBlur
 
-## Excluded Transform Names
-
-`blocked_media_target`
-
-- CenterCrop3D
-- CoarseDropout3D
-- CubicSymmetry
-- GridShuffle3D
-- Pad3D
-- PadIfNeeded3D
-- RandomCrop3D
-
-`hidden`
-
-- NoOp
-
-`requires_external_data`
-
-- CopyAndPaste
-- FDA
-- HistogramMatching
-- Mosaic
-- OverlayElements
-- PixelDistributionAdaptation
-- TextImage
-
-`unsupported_output`
-
-- Normalize
-- ToFloat
-
-`unsupported_target`
-
-- AtLeastOneBBoxRandomCrop
-- BBoxSafeRandomCrop
-- ConstrainedCoarseDropout
-- CropNonEmptyMaskIfExists
-- MaskDropout
-- RandomCropNearBBox
-- RandomSizedBBoxSafeCrop
+Excluded transform names by status:
+- blocked_media_target: CenterCrop3D, CoarseDropout3D, CubicSymmetry, GridShuffle3D, Pad3D, PadIfNeeded3D, RandomCrop3D
+- hidden: NoOp
+- requires_external_data: CopyAndPaste, FDA, HistogramMatching, Mosaic, OverlayElements, PixelDistributionAdaptation, TextImage
+- unsupported_output: Normalize, ToFloat
+- unsupported_target: AtLeastOneBBoxRandomCrop, BBoxSafeRandomCrop, ConstrainedCoarseDropout, CropNonEmptyMaskIfExists, MaskDropout, RandomCropNearBBox, RandomSizedBBoxSafeCrop
