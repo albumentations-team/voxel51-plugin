@@ -46,6 +46,7 @@ class FiftyOneSampleAdapter:
     view: Any | None = None
     selected_sample_ids: Sequence[str] = ()
     selected_label_fields: Sequence[str] = ()
+    include_all_label_fields: bool = True
     output_tag: str = DEFAULT_OUTPUT_TAG
     _selected_sample_ids: tuple[str, ...] = field(init=False, repr=False)
     _selected_label_fields: tuple[str, ...] = field(init=False, repr=False)
@@ -74,6 +75,7 @@ class FiftyOneSampleAdapter:
         label_fields, excluded_label_fields = resolve_annotation_fields(
             self.dataset,
             selected_label_fields=self._selected_label_fields,
+            include_all_label_fields=self.include_all_label_fields,
         )
 
         if not self._selected_sample_ids:

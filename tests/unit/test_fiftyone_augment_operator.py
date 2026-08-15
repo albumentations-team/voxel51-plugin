@@ -7,11 +7,13 @@ from collections.abc import Iterable, Iterator
 from types import SimpleNamespace
 from typing import Any
 
+import fiftyone as fo
 import pytest
 import yaml
 
 import albumentationsx_plugin.hosts.fiftyone.operators.augment as augment_operator_module
 from albumentationsx_plugin.core import PipelineConfig, RunManifest, TransformConfig
+from albumentationsx_plugin.hosts.fiftyone.annotations import annotation_field_param_name
 from albumentationsx_plugin.hosts.fiftyone.augmentation import FixedAugmentationExecutionResult
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_CURRENT_VIEW,
@@ -28,6 +30,7 @@ from albumentationsx_plugin.hosts.fiftyone.presets import PREVIOUS_RUN_KEY_FIELD
 from albumentationsx_plugin.storage import FileRunStore
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+ANNOTATION_FIELD_GROUP_NAME = "_annotation_fields"
 
 
 class _ImageMetadata:
@@ -54,6 +57,16 @@ class _SampleCollection:
 
     def get_sample(self, sample_id: str) -> _Sample:
         return self._samples[sample_id]
+
+
+class _FieldSchemaDataset:
+    media_type = "image"
+
+    def __init__(self, schema: dict[str, object]) -> None:
+        self._schema = schema
+
+    def get_field_schema(self) -> dict[str, object]:
+        return self._schema
 
 
 def _load_manifest() -> dict[str, Any]:
@@ -95,8 +108,12 @@ def _preset_manifest(run_key: str = "albumentationsx-20260731T150000Z-preset") -
 
 def _form_properties(input_json: dict[str, Any]) -> dict[str, Any]:
     properties = dict(input_json["type"]["properties"])
-    for step_number in range(1, 4):
-        group = properties.get(stage_parameter_group_name(step_number))
+    group_names = [
+        ANNOTATION_FIELD_GROUP_NAME,
+        *(stage_parameter_group_name(step_number) for step_number in range(1, 4)),
+    ]
+    for group_name in group_names:
+        group = properties.get(group_name)
         if isinstance(group, dict):
             group_type = group.get("type")
             if isinstance(group_type, dict):
@@ -104,6 +121,10 @@ def _form_properties(input_json: dict[str, Any]) -> dict[str, Any]:
                 if isinstance(group_properties, dict):
                     properties.update(group_properties)
     return properties
+
+
+def _field(label_type: type[fo.Label] | type[str]) -> SimpleNamespace:
+    return SimpleNamespace(document_type=label_type)
 
 
 @pytest.mark.unit
@@ -226,6 +247,52 @@ def test_augment_operator_resolves_ordered_pipeline_steps() -> None:
     assert "step_2_brightness_by_max" not in input_properties
     assert "step_2_ensure_safe_output" not in input_properties
     assert "step_3_transform" not in input_properties
+
+
+@pytest.mark.unit
+def test_augment_operator_renders_annotation_field_toggles() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = _FieldSchemaDataset(
+            {
+                "ground_truth": _field(fo.Classification),
+                "detections": _field(fo.Detections),
+                "polylines": _field(fo.Polylines),
+            }
+        )
+        params: dict[str, object] = {}
+
+    input_json = operator.resolve_input(Context()).to_json()
+    input_properties = _form_properties(input_json)
+    ground_truth_param = annotation_field_param_name("ground_truth")
+    detections_param = annotation_field_param_name("detections")
+
+    assert input_properties["_annotation_settings"]["view"]["name"] == "Header"
+    assert input_properties["_annotation_settings"]["view"]["label"] == "Annotations"
+    assert input_properties[ANNOTATION_FIELD_GROUP_NAME]["view"]["name"] == "GridView"
+    assert input_properties[ground_truth_param]["type"]["name"] == "Boolean"
+    assert input_properties[ground_truth_param]["default"] is True
+    assert input_properties[ground_truth_param]["view"]["name"] == "CheckboxView"
+    assert input_properties[ground_truth_param]["view"]["caption"] == "Classification labels are copied."
+    assert input_properties[detections_param]["type"]["name"] == "Boolean"
+    assert input_properties[detections_param]["default"] is True
+    assert "bboxes targets" in input_properties[detections_param]["view"]["caption"]
+    assert annotation_field_param_name("polylines") not in input_properties
+
+
+@pytest.mark.unit
+def test_augment_operator_preserves_annotation_field_toggle_values() -> None:
+    operator = AugmentWithAlbumentationsX()
+    detections_param = annotation_field_param_name("detections")
+
+    class Context:
+        dataset = _FieldSchemaDataset({"detections": _field(fo.Detections)})
+        params = {detections_param: False}
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+
+    assert input_properties[detections_param]["default"] is False
 
 
 @pytest.mark.unit

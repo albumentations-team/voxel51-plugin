@@ -12,22 +12,18 @@ import numpy.typing as npt
 
 from albumentationsx_plugin.core import JSONDict, JSONValue
 from albumentationsx_plugin.core.serialization import normalize_json_mapping, normalize_json_value
-
-ANNOTATION_PAYLOAD_KEY: Final[str] = "annotation_payload"
-ANNOTATION_EXCLUDED_FIELDS_KEY: Final[str] = "annotation_excluded_fields"
+from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
+    FIELD_TYPE_CLASSIFICATION,
+    FIELD_TYPE_DETECTIONS,
+    FIELD_TYPE_KEYPOINTS,
+    FIELD_TYPE_SEGMENTATION,
+)
 
 _TYPE_FIELD: Final[str] = "type"
-_CLASSIFICATION_TYPE: Final[str] = "classification"
-_DETECTIONS_TYPE: Final[str] = "detections"
-_KEYPOINTS_TYPE: Final[str] = "keypoints"
-_SEGMENTATION_TYPE: Final[str] = "segmentation"
-
-_SUPPORTED_LABEL_TYPES: Final[tuple[type[fo.Label], ...]] = (
-    fo.Classification,
-    fo.Detections,
-    fo.Keypoints,
-    fo.Segmentation,
-)
+_CLASSIFICATION_TYPE: Final[str] = FIELD_TYPE_CLASSIFICATION
+_DETECTIONS_TYPE: Final[str] = FIELD_TYPE_DETECTIONS
+_KEYPOINTS_TYPE: Final[str] = FIELD_TYPE_KEYPOINTS
+_SEGMENTATION_TYPE: Final[str] = FIELD_TYPE_SEGMENTATION
 
 _ImageShape = tuple[int, int, int]
 
@@ -49,47 +45,6 @@ class AnnotationTargets:
     mask_refs: tuple[_AnnotationRef, ...] = ()
 
 
-def resolve_annotation_fields(
-    dataset: fo.Dataset,
-    selected_label_fields: Sequence[str] = (),
-) -> tuple[tuple[str, ...], tuple[JSONDict, ...]]:
-    """Return supported annotation fields and skipped fields with reasons."""
-
-    schema = dataset.get_field_schema()
-    candidates = tuple(str(field_name) for field_name in selected_label_fields) or tuple(schema)
-    included: list[str] = []
-    excluded: list[JSONDict] = []
-
-    for field_name in candidates:
-        field = schema.get(field_name)
-        if field is None:
-            excluded.append(
-                {
-                    "field_name": field_name,
-                    "reason": "missing_field",
-                    "message": "Selected label field does not exist in the dataset schema.",
-                }
-            )
-            continue
-
-        label_type = getattr(field, "document_type", None)
-        if not _is_label_type(label_type):
-            continue
-        if _is_supported_label_type(label_type):
-            included.append(field_name)
-            continue
-        excluded.append(
-            {
-                "field_name": field_name,
-                "label_type": _label_type_name(label_type),
-                "reason": "unsupported_label_type",
-                "message": "Label field is not supported by annotation-aware augmentation yet.",
-            }
-        )
-
-    return tuple(included), tuple(excluded)
-
-
 def annotation_payload_from_sample(sample: fo.Sample, label_fields: Sequence[str]) -> JSONDict:
     """Serialize supported FiftyOne labels from one sample into JSON payload."""
 
@@ -104,10 +59,15 @@ def annotation_payload_from_sample(sample: fo.Sample, label_fields: Sequence[str
     return {"fields": fields}
 
 
-def target_data_from_annotation_payload(payload: Mapping[str, object], image_shape: _ImageShape) -> AnnotationTargets:
+def target_data_from_annotation_payload(
+    payload: Mapping[str, object],
+    image_shape: _ImageShape,
+    label_fields: Sequence[str] | None = None,
+) -> AnnotationTargets:
     """Build Albumentations targets from a serialized annotation payload."""
 
     image_height, image_width, _channels = image_shape
+    selected_fields = None if label_fields is None else set(str(field_name) for field_name in label_fields)
     bboxes: list[list[float]] = []
     bbox_indices: list[int] = []
     bbox_refs: list[_AnnotationRef] = []
@@ -118,6 +78,8 @@ def target_data_from_annotation_payload(payload: Mapping[str, object], image_sha
     mask_refs: list[_AnnotationRef] = []
 
     for field_name, field_payload in _payload_fields(payload).items():
+        if selected_fields is not None and field_name not in selected_fields:
+            continue
         field_type = _payload_type(field_payload)
         if field_type == _DETECTIONS_TYPE:
             for detection_index, detection in enumerate(_payload_sequence(field_payload, "detections")):
@@ -164,11 +126,13 @@ def transformed_annotation_payload(
     target_data: AnnotationTargets,
     output_targets: Mapping[str, object],
     output_shape: _ImageShape,
+    copy_label_fields: Sequence[str] = (),
 ) -> JSONDict:
     """Build a transformed annotation payload from Albumentations output targets."""
 
     output_height, output_width, _channels = output_shape
-    fields = _copy_static_fields(source_payload)
+    copied_field_names = set(str(field_name) for field_name in copy_label_fields)
+    fields = _copy_static_fields(source_payload, copy_label_fields=copy_label_fields)
     dropped = {
         "detections": len(target_data.bbox_refs),
         "keypoints": len(target_data.keypoint_refs),
@@ -176,6 +140,8 @@ def transformed_annotation_payload(
     }
 
     for field_name, field_payload in _payload_fields(source_payload).items():
+        if field_name in copied_field_names:
+            continue
         field_type = _payload_type(field_payload)
         if field_type == _DETECTIONS_TYPE:
             fields[field_name] = {_TYPE_FIELD: _DETECTIONS_TYPE, "detections": []}
@@ -384,11 +350,16 @@ def _segmentation_from_payload(payload: Mapping[str, object]) -> fo.Segmentation
     return fo.Segmentation(mask=np.asarray(payload.get("mask"), dtype=np.uint8), tags=_str_list(payload.get("tags")))
 
 
-def _copy_static_fields(source_payload: Mapping[str, object]) -> dict[str, JSONValue]:
+def _copy_static_fields(
+    source_payload: Mapping[str, object],
+    *,
+    copy_label_fields: Sequence[str] = (),
+) -> dict[str, JSONValue]:
+    copied_field_names = set(str(field_name) for field_name in copy_label_fields)
     fields: dict[str, JSONValue] = {}
     for field_name, field_payload in _payload_fields(source_payload).items():
         field_type = _payload_type(field_payload)
-        if field_type == _CLASSIFICATION_TYPE:
+        if field_type == _CLASSIFICATION_TYPE or field_name in copied_field_names:
             fields[field_name] = normalize_json_mapping(field_payload)
     return fields
 
@@ -633,18 +604,6 @@ def _attributes_from_payload(value: object) -> dict[str, fo.Attribute]:
 def _set_optional(payload: dict[str, JSONValue], key: str, value: object) -> None:
     if value is not None:
         payload[key] = normalize_json_value(value)
-
-
-def _is_label_type(value: object) -> bool:
-    return isinstance(value, type) and issubclass(value, fo.Label)
-
-
-def _is_supported_label_type(value: object) -> bool:
-    return isinstance(value, type) and issubclass(value, _SUPPORTED_LABEL_TYPES)
-
-
-def _label_type_name(value: object) -> str:
-    return value.__name__ if isinstance(value, type) else type(value).__name__
 
 
 def _clamp01(value: float) -> float:

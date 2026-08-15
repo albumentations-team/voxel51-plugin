@@ -30,6 +30,13 @@ from albumentationsx_plugin.core import (
     pipeline_step_field_name,
 )
 from albumentationsx_plugin.core.serialization import normalize_json_value
+from albumentationsx_plugin.hosts.fiftyone.annotations import (
+    SELECTED_LABEL_FIELDS_PARAM_NAME,
+    AnnotationField,
+    annotation_field_param_name,
+    annotation_field_selection_is_explicit,
+    safe_list_supported_annotation_fields,
+)
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_CHOICES,
     EXECUTION_SCOPE_FIELD_NAME,
@@ -60,6 +67,8 @@ DEFAULT_DYNAMIC_TRANSFORM_NAME: Final[str] = "HorizontalFlip"
 PIPELINE_STEP_COUNT_LABEL: Final[str] = "Pipeline steps"
 RANDOM_CROP_TRANSFORM_NAME: Final[str] = "RandomCrop"
 GENERAL_SECTION_FIELD_NAME: Final[str] = "_general_settings"
+ANNOTATION_SECTION_FIELD_NAME: Final[str] = "_annotation_settings"
+ANNOTATION_FIELD_GROUP_NAME: Final[str] = "_annotation_fields"
 STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
 PREVIOUS_RUN_WARNING_FIELD_NAME: Final[str] = "_previous_run_warning"
 FIXED_SLICE_PARAMETER_NAMES: Final[dict[str, tuple[str, ...]]] = {
@@ -96,6 +105,7 @@ class DynamicAugmentFormBuilder:
         selected_scope = _selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
         selected_step_count = _selected_step_count(params.get(PIPELINE_STEP_COUNT_FIELD_NAME))
         random_crop_defaults = build_random_crop_defaults(ctx)
+        annotation_fields = safe_list_supported_annotation_fields(dataset)
 
         inputs = types.Object()
         self._render_general_settings(
@@ -107,6 +117,7 @@ class DynamicAugmentFormBuilder:
             selected_preset_run_key=selected_preset_run_key,
             preset_warning=preset_warning,
         )
+        self._render_annotation_fields(inputs, params, annotation_fields=annotation_fields)
         for step_number in range(1, selected_step_count + 1):
             self._render_stage_header(inputs, step_number)
             selected_transform_name = _selected_transform_name(
@@ -241,6 +252,36 @@ class DynamicAugmentFormBuilder:
             view=choices,
         )
 
+    def _render_annotation_fields(
+        self,
+        inputs: types.Object,
+        params: Mapping[str, object],
+        *,
+        annotation_fields: tuple[AnnotationField, ...],
+    ) -> None:
+        if not annotation_fields:
+            return
+
+        inputs.view(
+            ANNOTATION_SECTION_FIELD_NAME,
+            types.Header(
+                label="Annotations",
+            ),
+        )
+        group = inputs.grid(
+            ANNOTATION_FIELD_GROUP_NAME,
+            orientation="2d",
+            gap=1,
+        )
+        for annotation_field in annotation_fields:
+            group.bool(
+                annotation_field_param_name(annotation_field.name),
+                label=annotation_field.name,
+                default=_annotation_field_default(annotation_field, params),
+                required=False,
+                view=types.CheckboxView(caption=_annotation_field_caption(annotation_field)),
+            )
+
     def _render_stage_header(self, inputs: types.Object, step_number: int) -> None:
         inputs.view(
             f"{STAGE_SECTION_FIELD_PREFIX}_{step_number}",
@@ -337,6 +378,24 @@ def _selected_bool(raw_value: object, *, default: bool) -> bool:
 
 def _selected_string(raw_value: object) -> str:
     return raw_value if isinstance(raw_value, str) else ""
+
+
+def _annotation_field_default(field: AnnotationField, params: Mapping[str, object]) -> bool:
+    raw_selected_fields = params.get(SELECTED_LABEL_FIELDS_PARAM_NAME)
+    if isinstance(raw_selected_fields, list | tuple):
+        return field.name in {str(field_name) for field_name in raw_selected_fields}
+
+    if not annotation_field_selection_is_explicit(params):
+        return True
+
+    raw_value = params.get(annotation_field_param_name(field.name), True)
+    return raw_value is True
+
+
+def _annotation_field_caption(field: AnnotationField) -> str:
+    if field.albu_target is None:
+        return "Classification labels are copied."
+    return f"{field.label_type.capitalize()} labels use {field.albu_target} targets."
 
 
 def _selected_transform_name(
