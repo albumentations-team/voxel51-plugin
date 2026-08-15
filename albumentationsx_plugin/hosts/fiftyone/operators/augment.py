@@ -11,11 +11,12 @@ from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
-    EXECUTION_SCOPE_CURRENT_VIEW,
-    EXECUTION_SCOPE_ENTIRE_DATASET,
     EXECUTION_SCOPE_FIELD_NAME,
     EXECUTION_SCOPE_SELECTED_SAMPLES,
     selected_execution_scope,
+    selected_sample_ids_from_context,
+    source_selected_sample_ids,
+    source_view_from_context,
 )
 from albumentationsx_plugin.hosts.fiftyone.presets import (
     params_with_previous_run_preset,
@@ -84,7 +85,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
-        selected_sample_ids = _selected_sample_ids(ctx)
+        selected_sample_ids = selected_sample_ids_from_context(ctx)
         disabled = not selected_sample_ids and not _has_image_dataset_context(ctx)
         return types.Placement(
             types.Places.SAMPLES_GRID_ACTIONS,
@@ -98,7 +99,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
 
     def execute(self, ctx: Any) -> JSONDict:
         params = _ctx_params(ctx)
-        selected_sample_ids = _selected_sample_ids(ctx)
+        selected_sample_ids = selected_sample_ids_from_context(ctx)
         try:
             source_scope = selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
         except ValueError as error:
@@ -114,8 +115,8 @@ class AugmentWithAlbumentationsX(foo.Operator):
         try:
             result = _execute_fixed_augmentation(
                 dataset=ctx.dataset,
-                view=_source_view(ctx, source_scope),
-                selected_sample_ids=_source_selected_sample_ids(selected_sample_ids, source_scope),
+                view=source_view_from_context(ctx, source_scope),
+                selected_sample_ids=source_selected_sample_ids(selected_sample_ids, source_scope),
                 params=execution_params,
                 storage_root=storage_root,
             )
@@ -254,23 +255,6 @@ def _previous_run_preset_error_result(params: object, error: Exception, *, sourc
             }
         ],
     }
-
-
-def _selected_sample_ids(ctx: Any | None) -> tuple[str, ...]:
-    selected = getattr(ctx, "selected", ()) if ctx is not None else ()
-    return tuple(str(sample_id) for sample_id in (selected or ()))
-
-
-def _source_selected_sample_ids(selected_sample_ids: tuple[str, ...], source_scope: str) -> tuple[str, ...]:
-    return selected_sample_ids if source_scope == EXECUTION_SCOPE_SELECTED_SAMPLES else ()
-
-
-def _source_view(ctx: Any, source_scope: str) -> Any | None:
-    if source_scope == EXECUTION_SCOPE_ENTIRE_DATASET:
-        return None
-    if source_scope in {EXECUTION_SCOPE_SELECTED_SAMPLES, EXECUTION_SCOPE_CURRENT_VIEW}:
-        return getattr(ctx, "view", None)
-    return None
 
 
 def _has_image_dataset_context(ctx: Any | None) -> bool:

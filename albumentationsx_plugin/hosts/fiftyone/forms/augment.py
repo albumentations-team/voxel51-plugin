@@ -35,6 +35,7 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_FIELD_NAME,
     EXECUTION_SCOPE_LABELS,
     selected_execution_scope,
+    selected_sample_ids_from_context,
 )
 from albumentationsx_plugin.hosts.fiftyone.forms.defaults import RandomCropDefaults, build_random_crop_defaults
 from albumentationsx_plugin.hosts.fiftyone.forms.guidance import TransformGuidance, build_transform_guidance
@@ -89,7 +90,7 @@ class DynamicAugmentFormBuilder:
             params = raw_params
             preset_warning = "Previous run settings could not be loaded; current form values are unchanged."
         supported_transform_names = self._executable_transform_names()
-        selected_sample_ids = _selected_sample_ids(ctx)
+        selected_sample_ids = selected_sample_ids_from_context(ctx)
         selected_scope = _selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
         selected_step_count = _selected_step_count(params.get(PIPELINE_STEP_COUNT_FIELD_NAME))
         random_crop_defaults = build_random_crop_defaults(ctx)
@@ -345,11 +346,6 @@ def _selected_execution_scope(params: Mapping[str, object], *, selected_sample_i
         return selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
     except ValueError:
         return selected_execution_scope({}, selected_sample_ids=selected_sample_ids)
-
-
-def _selected_sample_ids(ctx: Any | None) -> tuple[str, ...]:
-    selected = getattr(ctx, "selected", ()) if ctx is not None else ()
-    return tuple(str(sample_id) for sample_id in (selected or ()))
 
 
 def _selected_bool(raw_value: object, *, default: bool) -> bool:

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 from albumentationsx_plugin.core import DEFAULT_CROP_SIZE
+from albumentationsx_plugin.hosts.fiftyone.execution_scope import selected_sample_ids_from_context
 
 
 @runtime_checkable
@@ -69,7 +70,7 @@ def _selected_samples_from_context(ctx: Any | None) -> tuple[object, ...]:
     if selected_samples:
         return selected_samples
 
-    selected_sample_ids = _selected_sample_ids(ctx)
+    selected_sample_ids = selected_sample_ids_from_context(ctx)
     if not selected_sample_ids:
         return ()
 
@@ -90,13 +91,6 @@ def _ctx_selected_samples(ctx: Any | None) -> tuple[object, ...]:
     selected_samples = getattr(ctx, "selected_samples", ()) if ctx is not None else ()
     if isinstance(selected_samples, Iterable) and not isinstance(selected_samples, str | bytes | Mapping):
         return tuple(selected_samples)
-    return ()
-
-
-def _selected_sample_ids(ctx: Any | None) -> tuple[str, ...]:
-    selected = getattr(ctx, "selected", ()) if ctx is not None else ()
-    if isinstance(selected, Iterable) and not isinstance(selected, str | bytes | Mapping):
-        return tuple(str(sample_id) for sample_id in selected)
     return ()
 
 
