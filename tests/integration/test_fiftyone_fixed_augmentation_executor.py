@@ -10,6 +10,10 @@ import numpy as np
 import pytest
 
 from albumentationsx_plugin.core import InvalidParameterError, MediaIOError, RunManifest
+from albumentationsx_plugin.hosts.fiftyone.annotations import (
+    SELECTED_LABEL_FIELDS_PARAM_NAME,
+    annotation_field_param_name,
+)
 from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_CURRENT_VIEW,
@@ -414,9 +418,109 @@ def test_fixed_augmentation_executor_transforms_supported_annotations(tmp_path) 
         np.testing.assert_array_equal(np.asarray(output.segmentation.mask), source_mask[:, ::-1])
 
         manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
-        annotations = manifest.metadata["annotations"]
+        annotations = cast(dict[str, Any], manifest.metadata["annotations"])
         assert isinstance(annotations, dict)
-        assert annotations["fields"] == ["detections", "ground_truth", "keypoints", "segmentation"]
+        assert annotations["fields"] == ["ground_truth", "detections", "keypoints", "segmentation"]
+        assert [field["field_name"] for field in annotations["transformed_fields"]] == [
+            "detections",
+            "keypoints",
+            "segmentation",
+        ]
+        assert [field["field_name"] for field in annotations["copied_fields"]] == ["ground_truth"]
+        assert manifest.pipeline.target_fields == ("detections", "keypoints", "segmentation")
+        assert manifest.pipeline.copy_fields == ("ground_truth",)
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_uses_selected_annotation_fields(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, "annotated-selected", width=10, height=8)
+        sample_id = dataset.add_sample(_annotated_sample(source_path))
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+                annotation_field_param_name("detections"): False,
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        assert result.error_count == 0
+        output = _output_samples(dataset)[0]
+        assert output.ground_truth.label == "cat"
+        assert output.get_field("detections") is None
+        assert output.keypoints.keypoints[0].points[0] == pytest.approx([0.7, 0.375])
+        np.testing.assert_array_equal(
+            np.asarray(output.segmentation.mask),
+            np.asarray(_load_sample(dataset, sample_id).segmentation.mask)[:, ::-1],
+        )
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        annotations = cast(dict[str, Any], manifest.metadata["annotations"])
+        assert annotations["fields"] == ["ground_truth", "keypoints", "segmentation"]
+        assert [field["field_name"] for field in annotations["transformed_fields"]] == [
+            "keypoints",
+            "segmentation",
+        ]
+        assert [field["field_name"] for field in annotations["copied_fields"]] == ["ground_truth"]
+        assert ("detections", "not_selected") in {
+            (field["field_name"], field["reason"]) for field in annotations["excluded_fields"]
+        }
+        assert manifest.pipeline.target_fields == ("keypoints", "segmentation")
+        assert manifest.pipeline.copy_fields == ("ground_truth",)
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_copies_spatial_annotations_through_image_only_transforms(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, "annotated-image-only", width=10, height=8)
+        sample_id = dataset.add_sample(_annotated_sample(source_path))
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params={
+                "transform": "ToGray",
+                "method": "average",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+                SELECTED_LABEL_FIELDS_PARAM_NAME: ["detections"],
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        assert result.error_count == 0
+        output = _output_samples(dataset)[0]
+        detection = output.detections.detections[0]
+        assert detection.bounding_box == pytest.approx([0.1, 0.25, 0.2, 0.5])
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        annotations = cast(dict[str, Any], manifest.metadata["annotations"])
+        assert annotations["fields"] == ["detections"]
+        assert annotations["transformed_fields"] == []
+        assert [field["field_name"] for field in annotations["copied_fields"]] == ["detections"]
+        assert manifest.pipeline.target_fields == ()
+        assert manifest.pipeline.copy_fields == ("detections",)
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)

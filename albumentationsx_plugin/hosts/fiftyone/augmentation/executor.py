@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import importlib.metadata
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from os import PathLike
 from pathlib import Path
 from typing import Any
@@ -12,6 +12,7 @@ from typing import Any
 import fiftyone as fo
 
 import albumentationsx_plugin
+from albumentationsx_plugin.albumentations_backend.catalog import AlbuSpecCatalogProvider
 from albumentationsx_plugin.albumentations_backend.fixed import (
     FixedImagePipeline,
     build_fixed_pipeline_config,
@@ -31,10 +32,14 @@ from albumentationsx_plugin.core import (
 )
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.annotations import (
-    ANNOTATION_EXCLUDED_FIELDS_KEY,
     ANNOTATION_PAYLOAD_KEY,
+    annotation_run_metadata,
+    selected_annotation_fields_from_params,
+    target_and_copy_fields,
     target_data_from_annotation_payload,
     transformed_annotation_payload,
+    validate_annotation_pipeline_compatibility,
+    validate_selected_annotation_fields,
 )
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_ENTIRE_DATASET,
@@ -96,6 +101,20 @@ def execute_fixed_augmentation(
     """Execute the temporary fixed-transform image augmentation flow."""
 
     config = build_fixed_pipeline_config(params)
+    catalog_provider = AlbuSpecCatalogProvider()
+    annotation_selection = selected_annotation_fields_from_params(params, dataset)
+    validate_selected_annotation_fields(annotation_selection)
+    validate_annotation_pipeline_compatibility(
+        selection=annotation_selection,
+        pipeline=config,
+        catalog_provider=catalog_provider,
+    )
+    target_fields, copy_fields = target_and_copy_fields(
+        selection=annotation_selection,
+        pipeline=config,
+        catalog_provider=catalog_provider,
+    )
+    config = replace(config, target_fields=target_fields, copy_fields=copy_fields)
     pipeline = create_fixed_image_pipeline(config)
     dry_run = _bool_param(params, "dry_run", default=False)
     source_scope = selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
@@ -108,10 +127,16 @@ def execute_fixed_augmentation(
         dataset=dataset,
         view=None if source_scope == EXECUTION_SCOPE_ENTIRE_DATASET else view,
         selected_sample_ids=selected_sample_ids,
+        selected_label_fields=annotation_selection.selected_field_names,
+        include_all_label_fields=False,
         output_tag=output_tag,
     )
     source_inputs = tuple(adapter.iter_inputs())
-    annotation_metadata = _annotation_run_metadata(source_inputs)
+    annotation_metadata = annotation_run_metadata(
+        selection=annotation_selection,
+        pipeline=config,
+        catalog_provider=catalog_provider,
+    )
     if dry_run:
         return FixedAugmentationExecutionResult(
             run_key=run_key,
@@ -159,6 +184,7 @@ def execute_fixed_augmentation(
                 output = _prepare_one_output(
                     source=source,
                     pipeline=pipeline,
+                    config=config,
                     run_dir=run_dir,
                     output_index=output_index,
                 )
@@ -404,18 +430,24 @@ def _prepare_one_output(
     *,
     source: AugmentationInput,
     pipeline: FixedImagePipeline,
+    config: PipelineConfig,
     run_dir: Path,
     output_index: int,
 ) -> _PreparedOutput:
     loaded = load_rgb_image(source.filepath)
     source_annotation_payload = _source_annotation_payload(source)
-    annotation_targets = target_data_from_annotation_payload(source_annotation_payload, loaded.data.shape)
+    annotation_targets = target_data_from_annotation_payload(
+        source_annotation_payload,
+        loaded.data.shape,
+        label_fields=config.target_fields,
+    )
     pipeline_result = pipeline.apply(loaded.data, targets=annotation_targets.values)
     transformed_labels = transformed_annotation_payload(
         source_annotation_payload,
         annotation_targets,
         pipeline_result.targets,
         pipeline_result.image.shape,
+        copy_label_fields=config.copy_fields,
     )
     relative_path = build_output_image_relative_path(
         source.filepath,
@@ -550,28 +582,6 @@ def _sample_error(source: AugmentationInput, output_index: int, error: JSONDict)
 def _source_annotation_payload(source: AugmentationInput) -> Mapping[str, object]:
     value = source.metadata.get(ANNOTATION_PAYLOAD_KEY)
     return value if isinstance(value, Mapping) else {}
-
-
-def _annotation_run_metadata(source_inputs: Sequence[AugmentationInput]) -> JSONDict:
-    fields = sorted({field_name for source in source_inputs for field_name in source.selected_label_fields})
-    excluded_fields: list[JSONDict] = []
-    seen_excluded: set[tuple[str, str]] = set()
-    for source in source_inputs:
-        value = source.metadata.get(ANNOTATION_EXCLUDED_FIELDS_KEY)
-        if not isinstance(value, list | tuple):
-            continue
-        for item in value:
-            if not isinstance(item, Mapping):
-                continue
-            field_name = str(item.get("field_name", ""))
-            reason = str(item.get("reason", ""))
-            key = (field_name, reason)
-            if key in seen_excluded:
-                continue
-            excluded_fields.append(normalize_json_mapping(item))
-            seen_excluded.add(key)
-
-    return normalize_json_mapping({"fields": fields, "excluded_fields": excluded_fields})
 
 
 def _annotation_result_metadata(labels: Mapping[str, object]) -> JSONDict:
