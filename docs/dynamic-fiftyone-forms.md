@@ -45,6 +45,20 @@ uses that shared factory internally. VOX-22 adds ordered pipeline editing for up
 to three steps. VOX-25 exposes catalog-backed normal MVP transform choices in
 the executable App flow.
 
+VOX-38 adds an explicit `Execution scope` control to the general settings. The
+supported scopes are:
+
+- `selected_samples`: process only the selected sample IDs in the active view;
+- `current_view`: process every image sample in the active FiftyOne view;
+- `entire_dataset`: process the dataset collection and ignore the active view.
+
+When samples are selected, the form defaults to `selected_samples`. Without a
+selection, the form defaults to `current_view` so users can intentionally run an
+augmentation over a filtered view without manually selecting every sample.
+Materialized runs store the chosen scope and resolved source count in
+`manifest.metadata`; dry runs report the resolved source scope in the operator
+output.
+
 Executable choices include transforms whose catalog status is:
 
 - `supported`
@@ -59,9 +73,9 @@ and similar) for compatibility. Later steps use prefixed field names such as
 
 VOX-27 groups the prompt into a general settings section followed by one
 visible section for each active augmentation stage. General settings include the
-optional previous-run preset selector, stage count, output count, run label, and
-dry-run flag. Only active stages are rendered, so later-stage validation is not
-shown before those stages are enabled.
+optional previous-run preset selector, execution scope, stage count, output
+count, run label, and dry-run flag. Only active stages are rendered, so
+later-stage validation is not shown before those stages are enabled.
 
 When a previous run is selected, the form loads that run's `manifest.json` from
 the current dataset and overlays its saved `pipeline` config over current

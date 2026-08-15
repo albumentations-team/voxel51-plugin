@@ -166,9 +166,10 @@ The operator list should include:
 @albumentations/albumentationsx/delete_albumentationsx_run
 ```
 
-Execution currently supports selected samples and up to three ordered steps
-selected from the catalog-backed normal MVP transform choices. With the current
-lockfile this is `109` choices classified as `supported` or
+Execution currently supports selected samples, the active current view, or the
+entire dataset, with up to three ordered steps selected from the catalog-backed
+normal MVP transform choices. With the current lockfile this is `109` choices
+classified as `supported` or
 `supported_with_defaults`.
 
 Review the catalog-backed MVP transform capabilities with:
@@ -192,17 +193,18 @@ creates a persistent FiftyOne dataset named `albumentationsx-demo`. The dataset
 uses stable `demo_id` values for repeatable checks; FiftyOne internal sample IDs
 are database-generated.
 
-In the App, select one or more samples, run `Augment with AlbumentationsX`, set
-`Pipeline steps`, optionally choose `Previous run` to prefill the form from a
-saved run in this dataset, optionally set `Run label` and `Outputs per sample`,
-and choose a catalog-backed transform for each ordered step. `Dry run` validates
-the configuration without writing files or creating samples. Previous-run
-settings are used as a reusable pipeline template with fresh randomness, not as
-an exact replay of earlier sampled parameters. Clear `Previous run` after
-loading if you want to keep editing the form without reapplying the saved
-pipeline. New output samples are written under the plugin-owned storage
-directory and tagged with the run key; source samples and source files remain
-unchanged. Non-dry runs also save
+In the App, run `Augment with AlbumentationsX`, choose `Execution scope`
+(`Selected samples`, `Current view`, or `Entire dataset`), set `Pipeline steps`,
+optionally choose `Previous run` to prefill the form from a saved run in this
+dataset, optionally set `Run label` and `Outputs per sample`, and choose a
+catalog-backed transform for each ordered step. `Dry run` validates the
+configuration and reports the resolved source scope without writing files or
+creating samples. Previous-run settings are used as a reusable pipeline template
+with fresh randomness, not as an exact replay of earlier sampled parameters.
+Clear `Previous run` after loading if you want to keep editing the form without
+reapplying the saved pipeline. New output samples are written under the
+plugin-owned storage directory and tagged with the run key; source samples and
+source files remain unchanged. Non-dry runs also save
 `manifest.json` under the run output directory and register the manifest in
 FiftyOne's custom run store.
 Then run `View AlbumentationsX Run` to inspect persisted counts, versions,

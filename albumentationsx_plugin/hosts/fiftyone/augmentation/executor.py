@@ -36,6 +36,11 @@ from albumentationsx_plugin.hosts.fiftyone.annotations import (
     target_data_from_annotation_payload,
     transformed_annotation_payload,
 )
+from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
+    EXECUTION_SCOPE_ENTIRE_DATASET,
+    EXECUTION_SCOPE_FIELD_NAME,
+    selected_execution_scope,
+)
 from albumentationsx_plugin.hosts.fiftyone.runs import build_fiftyone_run_key, register_fiftyone_run
 from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, FiftyOneSampleAdapter
 from albumentationsx_plugin.storage.images import build_output_image_relative_path, load_rgb_image, write_rgb_image
@@ -55,6 +60,7 @@ class FixedAugmentationExecutionResult:
     dry_run: bool
     output_tag: str
     output_dir: str
+    source_scope: str = ""
     manifest_path: str = ""
     fiftyone_run_key: str = ""
     errors: tuple[JSONDict, ...] = ()
@@ -64,6 +70,7 @@ class FixedAugmentationExecutionResult:
 
         return {
             "run_key": self.run_key,
+            "source_scope": self.source_scope,
             "processed_count": self.processed_count,
             "created_count": self.created_count,
             "skipped_count": self.skipped_count,
@@ -91,6 +98,7 @@ def execute_fixed_augmentation(
     config = build_fixed_pipeline_config(params)
     pipeline = create_fixed_image_pipeline(config)
     dry_run = _bool_param(params, "dry_run", default=False)
+    source_scope = selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
     run_label = _optional_str_param(params, RUN_LABEL_FIELD_NAME)
     run_label_slug = slugify_run_label(run_label)
     run_key = build_run_key(run_label=run_label)
@@ -98,7 +106,7 @@ def execute_fixed_augmentation(
     run_dir = run_store.run_dir(run_key)
     adapter = FiftyOneSampleAdapter(
         dataset=dataset,
-        view=view,
+        view=None if source_scope == EXECUTION_SCOPE_ENTIRE_DATASET else view,
         selected_sample_ids=selected_sample_ids,
         output_tag=output_tag,
     )
@@ -107,6 +115,7 @@ def execute_fixed_augmentation(
     if dry_run:
         return FixedAugmentationExecutionResult(
             run_key=run_key,
+            source_scope=source_scope,
             processed_count=len(source_inputs),
             created_count=0,
             skipped_count=0,
@@ -137,6 +146,7 @@ def execute_fixed_augmentation(
         output_dir=run_dir,
         output_tag=output_tag,
         annotation_metadata=annotation_metadata,
+        source_scope=source_scope,
         run_label=run_label,
         run_label_slug=run_label_slug,
     )
@@ -172,6 +182,7 @@ def execute_fixed_augmentation(
                     output_tag=output_tag,
                     output=output,
                     annotation_metadata=annotation_metadata,
+                    source_scope=source_scope,
                     run_label=run_label,
                     run_label_slug=run_label_slug,
                 )
@@ -196,6 +207,7 @@ def execute_fixed_augmentation(
                             output_dir=run_dir,
                             output_tag=output_tag,
                             annotation_metadata=annotation_metadata,
+                            source_scope=source_scope,
                             run_label=run_label,
                             run_label_slug=run_label_slug,
                         )
@@ -219,6 +231,7 @@ def execute_fixed_augmentation(
                     output_dir=run_dir,
                     output_tag=output_tag,
                     annotation_metadata=annotation_metadata,
+                    source_scope=source_scope,
                     run_label=run_label,
                     run_label_slug=run_label_slug,
                 )
@@ -238,6 +251,7 @@ def execute_fixed_augmentation(
                 output_dir=run_dir,
                 output_tag=output_tag,
                 annotation_metadata=annotation_metadata,
+                source_scope=source_scope,
                 run_label=run_label,
                 run_label_slug=run_label_slug,
             )
@@ -256,6 +270,7 @@ def execute_fixed_augmentation(
         output_dir=run_dir,
         output_tag=output_tag,
         annotation_metadata=annotation_metadata,
+        source_scope=source_scope,
         run_label=run_label,
         run_label_slug=run_label_slug,
     )
@@ -264,6 +279,7 @@ def execute_fixed_augmentation(
 
     return FixedAugmentationExecutionResult(
         run_key=run_key,
+        source_scope=source_scope,
         processed_count=len(source_inputs),
         created_count=len(created_sample_ids),
         skipped_count=skipped_count,
@@ -292,6 +308,7 @@ def _save_current_manifest(
     output_dir: Path,
     output_tag: str,
     annotation_metadata: Mapping[str, object] | None = None,
+    source_scope: str = "",
     run_label: str = "",
     run_label_slug: str = "",
 ) -> RunManifest:
@@ -308,6 +325,7 @@ def _save_current_manifest(
         output_dir=output_dir,
         output_tag=output_tag,
         annotation_metadata=annotation_metadata,
+        source_scope=source_scope,
         run_label=run_label,
         run_label_slug=run_label_slug,
     )
@@ -331,6 +349,7 @@ def _checkpoint_prepared_output(
     output_tag: str,
     output: _PreparedOutput,
     annotation_metadata: Mapping[str, object] | None = None,
+    source_scope: str = "",
     run_label: str = "",
     run_label_slug: str = "",
 ) -> RunManifest:
@@ -349,6 +368,7 @@ def _checkpoint_prepared_output(
             output_dir=output_dir,
             output_tag=output_tag,
             annotation_metadata=annotation_metadata,
+            source_scope=source_scope,
             run_label=run_label,
             run_label_slug=run_label_slug,
         )
@@ -442,6 +462,7 @@ def _manifest(
     output_dir: Path,
     output_tag: str,
     annotation_metadata: Mapping[str, object] | None = None,
+    source_scope: str = "",
     run_label: str = "",
     run_label_slug: str = "",
 ) -> RunManifest:
@@ -457,6 +478,8 @@ def _manifest(
         "output_tag": output_tag,
         "manifest_filename": "manifest.json",
         "fiftyone_run_key": build_fiftyone_run_key(run_key),
+        EXECUTION_SCOPE_FIELD_NAME: source_scope,
+        "source_count": len(source_sample_ids),
     }
     if annotation_metadata is not None:
         metadata["annotations"] = normalize_json_mapping(annotation_metadata)

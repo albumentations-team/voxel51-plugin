@@ -30,6 +30,13 @@ from albumentationsx_plugin.core import (
     pipeline_step_field_name,
 )
 from albumentationsx_plugin.core.serialization import normalize_json_value
+from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
+    EXECUTION_SCOPE_CHOICES,
+    EXECUTION_SCOPE_FIELD_NAME,
+    EXECUTION_SCOPE_LABELS,
+    selected_execution_scope,
+    selected_sample_ids_from_context,
+)
 from albumentationsx_plugin.hosts.fiftyone.forms.defaults import RandomCropDefaults, build_random_crop_defaults
 from albumentationsx_plugin.hosts.fiftyone.forms.guidance import TransformGuidance, build_transform_guidance
 from albumentationsx_plugin.hosts.fiftyone.forms.renderer import FiftyOneFormRenderer
@@ -83,6 +90,8 @@ class DynamicAugmentFormBuilder:
             params = raw_params
             preset_warning = "Previous run settings could not be loaded; current form values are unchanged."
         supported_transform_names = self._executable_transform_names()
+        selected_sample_ids = selected_sample_ids_from_context(ctx)
+        selected_scope = _selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
         selected_step_count = _selected_step_count(params.get(PIPELINE_STEP_COUNT_FIELD_NAME))
         random_crop_defaults = build_random_crop_defaults(ctx)
 
@@ -91,6 +100,7 @@ class DynamicAugmentFormBuilder:
             inputs,
             params,
             selected_step_count=selected_step_count,
+            selected_scope=selected_scope,
             preset_run_keys=preset_run_keys,
             selected_preset_run_key=selected_preset_run_key,
             preset_warning=preset_warning,
@@ -131,6 +141,7 @@ class DynamicAugmentFormBuilder:
         params: Mapping[str, object],
         *,
         selected_step_count: int,
+        selected_scope: str,
         preset_run_keys: tuple[str, ...],
         selected_preset_run_key: str,
         preset_warning: str,
@@ -147,6 +158,7 @@ class DynamicAugmentFormBuilder:
             preset_run_keys=preset_run_keys,
             selected_preset_run_key=selected_preset_run_key,
         )
+        self._render_execution_scope_selector(inputs, selected_scope=selected_scope)
         if preset_warning:
             inputs.view(
                 PREVIOUS_RUN_WARNING_FIELD_NAME,
@@ -211,6 +223,20 @@ class DynamicAugmentFormBuilder:
             default=selected_preset_run_key,
             required=False,
             description="Optionally prefill this form from a saved run in the current dataset.",
+            view=choices,
+        )
+
+    def _render_execution_scope_selector(self, inputs: types.Object, *, selected_scope: str) -> None:
+        choices = types.AutocompleteView(label="Execution scope", allow_user_input=False)
+        for scope in EXECUTION_SCOPE_CHOICES:
+            choices.add_choice(scope, label=EXECUTION_SCOPE_LABELS[scope])
+        inputs.enum(
+            EXECUTION_SCOPE_FIELD_NAME,
+            EXECUTION_SCOPE_CHOICES,
+            label="Execution scope",
+            default=selected_scope,
+            required=True,
+            description="Choose whether to process selected samples, the current view, or the entire dataset.",
             view=choices,
         )
 
@@ -313,6 +339,13 @@ def _selected_outputs_per_sample(raw_value: object) -> int:
     if isinstance(raw_value, int) and not isinstance(raw_value, bool) and 1 <= raw_value <= MAX_OUTPUTS_PER_SAMPLE:
         return raw_value
     return 1
+
+
+def _selected_execution_scope(params: Mapping[str, object], *, selected_sample_ids: tuple[str, ...]) -> str:
+    try:
+        return selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
+    except ValueError:
+        return selected_execution_scope({}, selected_sample_ids=selected_sample_ids)
 
 
 def _selected_bool(raw_value: object, *, default: bool) -> bool:

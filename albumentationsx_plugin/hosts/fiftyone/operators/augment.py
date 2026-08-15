@@ -10,6 +10,14 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
+from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
+    EXECUTION_SCOPE_FIELD_NAME,
+    EXECUTION_SCOPE_SELECTED_SAMPLES,
+    selected_execution_scope,
+    selected_sample_ids_from_context,
+    source_selected_sample_ids,
+    source_view_from_context,
+)
 from albumentationsx_plugin.hosts.fiftyone.presets import (
     params_with_previous_run_preset,
     selected_previous_run_key,
@@ -33,7 +41,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
         return foo.OperatorConfig(
             name=OPERATOR_NAME,
             label=OPERATOR_LABEL,
-            description="Build and apply AlbumentationsX augmentation pipelines to selected samples.",
+            description="Build and apply AlbumentationsX augmentation pipelines to samples, views, or datasets.",
             dynamic=True,
             allow_immediate_execution=True,
             allow_delegated_execution=False,
@@ -62,6 +70,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
     def resolve_output(self, ctx: Any):
         outputs = types.Object()
         outputs.str("run_key", label="Run key")
+        outputs.str("source_scope", label="Source scope")
         outputs.int("processed_count", label="Processed")
         outputs.int("created_count", label="Created")
         outputs.int("skipped_count", label="Skipped")
@@ -76,40 +85,45 @@ class AugmentWithAlbumentationsX(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
-        selected_sample_ids = _selected_sample_ids(ctx)
-        disabled = not selected_sample_ids
+        selected_sample_ids = selected_sample_ids_from_context(ctx)
+        disabled = not selected_sample_ids and not _has_image_dataset_context(ctx)
         return types.Placement(
             types.Places.SAMPLES_GRID_ACTIONS,
             types.Button(
                 label=OPERATOR_LABEL,
                 prompt=True,
                 disabled=disabled,
-                title="Select samples to augment." if disabled else None,
+                title="Open an image dataset before running augmentation." if disabled else None,
             ),
         )
 
     def execute(self, ctx: Any) -> JSONDict:
         params = _ctx_params(ctx)
-        selected_sample_ids = _selected_sample_ids(ctx)
-        if not selected_sample_ids:
-            return _no_selected_samples_result(params)
+        selected_sample_ids = selected_sample_ids_from_context(ctx)
+        try:
+            source_scope = selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
+        except ValueError as error:
+            return _invalid_execution_scope_result(params, error)
+        if source_scope == EXECUTION_SCOPE_SELECTED_SAMPLES and not selected_sample_ids:
+            return _no_selected_samples_result(params, source_scope=source_scope)
         storage_root = storage_root_from_params(params)
         try:
             execution_params = params_with_previous_run_preset(ctx.dataset, params, storage_root=storage_root)
         except Exception as error:
-            return _previous_run_preset_error_result(params, error)
+            return _previous_run_preset_error_result(params, error, source_scope=source_scope)
+        execution_params[EXECUTION_SCOPE_FIELD_NAME] = source_scope
         try:
             result = _execute_fixed_augmentation(
                 dataset=ctx.dataset,
-                view=getattr(ctx, "view", None),
-                selected_sample_ids=selected_sample_ids,
+                view=source_view_from_context(ctx, source_scope),
+                selected_sample_ids=source_selected_sample_ids(selected_sample_ids, source_scope),
                 params=execution_params,
                 storage_root=storage_root,
             )
         except ModuleNotFoundError as error:
             if not _is_missing_runtime_dependency(error):
                 raise
-            return _missing_dependency_result(error)
+            return _missing_dependency_result(error, source_scope=source_scope)
         _trigger_dataset_reload(ctx, result)
         return result.to_dict()
 
@@ -141,9 +155,10 @@ def _missing_dependency_inputs(error: ModuleNotFoundError):
     return inputs
 
 
-def _missing_dependency_result(error: ModuleNotFoundError) -> JSONDict:
+def _missing_dependency_result(error: ModuleNotFoundError, *, source_scope: str = "") -> JSONDict:
     return {
         "run_key": "",
+        "source_scope": source_scope,
         "processed_count": 0,
         "created_count": 0,
         "skipped_count": 0,
@@ -166,9 +181,10 @@ def _missing_dependency_result(error: ModuleNotFoundError) -> JSONDict:
     }
 
 
-def _no_selected_samples_result(params: object) -> JSONDict:
+def _no_selected_samples_result(params: object, *, source_scope: str) -> JSONDict:
     return {
         "run_key": "",
+        "source_scope": source_scope,
         "processed_count": 0,
         "created_count": 0,
         "skipped_count": 0,
@@ -181,16 +197,43 @@ def _no_selected_samples_result(params: object) -> JSONDict:
         "errors": [
             {
                 "code": NO_SELECTION_ERROR_CODE,
-                "message": "Select one or more samples before running augmentation.",
-                "context": {"reason": "empty_selection"},
+                "message": "Selected samples scope requires one or more selected samples.",
+                "context": {
+                    "reason": "empty_selection",
+                    "source_scope": source_scope,
+                },
             }
         ],
     }
 
 
-def _previous_run_preset_error_result(params: object, error: Exception) -> JSONDict:
+def _invalid_execution_scope_result(params: object, error: Exception) -> JSONDict:
     return {
         "run_key": "",
+        "source_scope": "",
+        "processed_count": 0,
+        "created_count": 0,
+        "skipped_count": 0,
+        "error_count": 1,
+        "dry_run": _dry_run_param(params),
+        "output_tag": "",
+        "output_dir": "",
+        "manifest_path": "",
+        "fiftyone_run_key": "",
+        "errors": [
+            {
+                "code": "invalid_execution_scope",
+                "message": "Choose a valid execution scope before running augmentation.",
+                "context": {"error_type": type(error).__name__},
+            }
+        ],
+    }
+
+
+def _previous_run_preset_error_result(params: object, error: Exception, *, source_scope: str = "") -> JSONDict:
+    return {
+        "run_key": "",
+        "source_scope": source_scope,
         "processed_count": 0,
         "created_count": 0,
         "skipped_count": 0,
@@ -206,6 +249,7 @@ def _previous_run_preset_error_result(params: object, error: Exception) -> JSOND
                 "message": "Previous run settings could not be loaded; choose another run key or clear the field.",
                 "context": {
                     "previous_run_key": selected_previous_run_key(params) if isinstance(params, dict) else "",
+                    "source_scope": source_scope,
                     "error_type": type(error).__name__,
                 },
             }
@@ -213,9 +257,12 @@ def _previous_run_preset_error_result(params: object, error: Exception) -> JSOND
     }
 
 
-def _selected_sample_ids(ctx: Any | None) -> tuple[str, ...]:
-    selected = getattr(ctx, "selected", ()) if ctx is not None else ()
-    return tuple(str(sample_id) for sample_id in (selected or ()))
+def _has_image_dataset_context(ctx: Any | None) -> bool:
+    dataset = getattr(ctx, "dataset", None) if ctx is not None else None
+    if dataset is None:
+        return False
+    media_type = getattr(dataset, "media_type", None)
+    return media_type in (None, "image")
 
 
 def _dry_run_param(params: object) -> bool:

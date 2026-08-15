@@ -13,6 +13,12 @@ import yaml
 import albumentationsx_plugin.hosts.fiftyone.operators.augment as augment_operator_module
 from albumentationsx_plugin.core import PipelineConfig, RunManifest, TransformConfig
 from albumentationsx_plugin.hosts.fiftyone.augmentation import FixedAugmentationExecutionResult
+from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
+    EXECUTION_SCOPE_CURRENT_VIEW,
+    EXECUTION_SCOPE_ENTIRE_DATASET,
+    EXECUTION_SCOPE_FIELD_NAME,
+    EXECUTION_SCOPE_SELECTED_SAMPLES,
+)
 from albumentationsx_plugin.hosts.fiftyone.operators.augment import (
     OPERATOR_NAME,
     AugmentWithAlbumentationsX,
@@ -109,7 +115,9 @@ def test_augment_operator_config_matches_manifest() -> None:
     assert OPERATOR_NAME in manifest["operators"]
     assert config.name == OPERATOR_NAME
     assert config.label == "Augment with AlbumentationsX"
-    assert config.description == "Build and apply AlbumentationsX augmentation pipelines to selected samples."
+    assert (
+        config.description == "Build and apply AlbumentationsX augmentation pipelines to samples, views, or datasets."
+    )
     assert config.dynamic is True
     assert config.allow_immediate_execution is True
     assert config.allow_delegated_execution is False
@@ -164,6 +172,14 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["run_label"]["type"]["name"] == "String"
     assert input_properties["run_label"]["default"] == ""
     assert input_properties["run_label"]["required"] is False
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["type"]["name"] == "Enum"
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["default"] == EXECUTION_SCOPE_CURRENT_VIEW
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["required"] is True
+    assert set(input_properties[EXECUTION_SCOPE_FIELD_NAME]["type"]["values"]) == {
+        EXECUTION_SCOPE_SELECTED_SAMPLES,
+        EXECUTION_SCOPE_CURRENT_VIEW,
+        EXECUTION_SCOPE_ENTIRE_DATASET,
+    }
     assert input_properties["p"]["type"]["name"] == "Number"
     assert input_properties["p"]["default"] == 1.0
     assert "Constraints: >= 0, <= 1." in input_properties["p"]["view"]["description"]
@@ -172,6 +188,7 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["outputs_per_sample"]["default"] == 1
     assert input_properties["dry_run"]["type"]["name"] == "Boolean"
     assert output_json["type"]["properties"]["run_key"]["type"]["name"] == "String"
+    assert output_json["type"]["properties"]["source_scope"]["type"]["name"] == "String"
     assert output_json["type"]["properties"]["processed_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["created_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["error_count"]["type"]["name"] == "Number"
@@ -204,6 +221,20 @@ def test_augment_operator_resolves_ordered_pipeline_steps() -> None:
     assert "step_2_brightness_by_max" not in input_properties
     assert "step_2_ensure_safe_output" not in input_properties
     assert "step_3_transform" not in input_properties
+
+
+@pytest.mark.unit
+def test_augment_operator_defaults_scope_to_selected_samples_when_selection_exists() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        selected = ("sample-1",)
+        params: dict[str, object] = {}
+
+    input_json = operator.resolve_input(Context()).to_json()
+    input_properties = input_json["type"]["properties"]
+
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["default"] == EXECUTION_SCOPE_SELECTED_SAMPLES
 
 
 @pytest.mark.unit
@@ -329,7 +360,7 @@ def test_augment_operator_resolves_selected_transform_parameter_schema() -> None
     assert input_properties["p"]["default"] == 1.0
     assert "brightness_by_max" not in input_properties
     assert "ensure_safe_output" not in input_properties
-    assert "execution_scope" not in input_properties
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["default"] == EXECUTION_SCOPE_CURRENT_VIEW
 
 
 @pytest.mark.unit
@@ -606,7 +637,7 @@ def test_augment_operator_ignores_excluded_catalog_transform_selection() -> None
     assert input_properties["p"]["type"]["name"] == "Number"
     assert "method" not in input_properties
     assert "mean" not in input_properties
-    assert "execution_scope" not in input_properties
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["default"] == EXECUTION_SCOPE_CURRENT_VIEW
 
 
 @pytest.mark.unit
@@ -614,6 +645,7 @@ def test_augment_operator_resolves_samples_grid_placement() -> None:
     operator = AugmentWithAlbumentationsX()
 
     class Context:
+        dataset = SimpleNamespace(media_type="image")
         selected = ("sample-1",)
 
     placement_json = operator.resolve_placement(Context()).to_json()
@@ -628,7 +660,23 @@ def test_augment_operator_resolves_samples_grid_placement() -> None:
 
 
 @pytest.mark.unit
-def test_augment_operator_disables_samples_grid_placement_without_selection() -> None:
+def test_augment_operator_resolves_samples_grid_placement_without_selection_for_image_dataset() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(media_type="image")
+        selected = ()
+
+    placement_json = operator.resolve_placement(Context()).to_json()
+    view_json = placement_json["view"]
+
+    assert isinstance(view_json, dict)
+    assert view_json["disabled"] is False
+    assert view_json["prompt"] is True
+
+
+@pytest.mark.unit
+def test_augment_operator_disables_samples_grid_placement_without_dataset_context() -> None:
     operator = AugmentWithAlbumentationsX()
 
     placement_json = operator.resolve_placement(ctx=None).to_json()
@@ -636,7 +684,7 @@ def test_augment_operator_disables_samples_grid_placement_without_selection() ->
 
     assert isinstance(view_json, dict)
     assert view_json["disabled"] is True
-    assert view_json["title"] == "Select samples to augment."
+    assert view_json["title"] == "Open an image dataset before running augmentation."
 
 
 @pytest.mark.unit
@@ -658,10 +706,14 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
         assert kwargs["dataset"] is Context.dataset
         assert kwargs["view"] is Context.view
         assert kwargs["selected_sample_ids"] == ("sample-1",)
-        assert kwargs["params"] == {"transform": "HorizontalFlip"}
+        assert kwargs["params"] == {
+            "transform": "HorizontalFlip",
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
+        }
         assert kwargs["storage_root"] is None
         return FixedAugmentationExecutionResult(
             run_key="albumentationsx-20260731T120000Z-test",
+            source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES,
             processed_count=1,
             created_count=1,
             skipped_count=0,
@@ -677,6 +729,7 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
 
     assert operator.execute(Context()) == {
         "run_key": "albumentationsx-20260731T120000Z-test",
+        "source_scope": EXECUTION_SCOPE_SELECTED_SAMPLES,
         "processed_count": 1,
         "created_count": 1,
         "skipped_count": 0,
@@ -689,6 +742,84 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
         "errors": [],
     }
     assert Context.triggered == ["reload_dataset"]
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_delegates_current_view_scope_without_selection(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ()
+        params = {
+            "transform": "HorizontalFlip",
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW,
+        }
+
+    def fake_execute_fixed_augmentation(**kwargs):
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["view"] is Context.view
+        assert kwargs["selected_sample_ids"] == ()
+        assert kwargs["params"][EXECUTION_SCOPE_FIELD_NAME] == EXECUTION_SCOPE_CURRENT_VIEW
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-current-view",
+            source_scope=EXECUTION_SCOPE_CURRENT_VIEW,
+            processed_count=2,
+            created_count=0,
+            skipped_count=0,
+            error_count=0,
+            dry_run=True,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["source_scope"] == EXECUTION_SCOPE_CURRENT_VIEW
+    assert result["processed_count"] == 2
+    assert result["error_count"] == 0
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_delegates_entire_dataset_scope_without_view(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ()
+        params = {
+            "transform": "HorizontalFlip",
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_ENTIRE_DATASET,
+        }
+
+    def fake_execute_fixed_augmentation(**kwargs):
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["view"] is None
+        assert kwargs["selected_sample_ids"] == ()
+        assert kwargs["params"][EXECUTION_SCOPE_FIELD_NAME] == EXECUTION_SCOPE_ENTIRE_DATASET
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-entire-dataset",
+            source_scope=EXECUTION_SCOPE_ENTIRE_DATASET,
+            processed_count=3,
+            created_count=0,
+            skipped_count=0,
+            error_count=0,
+            dry_run=True,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["source_scope"] == EXECUTION_SCOPE_ENTIRE_DATASET
+    assert result["processed_count"] == 3
+    assert result["error_count"] == 0
 
 
 @pytest.mark.unit
@@ -842,7 +973,7 @@ def test_augment_operator_execute_reports_empty_selection_without_backend_call(m
     class Context:
         dataset = object()
         selected = ()
-        params = {"dry_run": True}
+        params = {"dry_run": True, EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES}
 
     def fake_execute_fixed_augmentation(**_kwargs):
         raise AssertionError("backend should not run without selected samples")
@@ -858,6 +989,9 @@ def test_augment_operator_execute_reports_empty_selection_without_backend_call(m
     first_error = errors[0]
     assert isinstance(first_error, dict)
     assert first_error["code"] == "no_selected_samples"
+    error_context = first_error["context"]
+    assert isinstance(error_context, dict)
+    assert error_context["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
 
 
 @pytest.mark.unit
