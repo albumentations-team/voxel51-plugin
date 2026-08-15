@@ -76,3 +76,6 @@ The current lockfile produces:
 Tests intentionally assert this summary so dependency or metadata drift is
 visible during review. The release-specific snapshot for the first public MVP is
 [Capability Report v0.1.0](capability-report-v0.1.0.md).
+
+For ownership rules, suspected upstream metadata issues, and the workaround
+policy, see [albu-spec Integration Audit](albu-spec-integration-audit.md).
