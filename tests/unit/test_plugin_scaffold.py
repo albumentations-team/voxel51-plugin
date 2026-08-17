@@ -68,6 +68,7 @@ def test_plugin_manifest_declares_registered_operators() -> None:
 
     assert manifest["operators"] == [
         "augment_with_albumentationsx",
+        "show_albumentationsx_capabilities",
         "view_albumentationsx_run",
         "delete_albumentationsx_run",
     ]
@@ -88,6 +89,7 @@ def test_root_entrypoint_registers_declared_operators() -> None:
     assert module.register(registrar) is None
     assert [operator.__name__ for operator in registrar.registered] == [
         "AugmentWithAlbumentationsX",
+        "ShowAlbumentationsXCapabilities",
         "ViewAlbumentationsXRun",
         "DeleteAlbumentationsXRun",
     ]

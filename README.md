@@ -31,6 +31,7 @@ FiftyOne registers these operators:
 
 ```text
 @albumentations/albumentationsx/augment_with_albumentationsx
+@albumentations/albumentationsx/show_albumentationsx_capabilities
 @albumentations/albumentationsx/view_albumentationsx_run
 @albumentations/albumentationsx/delete_albumentationsx_run
 ```
@@ -59,6 +60,9 @@ and reports the resolved source scope without creating samples or files.
 - The form exposes 110 catalog-backed image transforms from the current locked
   dependency set. The [capability report](docs/capability-report-v0.1.0.md)
   records the complete transform-by-transform snapshot and exclusion reasons.
+- **Show AlbumentationsX Capabilities** exposes the same catalog in the App with
+  search, status filtering, target filtering, dependency versions, supported
+  targets, advanced-parameter status, and exclusion reasons.
 - Form controls use compact captions, readable enum labels, and responsive
   parameter groups instead of repeating defaults and constraints as prose.
 - A pipeline can contain up to three ordered stages.
