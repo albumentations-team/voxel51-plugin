@@ -33,6 +33,7 @@ from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
 from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
     ViewAlbumentationsXRun,
 )
+from albumentationsx_plugin.hosts.fiftyone.progress import AugmentationProgress
 from albumentationsx_plugin.hosts.fiftyone.samples import (
     DEFAULT_OUTPUT_TAG,
     RUN_KEY_FIELD,
@@ -107,6 +108,14 @@ def _load_sample(dataset: fo.Dataset, sample_id: str) -> Any:
     return cast(Any, dataset[sample_id])
 
 
+class _RecordingProgressReporter:
+    def __init__(self) -> None:
+        self.events: list[AugmentationProgress] = []
+
+    def report(self, progress: AugmentationProgress) -> None:
+        self.events.append(progress)
+
+
 @pytest.mark.integration
 def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_path) -> None:
     dataset_name = _dataset_name()
@@ -120,6 +129,7 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
             first_id: _load_sample(dataset, first_id).filepath,
             second_id: _load_sample(dataset, second_id).filepath,
         }
+        progress_reporter = _RecordingProgressReporter()
 
         result = execute_fixed_augmentation(
             dataset=dataset,
@@ -131,6 +141,7 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
                 "dry_run": False,
             },
             storage_root=tmp_path / "plugin-storage",
+            progress_reporter=progress_reporter,
         )
 
         assert result.processed_count == 2
@@ -179,6 +190,14 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
         assert run_results.plugin_run_key == result.run_key
         assert run_results.manifest["run_key"] == result.run_key
         assert run_results.manifest_path == result.manifest_path
+        final_progress = progress_reporter.events[-1]
+        assert final_progress.stage == "complete"
+        assert final_progress.processed_sources == 2
+        assert final_progress.total_sources == 2
+        assert final_progress.planned_outputs == 2
+        assert final_progress.created_outputs == 2
+        assert final_progress.skipped_sources == 0
+        assert final_progress.errors == 0
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)
@@ -661,6 +680,7 @@ def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_pat
         small_id = dataset.add_sample(
             _sample(_write_source_image(tmp_path, "small", width=4, height=4), width=4, height=4)
         )
+        progress_reporter = _RecordingProgressReporter()
 
         result = execute_fixed_augmentation(
             dataset=dataset,
@@ -671,6 +691,7 @@ def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_pat
                 "crop_height": 8,
             },
             storage_root=tmp_path / "plugin-storage",
+            progress_reporter=progress_reporter,
         )
 
         assert result.processed_count == 2
@@ -695,6 +716,14 @@ def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_pat
         assert manifest_error_context["sample_id"] == small_id
         assert manifest_error_context["output_index"] == 0
         assert result.fiftyone_run_key in dataset.list_runs()
+        final_progress = progress_reporter.events[-1]
+        assert final_progress.stage == "complete"
+        assert final_progress.processed_sources == 2
+        assert final_progress.total_sources == 2
+        assert final_progress.planned_outputs == 2
+        assert final_progress.created_outputs == 1
+        assert final_progress.skipped_sources == 1
+        assert final_progress.errors == 1
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)

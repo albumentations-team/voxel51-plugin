@@ -57,6 +57,7 @@ from albumentationsx_plugin.hosts.fiftyone.presets import (
     selected_previous_run_key,
     storage_root_from_params,
 )
+from albumentationsx_plugin.hosts.fiftyone.progress import DELEGATED_EXECUTION_RECOMMENDED_SOURCE_COUNT
 
 SCHEMA_STATUS_JSON_FALLBACK: Final[str] = "json_fallback"
 TRANSFORM_FIELD_NAME: Final[str] = "transform"
@@ -71,6 +72,7 @@ ANNOTATION_SECTION_FIELD_NAME: Final[str] = "_annotation_settings"
 ANNOTATION_FIELD_GROUP_NAME: Final[str] = "_annotation_fields"
 STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
 PREVIOUS_RUN_WARNING_FIELD_NAME: Final[str] = "_previous_run_warning"
+EXECUTION_MODE_GUIDANCE_FIELD_NAME: Final[str] = "_execution_mode_guidance"
 FIXED_SLICE_PARAMETER_NAMES: Final[dict[str, tuple[str, ...]]] = {
     "HorizontalFlip": (PROBABILITY_FIELD_NAME,),
     "RandomBrightnessContrast": ("brightness_range", "contrast_range", PROBABILITY_FIELD_NAME),
@@ -171,6 +173,7 @@ class DynamicAugmentFormBuilder:
             selected_preset_run_key=selected_preset_run_key,
         )
         self._render_execution_scope_selector(inputs, selected_scope=selected_scope)
+        self._render_execution_mode_guidance(inputs)
         if preset_warning:
             inputs.view(
                 PREVIOUS_RUN_WARNING_FIELD_NAME,
@@ -250,6 +253,18 @@ class DynamicAugmentFormBuilder:
             required=True,
             description="Choose whether to process selected samples, the current view, or the entire dataset.",
             view=choices,
+        )
+
+    def _render_execution_mode_guidance(self, inputs: types.Object) -> None:
+        inputs.message(
+            EXECUTION_MODE_GUIDANCE_FIELD_NAME,
+            label="Execution mode",
+            description=(
+                "Immediate execution is best for small bounded selections. "
+                f"Use delegated execution for views or datasets with about "
+                f"{DELEGATED_EXECUTION_RECOMMENDED_SOURCE_COUNT}+ source samples "
+                "to keep the App responsive and track progress."
+            ),
         )
 
     def _render_annotation_fields(

@@ -59,6 +59,12 @@ Materialized runs store the chosen scope and resolved source count in
 `manifest.metadata`; dry runs report the resolved source scope in the operator
 output.
 
+VOX-32 enables FiftyOne delegated execution for the augmentation operator while
+leaving immediate execution as the default choice. The general settings section
+shows guidance that immediate execution is best for small bounded selections,
+while delegated execution is recommended for larger views or datasets so the
+App can stay responsive and display progress.
+
 Executable choices include transforms whose catalog status is:
 
 - `supported`

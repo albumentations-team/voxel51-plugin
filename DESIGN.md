@@ -2,7 +2,7 @@
 
 **Status:** the image augmentation MVP is implemented. Publication readiness and broader execution coverage remain open.
 
-**Last reviewed:** 2026-08-05
+**Last reviewed:** 2026-08-17
 
 This document records the current product boundary, the decisions that protect user data, and the work that remains. It is not a historical task list. Detailed implementation notes live in [docs/](docs/README.md); the root [README](README.md) is the installation and usage guide.
 
@@ -16,9 +16,10 @@ Each saved run records the pipeline, package versions, source and output sample 
 
 The current implementation supports the following workflow.
 
-1. Select one or more image samples in the FiftyOne App.
+1. Select one or more image samples in the FiftyOne App, open a filtered image
+   view, or use the full image dataset.
 2. Open **Augment with AlbumentationsX**.
-3. Configure one to three ordered transform stages and create one to three outputs per selected sample.
+3. Configure one to three ordered transform stages and create one to three outputs per source sample.
 4. Inspect the new samples with **View AlbumentationsX Run**.
 5. Remove generated samples and files with **Delete AlbumentationsX Run** after confirmation.
 
@@ -37,8 +38,8 @@ Selecting a previous run loads its pipeline configuration as a template. A new r
 
 The MVP is deliberately narrower than the full AlbumentationsX catalog.
 
-- It processes selected image samples only. It does not process video, 3D media, or unselected datasets in the background.
-- The operator allows immediate execution only. Delegated and distributed execution are not implemented.
+- It processes image samples from selected samples, the active view, or the full dataset. It does not process video or 3D media.
+- The augmentation operator supports immediate and delegated execution. Distributed execution and cancellation are not implemented.
 - The normal selector excludes transforms that require external reference data, use unsupported media or targets, or produce unsafe image outputs.
 - External segmentation-mask paths, detection instance masks, polylines, custom embedded documents, and unsupported FiftyOne label classes are excluded from annotation-aware execution.
 - `supported_with_defaults` transforms keep some advanced optional parameters at their library defaults until the form has safe controls for them.
@@ -111,6 +112,7 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 | Pipeline execution | The executor builds catalog-backed `ReplayCompose` pipelines with up to three stages and creates new image samples without modifying selected sources. |
 | Annotation handling | Classification, detections, keypoints, and in-memory semantic masks travel through the supported execution path. |
 | Provenance and cleanup | Manifests, FiftyOne custom runs, source links, replay metadata, run inspection, and containment-checked cleanup are implemented. |
+| Larger-run execution | The augmentation operator can run immediately or through FiftyOne delegated execution and reports processed sources, planned outputs, created outputs, skipped sources, and errors. |
 | Local verification | The repository has unit, integration, and smoke tests, a deterministic demo dataset, and a documented local verification gate. |
 | Publication automation | The publication-readiness pull request adds lockfile, full pre-commit, and test checks across Ubuntu, macOS, and Windows; Python 3.10–3.14 are required. |
 
@@ -130,7 +132,7 @@ Work is ordered by release risk and user impact. Each item has an observable com
 
 | Work | Why now | Completion condition |
 |---|---|---|
-| Add delegated execution with progress and cancellation | Immediate execution is appropriate for a few selected samples, but it blocks larger jobs. | A user can choose immediate or delegated execution. Both paths preserve the same manifest contract, show progress and partial failures, and have integration tests for cancellation and recovery. |
+| Add safe cancellation semantics for delegated runs | Delegated execution reports progress, but cancellation needs a clear cleanup and checkpoint policy before exposing it. | A cancelled run leaves source data unchanged, preserves inspectable partial outputs or removes them by policy, and documents how users recover or clean up the run. |
 | Add a first-class preset library | Previous runs provide templates inside one dataset, but they are not named, portable presets. | Users can save, rename, import, and export validated pipeline presets without storing per-sample replay data. Tests prove that a preset loads into the form and produces a valid fresh run. |
 | Add a non-persistent preview | Users need to inspect a configuration before adding many samples to a dataset. | The App renders a preview for selected samples without creating output samples or run directories. The preview path has a clear limit and does not alter source data. |
 

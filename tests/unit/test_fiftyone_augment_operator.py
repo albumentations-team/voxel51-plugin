@@ -27,6 +27,10 @@ from albumentationsx_plugin.hosts.fiftyone.operators.augment import (
     AugmentWithAlbumentationsX,
 )
 from albumentationsx_plugin.hosts.fiftyone.presets import PREVIOUS_RUN_KEY_FIELD_NAME, STORAGE_ROOT_PARAM_NAME
+from albumentationsx_plugin.hosts.fiftyone.progress import (
+    DELEGATED_EXECUTION_RECOMMENDED_SOURCE_COUNT,
+    FiftyOneProgressReporter,
+)
 from albumentationsx_plugin.storage import FileRunStore
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -142,7 +146,8 @@ def test_augment_operator_config_matches_manifest() -> None:
     )
     assert config.dynamic is True
     assert config.allow_immediate_execution is True
-    assert config.allow_delegated_execution is False
+    assert config.allow_delegated_execution is True
+    assert config.default_choice_to_delegated is False
     assert config.allow_distributed_execution is False
     assert config.risk_level.value == "low"
 
@@ -204,6 +209,12 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
         EXECUTION_SCOPE_CURRENT_VIEW,
         EXECUTION_SCOPE_ENTIRE_DATASET,
     }
+    assert input_properties["_execution_mode_guidance"]["view"]["name"] == "Notice"
+    assert input_properties["_execution_mode_guidance"]["view"]["label"] == "Execution mode"
+    assert (
+        str(DELEGATED_EXECUTION_RECOMMENDED_SOURCE_COUNT)
+        in input_properties["_execution_mode_guidance"]["view"]["description"]
+    )
     assert input_properties["p"]["type"]["name"] == "Number"
     assert input_properties["p"]["default"] == 1.0
     assert input_properties["p"]["view"]["label"] == "Probability"
@@ -741,6 +752,7 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
             EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
         }
         assert kwargs["storage_root"] is None
+        assert isinstance(kwargs["progress_reporter"], FiftyOneProgressReporter)
         return FixedAugmentationExecutionResult(
             run_key="albumentationsx-20260731T120000Z-test",
             source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES,

@@ -42,14 +42,16 @@ FiftyOne registers these operators:
    to process only a subset.
 2. Run **Augment with AlbumentationsX** from the App actions menu.
 3. Choose the execution scope, ordered pipeline stages, and transform
-   parameters, then run the operator.
+   parameters, then run the operator immediately or delegate larger runs.
 4. Inspect the resulting samples tagged by the run key. Use **View
    AlbumentationsX Run** to inspect the saved pipeline and **Delete
    AlbumentationsX Run** to remove only that run's generated outputs.
 
 `Execution scope` controls whether the operator processes selected samples, the
 active current view, or the entire dataset. `Dry run` validates a configuration
-and reports the resolved source scope without creating samples or files.
+and reports the resolved source scope without creating samples or files. Use
+immediate execution for small bounded selections; use delegated execution for
+larger views or datasets to keep the App responsive while progress is reported.
 
 > [!NOTE]
 > Selecting `Previous run` loads its saved pipeline as a reusable template and
@@ -68,6 +70,9 @@ and reports the resolved source scope without creating samples or files.
 - A pipeline can contain up to three ordered stages.
 - Runs can target selected samples, the active current view, or the entire
   dataset.
+- Augmentation supports both immediate execution and delegated execution.
+  Progress reports processed sources, planned outputs, created outputs, skipped
+  sources, and errors.
 - The executable path keeps FiftyOne `Classification`, `Detections`,
   `Keypoints`, and in-memory `Segmentation` annotations aligned with supported
   transforms.
@@ -76,9 +81,9 @@ and reports the resolved source scope without creating samples or files.
 
 ## Current limits
 
-- The plugin currently processes image samples. Video, 3D media, non-image
-  outputs, transforms that need external reference data, and unsafe output
-  types are excluded from the normal selector.
+- The plugin currently processes image samples. Video, 3D media, distributed
+  execution, cancellation, non-image outputs, transforms that need external
+  reference data, and unsafe output types are excluded from the normal selector.
 - External mask-path variants and unsupported FiftyOne label classes are not
   part of the annotation-aware execution path.
 - Some `supported_with_defaults` transforms use documented defaults until their
@@ -124,10 +129,13 @@ optionally choose `Previous run` to prefill the form from a saved run in this
 dataset, optionally set `Run label` and `Outputs per sample`, and choose a
 catalog-backed transform for each ordered step. `Dry run` validates the
 configuration and reports the resolved source scope without writing files or
-creating samples. Previous-run settings are used as a reusable pipeline template
-with fresh randomness, not as an exact replay of earlier sampled parameters.
-Clear `Previous run` after loading if you want to keep editing the form without
-reapplying the saved pipeline. New output samples are written under the
+creating samples. Run small selections immediately. For larger views or full
+datasets, choose delegated execution in FiftyOne's execution dialog so the App
+can remain responsive and report live progress. Previous-run settings are used
+as a reusable pipeline template with fresh randomness, not as an exact replay of
+earlier sampled parameters. Clear `Previous run` after loading if you want to
+keep editing the form without reapplying the saved pipeline. New output samples
+are written under the
 plugin-owned storage directory and tagged with the run key; source samples and
 source files remain unchanged. Non-dry runs also save
 `manifest.json` under the run output directory and register the manifest in
