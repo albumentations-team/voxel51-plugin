@@ -16,6 +16,8 @@ from albumentationsx_plugin.hosts.fiftyone.run_summary import build_run_summary,
 OPERATOR_NAME = "view_albumentationsx_run"
 OPERATOR_LABEL = "View AlbumentationsX Run"
 RUN_KEY_FIELD_NAME = "run_key"
+OUTPUT_KEY_FIELD_NAME = "output_key"
+OPEN_GENERATED_SAMPLES_FIELD_NAME = "open_generated_samples"
 STORAGE_ROOT_PARAM_NAME = "_storage_root"
 
 
@@ -41,6 +43,7 @@ class ViewAlbumentationsXRun(foo.Operator):
         storage_root = _storage_root(params)
         dataset = getattr(ctx, "dataset", None)
         run_keys = list_available_run_keys(dataset, storage_root=storage_root) if dataset is not None else ()
+        selected_run_key = _selected_run_key(params.get(RUN_KEY_FIELD_NAME), run_keys)
 
         inputs = types.Object()
         if run_keys:
@@ -51,7 +54,7 @@ class ViewAlbumentationsXRun(foo.Operator):
                 RUN_KEY_FIELD_NAME,
                 run_keys,
                 label="Run key",
-                default=_selected_run_key(params.get(RUN_KEY_FIELD_NAME), run_keys),
+                default=selected_run_key,
                 required=True,
                 view=choices,
             )
@@ -61,6 +64,15 @@ class ViewAlbumentationsXRun(foo.Operator):
                 label="Run key",
                 description="No persisted AlbumentationsX runs were found for this dataset.",
             )
+
+        if dataset is not None and selected_run_key:
+            summary = build_run_summary(
+                dataset,
+                selected_run_key,
+                storage_root=storage_root,
+                selected_output_key=_optional_str_param(params.get(OUTPUT_KEY_FIELD_NAME)),
+            )
+            _add_generated_output_controls(inputs, summary)
 
         return types.Property(
             inputs,
@@ -89,6 +101,17 @@ class ViewAlbumentationsXRun(foo.Operator):
         outputs.bool("replay_available", label="Replay available")
         outputs.str("output_tag", label="Output tag")
         outputs.str("output_dir", label="Output directory")
+        outputs.str("generated_sample_ids_json", label="Generated sample IDs")
+        outputs.str("available_generated_sample_ids_json", label="Available generated sample IDs")
+        outputs.str("generated_outputs_json", label="Generated outputs")
+        outputs.str("selected_output_key", label="Selected output key")
+        outputs.str("selected_output_status", label="Selected output status")
+        outputs.str("selected_source_sample_id", label="Selected source sample ID")
+        outputs.str("selected_generated_sample_id", label="Selected generated sample ID")
+        outputs.int("selected_output_index", label="Selected output index")
+        outputs.str("selected_output_path", label="Selected output path")
+        outputs.bool("selected_output_available", label="Selected output available")
+        outputs.str("selected_replay_json", label="Selected replay")
         outputs.str("plugin_version", label="Plugin version")
         outputs.str("dependency_versions_json", label="Dependency versions")
         outputs.str("pipeline_summary", label="Transform summary")
@@ -115,7 +138,10 @@ class ViewAlbumentationsXRun(foo.Operator):
             ctx.dataset,
             _selected_run_key(params.get(RUN_KEY_FIELD_NAME), ()),
             storage_root=_storage_root(params),
+            selected_output_key=_optional_str_param(params.get(OUTPUT_KEY_FIELD_NAME)),
         )
+        if _bool_param(params.get(OPEN_GENERATED_SAMPLES_FIELD_NAME)):
+            _trigger_generated_samples_view(ctx, summary.available_generated_sample_ids)
         return summary.to_dict()
 
 
@@ -128,6 +154,70 @@ def _selected_run_key(raw_value: object, run_keys: tuple[str, ...]) -> str:
     if isinstance(raw_value, str) and raw_value.strip():
         return raw_value
     return run_keys[0] if run_keys else ""
+
+
+def _optional_str_param(raw_value: object) -> str:
+    return raw_value.strip() if isinstance(raw_value, str) else ""
+
+
+def _bool_param(raw_value: object) -> bool:
+    return raw_value if isinstance(raw_value, bool) else False
+
+
+def _add_generated_output_controls(inputs: types.Object, summary: Any) -> None:
+    if summary.generated_outputs:
+        choices = types.AutocompleteView(label="Output replay", allow_user_input=False)
+        output_keys: list[str] = []
+        for output in summary.generated_outputs:
+            output_keys.append(output.key)
+            choices.add_choice(output.key, label=output.label)
+
+        selected_output = summary.selected_output
+        inputs.enum(
+            OUTPUT_KEY_FIELD_NAME,
+            output_keys,
+            label="Output replay",
+            default=selected_output.key if selected_output is not None else output_keys[0],
+            required=False,
+            view=choices,
+        )
+
+    inputs.bool(
+        OPEN_GENERATED_SAMPLES_FIELD_NAME,
+        label="Open generated samples",
+        default=False,
+        description="Open the generated samples for this run in the FiftyOne App when executing the operator.",
+        view=types.CheckboxView(),
+    )
+
+
+def _trigger_generated_samples_view(ctx: Any, sample_ids: tuple[str, ...]) -> None:
+    if not sample_ids:
+        return
+
+    ops = getattr(ctx, "ops", None)
+    show_samples = getattr(ops, "show_samples", None)
+    if callable(show_samples):
+        try:
+            show_samples(list(sample_ids))
+            return
+        except Exception:
+            pass
+
+    trigger = getattr(ctx, "trigger", None)
+    if not callable(trigger):
+        return
+
+    params = {"samples": list(sample_ids), "use_extended_selection": False}
+    try:
+        trigger("show_samples", params=params)
+    except TypeError:
+        try:
+            trigger("show_samples", params)
+        except Exception:
+            return
+    except Exception:
+        return
 
 
 def _has_available_runs(ctx: Any | None) -> bool:

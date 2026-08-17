@@ -14,17 +14,33 @@ When a run key is selected, the operator returns values from the persisted
 manifest:
 
 - source, created sample, output, error, and replay counts;
+- generated sample IDs that are still present in the active dataset;
+- per-output availability for generated samples and output files;
 - plugin, AlbumentationsX, albu-spec, and FiftyOne versions;
 - output directory, output tag, manifest path, and FiftyOne run key;
 - transform summary and serialized pipeline config;
+- selected output source sample ID, output index, output path, generated sample
+  ID, availability status, and replay JSON;
 - structured errors serialized as JSON.
 
 The current dataset state is not used to guess counters. The only filesystem
 state derived during summary is whether manifest-listed output files still
-exist. Missing output files mark the run as `stale`.
+exist. The operator also checks whether manifest-listed generated sample IDs
+still exist so users can distinguish available outputs from stale or cleaned
+audit records. Missing output files mark the run as `stale`.
 
 Runs cleaned by `delete_albumentationsx_run` may still appear in this operator
 because cleanup retains `manifest.json` as an audit trail.
+
+The input form also exposes an `Output replay` selector when the selected run
+has manifest-listed outputs. The selector defaults to the first output and lets
+users inspect one JSON-safe replay record without opening `manifest.json`
+manually.
+
+When `Open generated samples` is enabled, executing the operator asks the
+FiftyOne App to show the generated samples from the selected run that still
+exist in the dataset. This is read-only App navigation; it does not modify the
+dataset, manifest, output files, or custom run metadata.
 
 ## Failure Modes
 
@@ -38,6 +54,17 @@ It reports clear statuses instead of raising UI-visible exceptions:
   object;
 - `not_found`: neither manifest nor matching custom run exists;
 - `input_required`: no run key was selected.
+
+Per-output status values are separate from the aggregate run status:
+
+- `available`: output file exists and the generated sample exists when a sample
+  ID was recorded;
+- `missing_output_file`: manifest lists an output path that no longer exists;
+- `missing_sample`: manifest lists a generated sample ID that is no longer in
+  the dataset;
+- `cleaned`: cleanup was completed and the manifest is retained only for audit;
+- `missing`: the manifest output entry does not include enough data to prove
+  file or sample availability.
 
 ## Implementation Notes
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,7 +10,12 @@ import numpy as np
 import pytest
 
 from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
-from albumentationsx_plugin.hosts.fiftyone.operators.view_run import STORAGE_ROOT_PARAM_NAME, ViewAlbumentationsXRun
+from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
+    OPEN_GENERATED_SAMPLES_FIELD_NAME,
+    OUTPUT_KEY_FIELD_NAME,
+    STORAGE_ROOT_PARAM_NAME,
+    ViewAlbumentationsXRun,
+)
 from albumentationsx_plugin.hosts.fiftyone.run_summary import RUN_STATUS_MISSING, RUN_STATUS_OK
 from albumentationsx_plugin.storage import FileRunStore
 from albumentationsx_plugin.storage.images import write_rgb_image
@@ -80,6 +86,40 @@ def test_view_run_operator_reads_manifest_summary_without_mutating_dataset(tmp_p
         assert summary["manifest_path"] == result.manifest_path
         assert summary["fiftyone_run_key"] == result.fiftyone_run_key
         assert "HorizontalFlip" in str(summary["pipeline_config_json"])
+        generated_sample_ids = json.loads(str(summary["generated_sample_ids_json"]))
+        available_generated_sample_ids = json.loads(str(summary["available_generated_sample_ids_json"]))
+        generated_outputs = json.loads(str(summary["generated_outputs_json"]))
+        selected_replay = json.loads(str(summary["selected_replay_json"]))
+        assert generated_sample_ids == available_generated_sample_ids
+        assert len(generated_sample_ids) == 1
+        assert generated_outputs[0]["generated_sample_id"] == generated_sample_ids[0]
+        assert generated_outputs[0]["generated_sample_available"] is True
+        assert generated_outputs[0]["output_file_available"] is True
+        assert generated_outputs[0]["replay_available"] is True
+        assert selected_replay["source_sample_id"] == sample_id
+        assert isinstance(selected_replay["replay"], dict)
+
+        triggered: list[tuple[str, dict[str, object]]] = []
+
+        def trigger(operator_name: str, params: dict[str, object]) -> None:
+            triggered.append((operator_name, params))
+
+        open_context = SimpleNamespace(
+            dataset=dataset,
+            trigger=trigger,
+            params={
+                "run_key": result.run_key,
+                OUTPUT_KEY_FIELD_NAME: str(summary["selected_output_key"]),
+                OPEN_GENERATED_SAMPLES_FIELD_NAME: True,
+                STORAGE_ROOT_PARAM_NAME: str(storage_root),
+            },
+        )
+
+        open_summary = ViewAlbumentationsXRun().execute(open_context)
+
+        assert len(dataset) == before_count
+        assert open_summary["selected_replay_json"] == summary["selected_replay_json"]
+        assert triggered == [("show_samples", {"samples": generated_sample_ids, "use_extended_selection": False})]
 
         FileRunStore(dataset.name, storage_root=storage_root).delete_manifest(result.run_key)
         missing_summary = ViewAlbumentationsXRun().execute(context)

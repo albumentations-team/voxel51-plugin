@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import pathlib
 from typing import Any
 
@@ -8,11 +9,14 @@ import yaml
 
 import albumentationsx_plugin.hosts.fiftyone.operators.view_run as view_run_operator_module
 from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
+    OPEN_GENERATED_SAMPLES_FIELD_NAME,
     OPERATOR_NAME,
+    OUTPUT_KEY_FIELD_NAME,
+    RUN_KEY_FIELD_NAME,
     STORAGE_ROOT_PARAM_NAME,
     ViewAlbumentationsXRun,
 )
-from albumentationsx_plugin.hosts.fiftyone.run_summary import RunSummary
+from albumentationsx_plugin.hosts.fiftyone.run_summary import RunOutputSummary, RunSummary
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -50,12 +54,39 @@ def test_view_run_operator_resolves_run_selector_and_output(monkeypatch) -> None
         dataset = object()
         params = {}
 
+    output = RunOutputSummary(
+        key="0|source-1|0|images/output.png",
+        position=0,
+        label="#1 source=source-1 output_index=0 status=available path=images/output.png",
+        status="available",
+        source_sample_id="source-1",
+        output_index=0,
+        output_path="images/output.png",
+        generated_sample_id="created-1",
+        generated_sample_available=True,
+        output_file_available=True,
+        replay_available=True,
+        replay_record={"replay": {"applied": True}},
+    )
+
     def fake_list_available_run_keys(dataset: object, **kwargs) -> tuple[str, ...]:
         assert dataset is Context.dataset
         assert kwargs["storage_root"] is None
         return ("albumentationsx-20260731T150000Z-first", "albumentationsx-20260731T150000Z-second")
 
+    def fake_build_run_summary(dataset: object, run_key: str, **kwargs) -> RunSummary:
+        assert dataset is Context.dataset
+        assert run_key == "albumentationsx-20260731T150000Z-first"
+        assert kwargs["selected_output_key"] == ""
+        return RunSummary(
+            run_key=run_key,
+            status="ok",
+            message="loaded",
+            generated_outputs=(output,),
+        )
+
     monkeypatch.setattr(view_run_operator_module, "list_available_run_keys", fake_list_available_run_keys)
+    monkeypatch.setattr(view_run_operator_module, "build_run_summary", fake_build_run_summary)
 
     input_json = operator.resolve_input(Context()).to_json()
     output_json = operator.resolve_output(ctx=None).to_json()
@@ -70,6 +101,10 @@ def test_view_run_operator_resolves_run_selector_and_output(monkeypatch) -> None
     )
     assert input_properties["run_key"]["default"] == "albumentationsx-20260731T150000Z-first"
     assert input_properties["run_key"]["view"]["name"] == "AutocompleteView"
+    assert input_properties["output_key"]["type"]["name"] == "Enum"
+    assert input_properties["output_key"]["default"] == "0|source-1|0|images/output.png"
+    assert input_properties["open_generated_samples"]["type"]["name"] == "Boolean"
+    assert input_properties["open_generated_samples"]["view"]["name"] == "CheckboxView"
     assert output_properties["status"]["type"]["name"] == "String"
     assert output_properties["cleanup_status"]["type"]["name"] == "String"
     assert output_properties["cleaned_at"]["type"]["name"] == "String"
@@ -77,6 +112,9 @@ def test_view_run_operator_resolves_run_selector_and_output(monkeypatch) -> None
     assert output_properties["run_label_slug"]["type"]["name"] == "String"
     assert output_properties["source_count"]["type"]["name"] == "Number"
     assert output_properties["replay_available"]["type"]["name"] == "Boolean"
+    assert output_properties["generated_outputs_json"]["type"]["name"] == "String"
+    assert output_properties["selected_replay_json"]["type"]["name"] == "String"
+    assert output_properties["selected_output_available"]["type"]["name"] == "Boolean"
     assert output_properties["pipeline_config_json"]["type"]["name"] == "String"
 
 
@@ -142,6 +180,7 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
         dataset = object()
         params = {
             "run_key": "albumentationsx-20260731T150000Z-run",
+            OUTPUT_KEY_FIELD_NAME: "0|source-1|0|images/output.png",
             STORAGE_ROOT_PARAM_NAME: "/tmp/plugin-storage",
         }
 
@@ -149,6 +188,7 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
         assert dataset is Context.dataset
         assert run_key == "albumentationsx-20260731T150000Z-run"
         assert kwargs["storage_root"] == "/tmp/plugin-storage"
+        assert kwargs["selected_output_key"] == "0|source-1|0|images/output.png"
         return RunSummary(
             run_key=run_key,
             status="ok",
@@ -160,11 +200,30 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
             source_count=2,
             created_count=2,
             pipeline_summary="HorizontalFlip(p=1.0)",
+            generated_outputs=(
+                RunOutputSummary(
+                    key="0|source-1|0|images/output.png",
+                    position=0,
+                    label="#1 source=source-1 output_index=0 status=available path=images/output.png",
+                    status="available",
+                    source_sample_id="source-1",
+                    output_index=0,
+                    output_path="images/output.png",
+                    generated_sample_id="created-1",
+                    generated_sample_available=True,
+                    output_file_available=True,
+                    replay_available=True,
+                    replay_record={"replay": {"applied": True}},
+                ),
+            ),
+            selected_output_key="0|source-1|0|images/output.png",
         )
 
     monkeypatch.setattr(view_run_operator_module, "build_run_summary", fake_build_run_summary)
 
-    assert operator.execute(Context()) == {
+    result = operator.execute(Context())
+
+    assert result == {
         "run_key": "albumentationsx-20260731T150000Z-run",
         "status": "ok",
         "message": "loaded",
@@ -184,9 +243,87 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
         "replay_available": False,
         "output_tag": "",
         "output_dir": "",
+        "generated_sample_ids_json": '["created-1"]',
+        "available_generated_sample_ids_json": '["created-1"]',
+        "generated_outputs_json": result["generated_outputs_json"],
+        "selected_output_key": "0|source-1|0|images/output.png",
+        "selected_output_status": "available",
+        "selected_source_sample_id": "source-1",
+        "selected_generated_sample_id": "created-1",
+        "selected_output_index": 0,
+        "selected_output_path": "images/output.png",
+        "selected_output_available": True,
+        "selected_replay_json": '{"replay": {"applied": true}}',
         "plugin_version": "",
         "dependency_versions_json": "{}",
         "pipeline_summary": "HorizontalFlip(p=1.0)",
         "pipeline_config_json": "",
         "errors_json": "",
     }
+    assert json.loads(str(result["generated_outputs_json"])) == [
+        {
+            "key": "0|source-1|0|images/output.png",
+            "position": 0,
+            "label": "#1 source=source-1 output_index=0 status=available path=images/output.png",
+            "status": "available",
+            "source_sample_id": "source-1",
+            "output_index": 0,
+            "output_path": "images/output.png",
+            "generated_sample_id": "created-1",
+            "generated_sample_available": True,
+            "output_file_available": True,
+            "replay_available": True,
+            "replay_record": {"replay": {"applied": True}},
+        }
+    ]
+
+
+@pytest.mark.unit
+def test_view_run_operator_can_trigger_generated_sample_view(monkeypatch) -> None:
+    operator = ViewAlbumentationsXRun()
+
+    class Context:
+        dataset = object()
+        triggered: list[tuple[str, dict[str, object]]] = []
+        params = {
+            RUN_KEY_FIELD_NAME: "albumentationsx-20260731T150000Z-run",
+            OPEN_GENERATED_SAMPLES_FIELD_NAME: True,
+        }
+
+        @classmethod
+        def trigger(cls, operator_name: str, params: dict[str, object]) -> None:
+            cls.triggered.append((operator_name, params))
+
+    def fake_build_run_summary(dataset: object, run_key: str, **kwargs) -> RunSummary:
+        return RunSummary(
+            run_key=run_key,
+            status="ok",
+            message="loaded",
+            generated_outputs=(
+                RunOutputSummary(
+                    key="0|source-1|0|images/output.png",
+                    position=0,
+                    label="#1 source=source-1 output_index=0 status=available path=images/output.png",
+                    status="available",
+                    generated_sample_id="created-1",
+                    generated_sample_available=True,
+                    output_file_available=True,
+                ),
+                RunOutputSummary(
+                    key="1|source-2|0|images/missing.png",
+                    position=1,
+                    label="#2 source=source-2 output_index=0 status=missing_sample path=images/missing.png",
+                    status="missing_sample",
+                    generated_sample_id="missing-created",
+                    generated_sample_available=False,
+                    output_file_available=True,
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(view_run_operator_module, "build_run_summary", fake_build_run_summary)
+
+    result = operator.execute(Context())
+
+    assert result["available_generated_sample_ids_json"] == '["created-1"]'
+    assert Context.triggered == [("show_samples", {"samples": ["created-1"], "use_extended_selection": False})]
