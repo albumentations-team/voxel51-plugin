@@ -132,8 +132,10 @@ plugin-owned storage directory and tagged with the run key; source samples and
 source files remain unchanged. Non-dry runs also save
 `manifest.json` under the run output directory and register the manifest in
 FiftyOne's custom run store.
-Then run `View AlbumentationsX Run` to inspect persisted counts, versions,
-transform config, replay availability, and stale/missing manifest state. Run
+Then run `View AlbumentationsX Run` to inspect persisted counts, generated
+sample availability, versions, transform config, per-output replay records, and
+stale/missing manifest state. The viewer can also open the generated samples
+that still exist in the active dataset. Run
 `Delete AlbumentationsX Run` with confirmation checked to remove generated
 samples/files and the FiftyOne custom run; source samples and source files
 remain unchanged. Cleaned runs remain inspectable through the retained manifest

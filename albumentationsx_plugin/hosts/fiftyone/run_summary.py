@@ -19,6 +19,7 @@ from albumentationsx_plugin.core import (
     MediaIOError,
     RunManifest,
 )
+from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.runs import FIFTYONE_RUN_METHOD, build_fiftyone_run_key
 from albumentationsx_plugin.hosts.fiftyone.samples import summarize_pipeline
 from albumentationsx_plugin.storage.manifest import (
@@ -34,6 +35,11 @@ RUN_STATUS_MISSING = "missing_manifest"
 RUN_STATUS_INVALID = "invalid_manifest"
 RUN_STATUS_NOT_FOUND = "not_found"
 RUN_STATUS_INPUT_REQUIRED = "input_required"
+RUN_OUTPUT_STATUS_AVAILABLE = "available"
+RUN_OUTPUT_STATUS_CLEANED = RUN_STATUS_CLEANED
+RUN_OUTPUT_STATUS_MISSING_FILE = "missing_output_file"
+RUN_OUTPUT_STATUS_MISSING_SAMPLE = "missing_sample"
+RUN_OUTPUT_STATUS_MISSING = "missing"
 
 
 class RunDataset(Protocol):
@@ -60,6 +66,42 @@ class DeletableRunDataset(RunDataset, Protocol):
     def select(self, sample_ids: Sequence[str], ordered: bool = False) -> Any:
         """Return a view containing existing sample IDs."""
         ...
+
+
+@dataclass(frozen=True, slots=True)
+class RunOutputSummary:
+    """Read-only summary of one manifest-listed generated output."""
+
+    key: str
+    position: int
+    label: str
+    status: str
+    source_sample_id: str = ""
+    output_index: int = 0
+    output_path: str = ""
+    generated_sample_id: str = ""
+    generated_sample_available: bool = False
+    output_file_available: bool = False
+    replay_available: bool = False
+    replay_record: Mapping[str, object] | None = None
+
+    def to_dict(self) -> JSONDict:
+        """Serialize the generated output for FiftyOne operator output."""
+
+        return {
+            "key": self.key,
+            "position": self.position,
+            "label": self.label,
+            "status": self.status,
+            "source_sample_id": self.source_sample_id,
+            "output_index": self.output_index,
+            "output_path": self.output_path,
+            "generated_sample_id": self.generated_sample_id,
+            "generated_sample_available": self.generated_sample_available,
+            "output_file_available": self.output_file_available,
+            "replay_available": self.replay_available,
+            "replay_record": normalize_json_mapping(self.replay_record),
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,10 +132,13 @@ class RunSummary:
     pipeline_summary: str = ""
     pipeline_config_json: str = ""
     errors_json: str = ""
+    generated_outputs: tuple[RunOutputSummary, ...] = ()
+    selected_output_key: str = ""
 
     def to_dict(self) -> JSONDict:
         """Serialize the summary for FiftyOne operator output."""
 
+        selected_output = self.selected_output
         return {
             "run_key": self.run_key,
             "status": self.status,
@@ -119,7 +164,46 @@ class RunSummary:
             "pipeline_summary": self.pipeline_summary,
             "pipeline_config_json": self.pipeline_config_json,
             "errors_json": self.errors_json,
+            "generated_sample_ids_json": _json_dump(self.generated_sample_ids),
+            "available_generated_sample_ids_json": _json_dump(self.available_generated_sample_ids),
+            "generated_outputs_json": _json_dump([output.to_dict() for output in self.generated_outputs]),
+            "selected_output_key": selected_output.key if selected_output else "",
+            "selected_output_status": selected_output.status if selected_output else "",
+            "selected_source_sample_id": selected_output.source_sample_id if selected_output else "",
+            "selected_generated_sample_id": selected_output.generated_sample_id if selected_output else "",
+            "selected_output_index": selected_output.output_index if selected_output else 0,
+            "selected_output_path": selected_output.output_path if selected_output else "",
+            "selected_output_available": _selected_output_available(selected_output),
+            "selected_replay_json": _json_dump(dict(selected_output.replay_record or {}) if selected_output else {}),
         }
+
+    @property
+    def generated_sample_ids(self) -> tuple[str, ...]:
+        """Return manifest-listed created sample IDs in output order."""
+
+        return tuple(output.generated_sample_id for output in self.generated_outputs if output.generated_sample_id)
+
+    @property
+    def available_generated_sample_ids(self) -> tuple[str, ...]:
+        """Return generated sample IDs still present in the active dataset."""
+
+        return tuple(
+            output.generated_sample_id
+            for output in self.generated_outputs
+            if output.generated_sample_id and output.generated_sample_available
+        )
+
+    @property
+    def selected_output(self) -> RunOutputSummary | None:
+        """Return the selected generated output, defaulting to the first one."""
+
+        if not self.generated_outputs:
+            return None
+        if self.selected_output_key:
+            for output in self.generated_outputs:
+                if output.key == self.selected_output_key:
+                    return output
+        return self.generated_outputs[0]
 
 
 def list_available_run_keys(
@@ -151,6 +235,7 @@ def build_run_summary(
     run_key: str,
     *,
     storage_root: str | PathLike[str] | None = None,
+    selected_output_key: str = "",
 ) -> RunSummary:
     """Build a read-only summary for one run key."""
 
@@ -184,9 +269,11 @@ def build_run_summary(
 
     return _manifest_summary(
         manifest,
+        dataset=dataset,
         run_dir=store.run_dir(manifest.run_key),
         manifest_path=store.manifest_path(manifest.run_key),
         fiftyone_run_key=fiftyone_run_key or _metadata_str(manifest.metadata, "fiftyone_run_key"),
+        selected_output_key=selected_output_key,
     )
 
 
@@ -251,12 +338,27 @@ def _manifest_has_deletable_artifacts(
 
 
 def _existing_created_sample_count(dataset: DeletableRunDataset, sample_ids: tuple[str, ...]) -> int:
+    return len(_existing_created_sample_ids(dataset, sample_ids))
+
+
+def _existing_created_sample_ids(dataset: RunDataset, sample_ids: Sequence[str]) -> tuple[str, ...]:
     if not sample_ids:
-        return 0
+        return ()
+    select = getattr(dataset, "select", None)
+    if not callable(select):
+        return ()
     try:
-        return len({str(sample_id) for sample_id in dataset.select(sample_ids).values("id")})
+        view = select(tuple(sample_ids))
+        values = getattr(view, "values", None)
+        if not callable(values):
+            return ()
+        raw_existing_ids = values("id")
+        if not isinstance(raw_existing_ids, Sequence) or isinstance(raw_existing_ids, str):
+            return ()
+        existing_ids = {str(sample_id) for sample_id in raw_existing_ids}
     except Exception:
-        return 0
+        return ()
+    return tuple(sample_id for sample_id in sample_ids if sample_id in existing_ids)
 
 
 def _lookup_fiftyone_run_key(dataset: RunDataset, plugin_run_key: str) -> str:
@@ -314,9 +416,11 @@ def _error_summary(
 def _manifest_summary(
     manifest: RunManifest,
     *,
+    dataset: RunDataset,
     run_dir: Path,
     manifest_path: Path,
     fiftyone_run_key: str,
+    selected_output_key: str,
 ) -> RunSummary:
     available_output_count, missing_output_count = _output_file_counts(run_dir, manifest.output_paths)
     cleanup_status = _metadata_str(manifest.metadata, RUN_CLEANUP_STATUS_METADATA_KEY)
@@ -330,6 +434,12 @@ def _manifest_summary(
         status = RUN_STATUS_STALE
         message = f"Run manifest loaded, but {missing_output_count} output file(s) are missing."
 
+    generated_outputs = _run_outputs(
+        dataset,
+        manifest,
+        run_dir=run_dir,
+        cleanup_status=cleanup_status,
+    )
     return RunSummary(
         run_key=manifest.run_key,
         status=status,
@@ -355,6 +465,8 @@ def _manifest_summary(
         pipeline_summary=summarize_pipeline(manifest.pipeline),
         pipeline_config_json=_json_dump(manifest.pipeline.to_dict()),
         errors_json=_json_dump([dict(error) for error in manifest.errors]),
+        generated_outputs=generated_outputs,
+        selected_output_key=selected_output_key,
     )
 
 
@@ -372,6 +484,144 @@ def _output_file_counts(run_dir: Path, output_paths: tuple[str, ...]) -> tuple[i
         else:
             missing_count += 1
     return available_count, missing_count
+
+
+def _run_outputs(
+    dataset: RunDataset,
+    manifest: RunManifest,
+    *,
+    run_dir: Path,
+    cleanup_status: str,
+) -> tuple[RunOutputSummary, ...]:
+    available_sample_ids = set(_existing_created_sample_ids(dataset, manifest.created_sample_ids))
+    output_count = max(len(manifest.output_paths), len(manifest.replay_records), len(manifest.created_sample_ids))
+    outputs: list[RunOutputSummary] = []
+    for position in range(output_count):
+        replay_record = _sequence_mapping(manifest.replay_records, position)
+        output_path = _sequence_str(manifest.output_paths, position) or _mapping_str(replay_record, "output_path")
+        source_sample_id = _mapping_str(replay_record, "source_sample_id")
+        output_index = _mapping_int(replay_record, "output_index", fallback=position)
+        generated_sample_id = _sequence_str(manifest.created_sample_ids, position)
+        output_file_available = _output_file_available(run_dir, output_path)
+        generated_sample_available = bool(generated_sample_id and generated_sample_id in available_sample_ids)
+        status = _run_output_status(
+            cleanup_status=cleanup_status,
+            output_path=output_path,
+            output_file_available=output_file_available,
+            generated_sample_id=generated_sample_id,
+            generated_sample_available=generated_sample_available,
+        )
+        key = _run_output_key(
+            position=position,
+            source_sample_id=source_sample_id,
+            output_index=output_index,
+            output_path=output_path,
+        )
+        outputs.append(
+            RunOutputSummary(
+                key=key,
+                position=position,
+                label=_run_output_label(
+                    position=position,
+                    source_sample_id=source_sample_id,
+                    output_index=output_index,
+                    output_path=output_path,
+                    status=status,
+                ),
+                status=status,
+                source_sample_id=source_sample_id,
+                output_index=output_index,
+                output_path=output_path,
+                generated_sample_id=generated_sample_id,
+                generated_sample_available=generated_sample_available,
+                output_file_available=output_file_available,
+                replay_available=bool(replay_record),
+                replay_record=replay_record,
+            )
+        )
+    return tuple(outputs)
+
+
+def _output_file_available(run_dir: Path, output_path: str) -> bool:
+    if not output_path:
+        return False
+    try:
+        resolved_path = resolve_manifest_output_path(run_dir, output_path)
+    except MediaIOError:
+        return False
+    return resolved_path.exists()
+
+
+def _run_output_status(
+    *,
+    cleanup_status: str,
+    output_path: str,
+    output_file_available: bool,
+    generated_sample_id: str,
+    generated_sample_available: bool,
+) -> str:
+    if cleanup_status == RUN_CLEANUP_STATUS_CLEANED:
+        return RUN_OUTPUT_STATUS_CLEANED
+    if output_path and not output_file_available:
+        return RUN_OUTPUT_STATUS_MISSING_FILE
+    if output_file_available and (not generated_sample_id or generated_sample_available):
+        return RUN_OUTPUT_STATUS_AVAILABLE
+    if generated_sample_id and not generated_sample_available:
+        return RUN_OUTPUT_STATUS_MISSING_SAMPLE
+    return RUN_OUTPUT_STATUS_MISSING
+
+
+def _run_output_key(
+    *,
+    position: int,
+    source_sample_id: str,
+    output_index: int,
+    output_path: str,
+) -> str:
+    return "|".join((str(position), source_sample_id, str(output_index), output_path))
+
+
+def _run_output_label(
+    *,
+    position: int,
+    source_sample_id: str,
+    output_index: int,
+    output_path: str,
+    status: str,
+) -> str:
+    source = source_sample_id or "unknown-source"
+    output = output_path or "unknown-output"
+    return f"#{position + 1} source={source} output_index={output_index} status={status} path={output}"
+
+
+def _sequence_str(values: Sequence[str], position: int) -> str:
+    if 0 <= position < len(values):
+        value = values[position]
+        return value if isinstance(value, str) else ""
+    return ""
+
+
+def _sequence_mapping(values: Sequence[Mapping[str, object]], position: int) -> Mapping[str, object]:
+    if 0 <= position < len(values):
+        value = values[position]
+        return value if isinstance(value, Mapping) else {}
+    return {}
+
+
+def _mapping_str(value: Mapping[str, object], name: str) -> str:
+    raw_value = value.get(name, "")
+    return raw_value if isinstance(raw_value, str) else ""
+
+
+def _mapping_int(value: Mapping[str, object], name: str, *, fallback: int) -> int:
+    raw_value = value.get(name, fallback)
+    return raw_value if isinstance(raw_value, int) else fallback
+
+
+def _selected_output_available(output: RunOutputSummary | None) -> bool:
+    if output is None:
+        return False
+    return output.generated_sample_available and output.output_file_available
 
 
 def _counter(counters: Mapping[str, int], name: str, *, fallback: int) -> int:
