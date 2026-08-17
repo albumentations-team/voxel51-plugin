@@ -17,13 +17,10 @@ from albumentationsx_plugin.hosts.fiftyone.capabilities import (
     build_capability_filter_choices,
     missing_dependency_browser_result,
 )
+from albumentationsx_plugin.hosts.fiftyone.dependencies import is_known_runtime_dependency
 
 OPERATOR_NAME = "show_albumentationsx_capabilities"
 OPERATOR_LABEL = "Show AlbumentationsX Capabilities"
-RUNTIME_DEPENDENCY_PACKAGES = {
-    "albumentations": "albumentationsx",
-    "albu_spec": "albu-spec",
-}
 
 
 class ShowAlbumentationsXCapabilities(foo.Operator):
@@ -191,4 +188,4 @@ def _string_param(value: object) -> str:
 
 
 def _is_missing_runtime_dependency(error: ModuleNotFoundError) -> bool:
-    return error.name in RUNTIME_DEPENDENCY_PACKAGES
+    return is_known_runtime_dependency(error)

@@ -13,6 +13,7 @@ from albumentationsx_plugin.hosts.fiftyone.capabilities import (
     CapabilityBrowserFilters,
     build_capability_browser_result,
     build_capability_filter_choices,
+    missing_dependency_browser_result,
 )
 from albumentationsx_plugin.hosts.fiftyone.operators.capabilities import (
     OPERATOR_NAME,
@@ -196,6 +197,36 @@ def test_capability_operator_resolves_filter_inputs_and_outputs(monkeypatch) -> 
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("missing_name", ("albumentations", "albu_spec"))
+def test_capability_operator_resolve_input_missing_runtime_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+    missing_name: str,
+) -> None:
+    error = _missing_module_error(missing_name)
+
+    def raise_missing_dependency() -> None:
+        raise error
+
+    monkeypatch.setattr(
+        capabilities_operator_module,
+        "build_capability_filter_choices",
+        raise_missing_dependency,
+    )
+
+    input_json = ShowAlbumentationsXCapabilities().resolve_input(ctx=None).to_json()
+    properties = input_json["type"]["properties"]
+    message_property = properties["missing_runtime_dependency"]
+
+    assert tuple(properties) == ("missing_runtime_dependency",)
+    assert message_property["type"]["name"] == "Void"
+    assert message_property["view"]["label"] == "Missing runtime dependency"
+    assert message_property["view"]["description"] == missing_dependency_browser_result(error)["message"]
+    assert "query" not in properties
+    assert "status_filter" not in properties
+    assert "target_filter" not in properties
+
+
+@pytest.mark.unit
 def test_capability_operator_execute_uses_filters(monkeypatch) -> None:
     operator = ShowAlbumentationsXCapabilities()
 
@@ -222,6 +253,45 @@ def test_capability_operator_execute_uses_filters(monkeypatch) -> None:
     monkeypatch.setattr(capabilities_operator_module, "build_capability_browser_result", fake_build_result)
 
     assert operator.execute(Context()) == {"status": "ok", "matching_count": 1}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("missing_name", ("albumentations", "albu_spec"))
+def test_capability_operator_execute_missing_runtime_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+    missing_name: str,
+) -> None:
+    error = _missing_module_error(missing_name)
+
+    class Context:
+        params = {
+            "query": "normalize",
+            "status_filter": "unsupported_output",
+            "target_filter": "image",
+        }
+
+    def raise_missing_dependency(filters: CapabilityBrowserFilters) -> Any:
+        assert filters == CapabilityBrowserFilters(query="normalize", status="unsupported_output", target="image")
+        raise error
+
+    monkeypatch.setattr(
+        capabilities_operator_module,
+        "build_capability_browser_result",
+        raise_missing_dependency,
+    )
+
+    payload = ShowAlbumentationsXCapabilities().execute(Context())
+
+    assert payload == missing_dependency_browser_result(error)
+    assert payload["status"] == "error"
+    assert payload["albumentationsx_version"] == ""
+    assert payload["albu_spec_version"] == ""
+    assert payload["capability_version_key"] == ""
+    assert payload["total_count"] == 0
+    assert payload["matching_count"] == 0
+    assert payload["supported_count"] == 0
+    assert payload["excluded_count"] == 0
+    assert payload["transforms"] == []
 
 
 @pytest.mark.unit
@@ -253,3 +323,7 @@ def _first_row(payload: Mapping[str, object]) -> Mapping[str, object]:
     row = rows[0]
     assert isinstance(row, Mapping)
     return row
+
+
+def _missing_module_error(module_name: str) -> ModuleNotFoundError:
+    return ModuleNotFoundError(f"No module named '{module_name}'", name=module_name)

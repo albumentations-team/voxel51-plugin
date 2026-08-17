@@ -12,6 +12,7 @@ from typing import Protocol, cast
 import albumentationsx_plugin
 from albumentationsx_plugin.albumentations_backend.catalog.classification import is_mvp_supported_status
 from albumentationsx_plugin.core import CapabilityStatus, JSONDict, TransformCapability
+from albumentationsx_plugin.hosts.fiftyone.dependencies import runtime_dependency_package_name
 
 ALL_FILTER_VALUE = "all"
 
@@ -203,7 +204,7 @@ def build_capability_filter_choices(
 def missing_dependency_browser_result(error: ModuleNotFoundError) -> JSONDict:
     """Return an output payload when catalog runtime dependencies are missing."""
 
-    package_name = _dependency_package_name(error)
+    package_name = runtime_dependency_package_name(error)
     return {
         "status": "error",
         "message": (
@@ -262,7 +263,7 @@ def _metadata_string(metadata: Mapping[str, object], key: str) -> str:
 
 def _metadata_strings(metadata: Mapping[str, object], key: str) -> tuple[str, ...]:
     value = metadata.get(key)
-    if not isinstance(value, list | tuple):
+    if not isinstance(value, (list, tuple)):
         return ()
     return tuple(str(item) for item in value)
 
@@ -285,11 +286,6 @@ def _string_param(value: object) -> str:
 def _filter_param(value: object) -> str:
     value = _string_param(value)
     return value or ALL_FILTER_VALUE
-
-
-def _dependency_package_name(error: ModuleNotFoundError) -> str:
-    module_name = error.name or ""
-    return cast(str, {"albumentations": "albumentationsx", "albu_spec": "albu-spec"}.get(module_name, module_name))
 
 
 def _default_catalog_provider() -> CapabilityCatalogProvider:
