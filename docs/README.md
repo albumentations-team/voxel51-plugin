@@ -17,6 +17,8 @@ these files hold development workflow, review, and release notes.
   FiftyOne label conversion through Albumentations targets.
 - [albu-spec catalog](albu-spec-catalog.md): version-aware transform capability
   registry and review report.
+- [Capability browser](capability-browser.md): read-only FiftyOne operator for
+  searching and filtering transform support metadata.
 - [albu-spec integration audit](albu-spec-integration-audit.md): integration
   contract, upstream escalation policy, and current metadata findings.
 - [Parameter schema](parameter-schema.md): host-neutral parameter field

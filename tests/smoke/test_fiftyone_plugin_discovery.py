@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_NAME = "@albumentations/albumentationsx"
 EXPECTED_OPERATOR_URIS = {
     f"{PLUGIN_NAME}/augment_with_albumentationsx",
+    f"{PLUGIN_NAME}/show_albumentationsx_capabilities",
     f"{PLUGIN_NAME}/view_albumentationsx_run",
     f"{PLUGIN_NAME}/delete_albumentationsx_run",
 }

@@ -10,6 +10,10 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
+from albumentationsx_plugin.hosts.fiftyone.dependencies import (
+    is_known_runtime_dependency,
+    runtime_dependency_package_name,
+)
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_FIELD_NAME,
     EXECUTION_SCOPE_SELECTED_SAMPLES,
@@ -28,10 +32,6 @@ from albumentationsx_plugin.hosts.fiftyone.presets import (
 OPERATOR_NAME = "augment_with_albumentationsx"
 OPERATOR_LABEL = "Augment with AlbumentationsX"
 NO_SELECTION_ERROR_CODE = "no_selected_samples"
-RUNTIME_DEPENDENCY_PACKAGES = {
-    "albumentations": "albumentationsx",
-    "albu_spec": "albu-spec",
-}
 
 
 class AugmentWithAlbumentationsX(foo.Operator):
@@ -284,12 +284,11 @@ def _trigger_dataset_reload(ctx: Any, result: Any) -> None:
 
 
 def _is_missing_runtime_dependency(error: ModuleNotFoundError) -> bool:
-    return error.name in RUNTIME_DEPENDENCY_PACKAGES
+    return is_known_runtime_dependency(error)
 
 
 def _dependency_package_name(error: ModuleNotFoundError) -> str:
-    module_name = error.name or ""
-    return RUNTIME_DEPENDENCY_PACKAGES.get(module_name, module_name)
+    return runtime_dependency_package_name(error)
 
 
 def _missing_dependency_message(error: ModuleNotFoundError) -> str:
