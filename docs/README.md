@@ -17,6 +17,8 @@ these files hold development workflow, review, and release notes.
   FiftyOne label conversion through Albumentations targets.
 - [Augmentation preview](augmentation-preview.md): non-persistent selected-sample
   preview path and verification checklist.
+- [Cancellation semantics](cancellation.md): interrupted-run checkpointing,
+  retained partial outputs, and cleanup guarantees.
 - [albu-spec catalog](albu-spec-catalog.md): version-aware transform capability
   registry and review report.
 - [Capability browser](capability-browser.md): read-only FiftyOne operator for

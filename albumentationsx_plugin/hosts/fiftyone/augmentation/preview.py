@@ -12,7 +12,7 @@ from typing import Any
 import fiftyone as fo
 from PIL import Image
 
-from albumentationsx_plugin.core import JSONDict, PluginError
+from albumentationsx_plugin.core import RUN_EXECUTION_STATUS_PREVIEW, JSONDict, PluginError
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import AppliedOutput, apply_output
 from albumentationsx_plugin.hosts.fiftyone.augmentation.runtime import build_fixed_augmentation_runtime
@@ -91,6 +91,7 @@ class FixedAugmentationPreviewResult:
             "skipped_count": self.skipped_count,
             "error_count": self.error_count,
             "dry_run": False,
+            "execution_status": RUN_EXECUTION_STATUS_PREVIEW,
             "output_tag": "",
             "output_dir": "",
             "manifest_path": "",

@@ -12,7 +12,15 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from albumentationsx_plugin.core import InvalidParameterError, MediaIOError, RunManifest
+from albumentationsx_plugin.core import (
+    RUN_EXECUTION_CANCELLED_AT_METADATA_KEY,
+    RUN_EXECUTION_STATUS_CANCELLED,
+    RUN_EXECUTION_STATUS_METADATA_KEY,
+    AugmentationCancelledError,
+    InvalidParameterError,
+    MediaIOError,
+    RunManifest,
+)
 from albumentationsx_plugin.hosts.fiftyone.annotations import (
     SELECTED_LABEL_FIELDS_PARAM_NAME,
     annotation_field_param_name,
@@ -40,6 +48,7 @@ from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
     ViewAlbumentationsXRun,
 )
 from albumentationsx_plugin.hosts.fiftyone.progress import AugmentationProgress
+from albumentationsx_plugin.hosts.fiftyone.run_cleanup import cleanup_run
 from albumentationsx_plugin.hosts.fiftyone.samples import (
     DEFAULT_OUTPUT_TAG,
     RUN_KEY_FIELD,
@@ -129,6 +138,16 @@ class _RecordingProgressReporter:
         self.events.append(progress)
 
 
+class _CancelAfterFirstCreatedSample:
+    def __init__(self) -> None:
+        self.checks = 0
+
+    def raise_if_cancelled(self) -> None:
+        self.checks += 1
+        if self.checks >= 4:
+            raise AugmentationCancelledError(context={"reason": "test_cancelled"})
+
+
 @pytest.mark.integration
 def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_path) -> None:
     dataset_name = _dataset_name()
@@ -214,6 +233,78 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
         assert final_progress.created_outputs == 2
         assert final_progress.skipped_sources == 0
         assert final_progress.errors == 0
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_persists_cancelled_partial_run_for_cleanup(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    storage_root = tmp_path / "plugin-storage"
+    try:
+        dataset = fo.Dataset(dataset_name)
+        first_path = _write_source_image(tmp_path, "first")
+        second_path = _write_source_image(tmp_path, "second", width=6, height=5)
+        first_id = dataset.add_sample(_sample(first_path, tag="first"))
+        second_id = dataset.add_sample(_sample(second_path, width=6, height=5, tag="second"))
+        source_filepaths = {
+            first_id: _load_sample(dataset, first_id).filepath,
+            second_id: _load_sample(dataset, second_id).filepath,
+        }
+        progress_reporter = _RecordingProgressReporter()
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(first_id, second_id),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+            },
+            storage_root=storage_root,
+            progress_reporter=progress_reporter,
+            cancellation_checker=_CancelAfterFirstCreatedSample(),
+        )
+
+        assert result.execution_status == RUN_EXECUTION_STATUS_CANCELLED
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        assert result.skipped_count == 0
+        assert result.error_count == 1
+        assert result.errors[0]["code"] == "augmentation_cancelled"
+        assert result.fiftyone_run_key in dataset.list_runs()
+        assert len(dataset) == 3
+        assert _load_sample(dataset, first_id).filepath == source_filepaths[first_id]
+        assert _load_sample(dataset, second_id).filepath == source_filepaths[second_id]
+
+        created = _output_samples(dataset)
+        assert len(created) == 1
+        manifest = FileRunStore(dataset.name, storage_root=storage_root).load_manifest(result.run_key)
+        assert manifest.metadata[RUN_EXECUTION_STATUS_METADATA_KEY] == RUN_EXECUTION_STATUS_CANCELLED
+        assert isinstance(manifest.metadata[RUN_EXECUTION_CANCELLED_AT_METADATA_KEY], str)
+        assert manifest.created_sample_ids == (str(created[0].id),)
+        assert len(manifest.output_paths) == 1
+        assert manifest.counters == {"processed": 1, "created": 1, "skipped": 0, "errors": 1, "outputs": 1}
+        output_path = Path(result.output_dir) / manifest.output_paths[0]
+        assert output_path.is_file()
+
+        final_progress = progress_reporter.events[-1]
+        assert final_progress.stage == "cancelled"
+        assert final_progress.processed_sources == 1
+        assert final_progress.created_outputs == 1
+        assert final_progress.errors == 1
+
+        cleanup = cleanup_run(cast(Any, dataset), result.run_key, confirmed=True, storage_root=storage_root)
+
+        assert cleanup.deleted_sample_count == 1
+        assert cleanup.deleted_file_count == 1
+        assert cleanup.custom_run_deleted is True
+        assert result.fiftyone_run_key not in dataset.list_runs()
+        assert not output_path.exists()
+        assert _load_sample(dataset, first_id).filepath == source_filepaths[first_id]
+        assert _load_sample(dataset, second_id).filepath == source_filepaths[second_id]
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)

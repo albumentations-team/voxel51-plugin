@@ -1,6 +1,7 @@
 """Host-neutral contracts for the AlbumentationsX plugin."""
 
 from albumentationsx_plugin.core.errors import (
+    AugmentationCancelledError,
     ErrorCode,
     HostAdapterError,
     InvalidParameterError,
@@ -29,6 +30,13 @@ from albumentationsx_plugin.core.models import (
     RUN_CLEANED_AT_METADATA_KEY,
     RUN_CLEANUP_STATUS_CLEANED,
     RUN_CLEANUP_STATUS_METADATA_KEY,
+    RUN_EXECUTION_CANCELLED_AT_METADATA_KEY,
+    RUN_EXECUTION_STATUS_CANCELLED,
+    RUN_EXECUTION_STATUS_COMPLETED,
+    RUN_EXECUTION_STATUS_DRY_RUN,
+    RUN_EXECUTION_STATUS_METADATA_KEY,
+    RUN_EXECUTION_STATUS_PREVIEW,
+    RUN_EXECUTION_STATUS_RUNNING,
     RUN_LABEL_FIELD_NAME,
     RUN_LABEL_SLUG_METADATA_KEY,
     AugmentationInput,
@@ -47,6 +55,7 @@ from albumentationsx_plugin.core.models import (
 
 __all__ = [
     "AugmentationInput",
+    "AugmentationCancelledError",
     "AugmentationResult",
     "CapabilityStatus",
     "DEFAULT_BRIGHTNESS_RANGE",
@@ -75,6 +84,13 @@ __all__ = [
     "RUN_CLEANED_AT_METADATA_KEY",
     "RUN_CLEANUP_STATUS_CLEANED",
     "RUN_CLEANUP_STATUS_METADATA_KEY",
+    "RUN_EXECUTION_CANCELLED_AT_METADATA_KEY",
+    "RUN_EXECUTION_STATUS_CANCELLED",
+    "RUN_EXECUTION_STATUS_COMPLETED",
+    "RUN_EXECUTION_STATUS_DRY_RUN",
+    "RUN_EXECUTION_STATUS_METADATA_KEY",
+    "RUN_EXECUTION_STATUS_PREVIEW",
+    "RUN_EXECUTION_STATUS_RUNNING",
     "RUN_LABEL_FIELD_NAME",
     "RUN_LABEL_SLUG_METADATA_KEY",
     "RunManifest",

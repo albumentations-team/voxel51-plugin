@@ -8,7 +8,7 @@ from typing import Any, Final, Protocol
 
 DELEGATED_EXECUTION_RECOMMENDED_SOURCE_COUNT: Final[int] = 50
 
-_COMPLETE_STAGES: Final[frozenset[str]] = frozenset({"complete", "dry_run_complete"})
+_COMPLETE_STAGES: Final[frozenset[str]] = frozenset({"complete", "dry_run_complete", "cancelled"})
 _LOGGER = logging.getLogger(__name__)
 
 

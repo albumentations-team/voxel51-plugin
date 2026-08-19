@@ -33,7 +33,7 @@ provenance fields, and manifest lookups.
 - counters for processed, created, skipped, errors, and outputs;
 - structured per-sample errors;
 - metadata with output directory, output tag, FiftyOne run key, execution
-  scope, and resolved source count.
+  scope, execution status, and resolved source count.
 
 Output paths must be relative to the run directory. Absolute paths and parent
 traversal are rejected before the manifest is saved. This makes the manifest the
@@ -63,6 +63,12 @@ Preview runs also do not create output files, run directories, manifests, or
 custom runs. Preview returns in-memory images and JSON diagnostics through the
 operator output only; it is not listed by the run summary or cleanup operators.
 
+Materialized manifests include `metadata.execution_status`. Completed runs use
+`completed`, in-progress checkpoints use `running`, and controlled cancellation
+uses `cancelled` plus `metadata.cancelled_at`. A cancelled run is intentionally
+retained as an inspectable partial run; generated samples and files already
+listed in the manifest can be removed with `Delete AlbumentationsX Run`.
+
 Saved manifests also act as same-dataset augmentation presets. The
 `Augment with AlbumentationsX` form can load a previous run's `pipeline` config
 to prefill transforms, visible parameters, and output count for a new run.
@@ -86,6 +92,7 @@ the manifest as its allowlist, deletes only `created_sample_ids` and
 manifest-listed `output_paths`, and removes the matching FiftyOne custom run.
 The manifest file is retained for auditability and idempotent repeated cleanup.
 Details live in [Run cleanup operator](run-cleanup-operator.md).
+Cancellation-specific guarantees live in [Cancellation semantics](cancellation.md).
 
 ## Verification
 

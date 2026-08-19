@@ -65,6 +65,12 @@ shows guidance that immediate execution is best for small bounded selections,
 while delegated execution is recommended for larger views or datasets so the
 App can stay responsive and display progress.
 
+VOX-47 keeps delegated interruption safe for source data. If a materialized run
+is cancelled through a supported host signal or interrupted by
+`KeyboardInterrupt`, the executor records `execution_status = "cancelled"` in
+the manifest and retains already-listed partial outputs for View/Delete
+recovery.
+
 Executable choices include transforms whose catalog status is:
 
 - `supported`

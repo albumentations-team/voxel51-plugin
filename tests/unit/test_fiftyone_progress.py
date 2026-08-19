@@ -55,6 +55,13 @@ def test_augmentation_progress_marks_empty_complete_runs_done() -> None:
 
 
 @pytest.mark.unit
+def test_augmentation_progress_marks_empty_cancelled_runs_done() -> None:
+    progress = _progress(stage="cancelled", total_sources=0, processed_sources=0)
+
+    assert progress.fraction == 1.0
+
+
+@pytest.mark.unit
 def test_fiftyone_progress_reporter_uses_context_set_progress() -> None:
     calls: list[dict[str, object]] = []
 

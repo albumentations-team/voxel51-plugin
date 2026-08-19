@@ -137,6 +137,13 @@ outputs, skipped sources, and errors. The reporter is non-critical: progress
 backend failures do not fail the augmentation run, and partial failures remain
 inspectable through the run manifest.
 
+VOX-47 adds safe cancellation handling for materialized runs. The supported
+FiftyOne API does not currently expose a stable public cancellation flag, so
+host cancellation detection is best-effort. When the executor observes a
+supported cancellation signal or `KeyboardInterrupt`, it preserves source data,
+marks the manifest as `cancelled`, retains manifest-listed partial outputs for
+inspection, and lets the cleanup operator remove them by run key.
+
 Static parameter errors fail before writing output files when possible. Runtime
 per-sample errors, such as a `RandomCrop` larger than one selected image, are
 reported in the operator summary while allowing other selected samples to

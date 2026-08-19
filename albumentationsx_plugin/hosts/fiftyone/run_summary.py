@@ -13,6 +13,10 @@ from albumentationsx_plugin.core import (
     RUN_CLEANED_AT_METADATA_KEY,
     RUN_CLEANUP_STATUS_CLEANED,
     RUN_CLEANUP_STATUS_METADATA_KEY,
+    RUN_EXECUTION_CANCELLED_AT_METADATA_KEY,
+    RUN_EXECUTION_STATUS_CANCELLED,
+    RUN_EXECUTION_STATUS_COMPLETED,
+    RUN_EXECUTION_STATUS_METADATA_KEY,
     RUN_LABEL_FIELD_NAME,
     RUN_LABEL_SLUG_METADATA_KEY,
     JSONDict,
@@ -35,6 +39,7 @@ RUN_STATUS_MISSING = "missing_manifest"
 RUN_STATUS_INVALID = "invalid_manifest"
 RUN_STATUS_NOT_FOUND = "not_found"
 RUN_STATUS_INPUT_REQUIRED = "input_required"
+RUN_STATUS_CANCELLED = RUN_EXECUTION_STATUS_CANCELLED
 RUN_OUTPUT_STATUS_AVAILABLE = "available"
 RUN_OUTPUT_STATUS_CLEANED = RUN_STATUS_CLEANED
 RUN_OUTPUT_STATUS_MISSING_FILE = "missing_output_file"
@@ -115,6 +120,8 @@ class RunSummary:
     fiftyone_run_key: str = ""
     cleanup_status: str = ""
     cleaned_at: str = ""
+    execution_status: str = ""
+    cancelled_at: str = ""
     run_label: str = ""
     run_label_slug: str = ""
     source_count: int = 0
@@ -147,6 +154,8 @@ class RunSummary:
             "fiftyone_run_key": self.fiftyone_run_key,
             "cleanup_status": self.cleanup_status,
             "cleaned_at": self.cleaned_at,
+            "execution_status": self.execution_status,
+            "cancelled_at": self.cancelled_at,
             "run_label": self.run_label,
             "run_label_slug": self.run_label_slug,
             "source_count": self.source_count,
@@ -425,6 +434,8 @@ def _manifest_summary(
     available_output_count, missing_output_count = _output_file_counts(run_dir, manifest.output_paths)
     cleanup_status = _metadata_str(manifest.metadata, RUN_CLEANUP_STATUS_METADATA_KEY)
     cleaned_at = _metadata_str(manifest.metadata, RUN_CLEANED_AT_METADATA_KEY)
+    execution_status = _execution_status(manifest.metadata)
+    cancelled_at = _metadata_str(manifest.metadata, RUN_EXECUTION_CANCELLED_AT_METADATA_KEY)
     status = RUN_STATUS_OK
     message = "Run manifest loaded."
     if cleanup_status == RUN_CLEANUP_STATUS_CLEANED:
@@ -433,6 +444,9 @@ def _manifest_summary(
     elif missing_output_count:
         status = RUN_STATUS_STALE
         message = f"Run manifest loaded, but {missing_output_count} output file(s) are missing."
+    elif execution_status == RUN_EXECUTION_STATUS_CANCELLED:
+        status = RUN_STATUS_CANCELLED
+        message = "Run was cancelled; retained partial outputs can be inspected or cleaned up."
 
     generated_outputs = _run_outputs(
         dataset,
@@ -448,6 +462,8 @@ def _manifest_summary(
         fiftyone_run_key=fiftyone_run_key,
         cleanup_status=cleanup_status,
         cleaned_at=cleaned_at,
+        execution_status=execution_status,
+        cancelled_at=cancelled_at,
         run_label=_metadata_str(manifest.metadata, RUN_LABEL_FIELD_NAME),
         run_label_slug=_metadata_str(manifest.metadata, RUN_LABEL_SLUG_METADATA_KEY),
         source_count=_counter(manifest.counters, "processed", fallback=len(manifest.source_sample_ids)),
@@ -632,6 +648,11 @@ def _counter(counters: Mapping[str, int], name: str, *, fallback: int) -> int:
 def _metadata_str(metadata: Mapping[str, Any], name: str) -> str:
     value = metadata.get(name, "")
     return value if isinstance(value, str) else ""
+
+
+def _execution_status(metadata: Mapping[str, Any]) -> str:
+    value = _metadata_str(metadata, RUN_EXECUTION_STATUS_METADATA_KEY)
+    return value if value else RUN_EXECUTION_STATUS_COMPLETED
 
 
 def _json_dump(value: object) -> str:

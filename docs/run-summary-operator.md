@@ -48,6 +48,8 @@ The operator must not mutate samples, files, manifests, or FiftyOne custom runs.
 It reports clear statuses instead of raising UI-visible exceptions:
 
 - `ok`: manifest loaded and listed output files exist;
+- `cancelled`: manifest loaded, execution was cancelled, and retained outputs
+  remain inspectable;
 - `stale`: manifest loaded, but at least one listed output file is missing;
 - `missing_manifest`: FiftyOne custom run exists, but `manifest.json` is gone;
 - `invalid_manifest`: manifest exists but cannot be parsed as the expected JSON

@@ -108,6 +108,8 @@ def test_view_run_operator_resolves_run_selector_and_output(monkeypatch) -> None
     assert output_properties["status"]["type"]["name"] == "String"
     assert output_properties["cleanup_status"]["type"]["name"] == "String"
     assert output_properties["cleaned_at"]["type"]["name"] == "String"
+    assert output_properties["execution_status"]["type"]["name"] == "String"
+    assert output_properties["cancelled_at"]["type"]["name"] == "String"
     assert output_properties["run_label"]["type"]["name"] == "String"
     assert output_properties["run_label_slug"]["type"]["name"] == "String"
     assert output_properties["source_count"]["type"]["name"] == "Number"
@@ -231,6 +233,8 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
         "fiftyone_run_key": "",
         "cleanup_status": "",
         "cleaned_at": "",
+        "execution_status": "",
+        "cancelled_at": "",
         "run_label": "Cats crop test",
         "run_label_slug": "cats-crop-test",
         "source_count": 2,
