@@ -12,7 +12,15 @@ import pytest
 import yaml
 
 import albumentationsx_plugin.hosts.fiftyone.operators.augment as augment_operator_module
-from albumentationsx_plugin.core import PipelineConfig, RunManifest, TransformConfig
+from albumentationsx_plugin.core import (
+    MAX_PIPELINE_STEPS,
+    PipelineConfig,
+    RunManifest,
+    TransformConfig,
+    pipeline_stage_enabled_field_name,
+    pipeline_stage_order_field_name,
+    pipeline_step_field_name,
+)
 from albumentationsx_plugin.hosts.fiftyone.annotations import annotation_field_param_name
 from albumentationsx_plugin.hosts.fiftyone.augmentation import FixedAugmentationExecutionResult
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
@@ -26,7 +34,11 @@ from albumentationsx_plugin.hosts.fiftyone.operators.augment import (
     OPERATOR_NAME,
     AugmentWithAlbumentationsX,
 )
-from albumentationsx_plugin.hosts.fiftyone.presets import PREVIOUS_RUN_KEY_FIELD_NAME, STORAGE_ROOT_PARAM_NAME
+from albumentationsx_plugin.hosts.fiftyone.presets import (
+    PREVIOUS_RUN_KEY_FIELD_NAME,
+    STORAGE_ROOT_PARAM_NAME,
+    operator_params_from_pipeline,
+)
 from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
     MAX_PREVIEW_SAMPLES,
     PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON,
@@ -126,7 +138,7 @@ def _form_properties(input_json: dict[str, Any]) -> dict[str, Any]:
     properties = dict(input_json["type"]["properties"])
     group_names = [
         ANNOTATION_FIELD_GROUP_NAME,
-        *(stage_parameter_group_name(step_number) for step_number in range(1, 4)),
+        *(stage_parameter_group_name(step_number) for step_number in range(1, MAX_PIPELINE_STEPS + 1)),
     ]
     for group_name in group_names:
         group = properties.get(group_name)
@@ -196,6 +208,16 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["pipeline_step_count"]["type"]["name"] == "Number"
     assert input_properties["pipeline_step_count"]["default"] == 1
     assert input_properties["pipeline_step_count"]["required"] is False
+    assert input_properties["pipeline_stage_enabled"]["type"]["name"] == "Boolean"
+    assert input_properties["pipeline_stage_enabled"]["default"] is True
+    assert input_properties["pipeline_stage_enabled"]["view"]["caption"] == (
+        "Skip this stage without clearing its transform settings."
+    )
+    assert input_properties["pipeline_stage_order"]["type"]["name"] == "Number"
+    assert input_properties["pipeline_stage_order"]["default"] == 1
+    assert input_properties["pipeline_stage_order"]["view"]["caption"] == (
+        "Lower values run earlier; ties keep stage slot order."
+    )
     transform_values = input_properties["transform"]["type"]["values"]
     assert input_properties["transform"]["type"]["name"] == "Enum"
     assert input_properties["transform"]["default"] == "HorizontalFlip"
@@ -306,6 +328,33 @@ def test_augment_operator_resolves_ordered_pipeline_steps() -> None:
 
 
 @pytest.mark.unit
+def test_augment_operator_renders_flexible_stage_slots() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        params = {
+            "pipeline_step_count": 4,
+            "transform": "HorizontalFlip",
+            "step_2_transform": "RandomBrightnessContrast",
+            "step_2_pipeline_stage_enabled": False,
+            "step_3_transform": "VerticalFlip",
+            "step_4_transform": "ToGray",
+            "step_4_pipeline_stage_order": 1,
+        }
+
+    input_json = operator.resolve_input(Context()).to_json()
+    input_properties = _form_properties(input_json)
+
+    assert input_properties["pipeline_step_count"]["default"] == 4
+    assert input_properties["_pipeline_stage_4"]["view"]["label"] == "Stage 4"
+    assert input_properties["step_2_pipeline_stage_enabled"]["default"] is False
+    assert input_properties["step_4_pipeline_stage_order"]["default"] == 1
+    assert input_properties["step_4_transform"]["default"] == "ToGray"
+    assert input_properties["step_4_num_output_channels"]["default"] == 3
+    assert "step_5_transform" not in input_properties
+
+
+@pytest.mark.unit
 def test_augment_operator_renders_annotation_field_toggles() -> None:
     operator = AugmentWithAlbumentationsX()
 
@@ -396,6 +445,26 @@ def test_augment_operator_prefills_form_from_previous_run_manifest(tmp_path) -> 
     assert input_properties["step_2_height"]["default"] == 12
     assert input_properties["step_2_width"]["default"] == 10
     assert input_properties["step_2_p"]["default"] == 1.0
+
+
+@pytest.mark.unit
+def test_operator_params_from_pipeline_preserves_stages_up_to_editor_limit() -> None:
+    pipeline = PipelineConfig(
+        transforms=tuple(
+            TransformConfig(name="HorizontalFlip", params={"p": 1.0}) for _step_number in range(MAX_PIPELINE_STEPS)
+        ),
+        outputs_per_sample=2,
+    )
+
+    params = operator_params_from_pipeline(pipeline)
+
+    assert params["pipeline_step_count"] == MAX_PIPELINE_STEPS
+    assert params["outputs_per_sample"] == 2
+    for step_number in range(1, MAX_PIPELINE_STEPS + 1):
+        assert params[pipeline_stage_enabled_field_name(step_number)] is True
+        assert params[pipeline_stage_order_field_name(step_number)] == step_number
+        assert params[pipeline_step_field_name(step_number, "transform")] == "HorizontalFlip"
+        assert params[pipeline_step_field_name(step_number, "p")] == 1.0
 
 
 @pytest.mark.unit

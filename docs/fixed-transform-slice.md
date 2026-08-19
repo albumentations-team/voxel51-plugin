@@ -39,21 +39,26 @@ VOX-25.
 
 ## Operator Parameters
 
-- `pipeline_step_count`: number of ordered transform steps, from `1` to `3`;
-  defaults to `1`.
-- `transform`: step 1 transform, selected from the catalog-backed MVP choices;
+- `pipeline_step_count`: number of visible transform stage slots, from `1` to
+  `10`; defaults to `1`.
+- `transform`: slot 1 transform, selected from the catalog-backed MVP choices;
   defaults to `HorizontalFlip`.
-- `p`: step 1 transform probability, from `0.0` to `1.0`; defaults to
+- `pipeline_stage_enabled`: slot 1 enabled flag; defaults to `true`.
+- `pipeline_stage_order`: slot 1 execution order, from `1` to `10`; defaults
+  to `1`.
+- `p`: slot 1 transform probability, from `0.0` to `1.0`; defaults to
   `1.0` for deterministic manual checks.
-- `step_2_transform` / `step_3_transform`: optional additional ordered step
-  transforms when `pipeline_step_count` is `2` or `3`.
-- `step_2_p` / `step_3_p`: transform probability for later steps.
+- `step_N_transform`: later-slot transforms when `pipeline_step_count` is at
+  least `N`, for `2 <= N <= 10`.
+- `step_N_pipeline_stage_enabled` and `step_N_pipeline_stage_order`: later-slot
+  enable and execution-order controls.
+- `step_N_p`: transform probability for later slots.
 - `outputs_per_sample`: number of augmented samples to create per source sample,
   from `1` to `3`; defaults to `1`.
-- Transform parameters are rendered from albu-spec schemas. For step 1, names
+- Transform parameters are rendered from albu-spec schemas. For slot 1, names
   are unprefixed, such as `brightness_range`, `height`, `width`, and `method`.
-- Later-step transform parameters use the same names with the step prefix, such
-  as `step_2_brightness_range`, `step_2_height`, and `step_3_method`.
+- Later-slot transform parameters use the same names with the step prefix, such
+  as `step_2_brightness_range`, `step_2_height`, and `step_10_method`.
 - `dry_run`: validates selection and parameters without writing output files or
   creating samples.
 - `preview_only`: renders up to three selected source samples in memory without
@@ -63,18 +68,21 @@ VOX-25.
   find related runs more easily.
 
 The FiftyOne prompt renders general run settings before transform details, then
-shows a dedicated section for each active pipeline stage. Toolbar placement is
-context-aware: augmentation is disabled until samples are selected or an image
-dataset/view is open, and run summary/cleanup actions are disabled until
-persisted runs exist. The augmentation operator supports immediate and delegated
-execution; immediate execution remains the default, and the form recommends
-delegated execution for larger views or datasets.
+shows a dedicated section for each visible pipeline stage slot. Disabled slots
+are skipped without clearing their transform settings. Enabled slots are sorted
+by `pipeline_stage_order`, with slot number as the tie-breaker. Toolbar
+placement is context-aware: augmentation is disabled until samples are selected
+or an image dataset/view is open, and run summary/cleanup actions are disabled
+until persisted runs exist. The augmentation operator supports immediate and
+delegated execution; immediate execution remains the default, and the form
+recommends delegated execution for larger views or datasets.
 
-Each stage uses the stage heading to show pipeline order, so its field labels do
-not repeat the step number. Parameters use short captions, readable enum labels,
-and switches for booleans. Parameter controls use two columns on desktop and
-one column on narrower screens. Defaults remain visible in the controls, while
-numeric bounds remain part of field validation rather than repeated prose.
+Each stage heading identifies the stable slot, while `Execution order` controls
+the pipeline order, so transform and parameter labels do not repeat the step
+number. Parameters use short captions, readable enum labels, and switches for
+booleans. Parameter controls use two columns on desktop and one column on
+narrower screens. Defaults remain visible in the controls, while numeric bounds
+remain part of field validation rather than repeated prose.
 
 For `supported_with_defaults` transforms, advanced optional JSON fallback
 parameters stay hidden and their albu-spec/Albumentations defaults are used.
@@ -92,7 +100,9 @@ VOX-13 renders these fields from albu-spec schemas. VOX-14 moved transform
 construction and replay execution behind the shared catalog-driven pipeline
 factory. VOX-22 lets the FiftyOne execution UI build an ordered chain. VOX-25
 generates normal executable choices from the catalog instead of the original
-three-transform allowlist.
+three-transform allowlist. VOX-39 replaces the hard three-stage limit with a
+bounded ten-slot editor that supports add/remove/reorder semantics through
+stage count, enabled flags, and execution-order values.
 
 ## Output Behavior
 

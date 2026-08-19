@@ -11,6 +11,7 @@ from albumentationsx_plugin.albumentations_backend.fixed import (
     validate_fixed_pipeline_config,
 )
 from albumentationsx_plugin.core import (
+    MAX_PIPELINE_STEPS,
     InvalidParameterError,
     PipelineConfig,
     TransformConfig,
@@ -194,6 +195,76 @@ def test_fixed_pipeline_builds_catalog_backed_transform_configs() -> None:
 
 
 @pytest.mark.unit
+def test_fixed_pipeline_builds_more_than_three_stage_transform_chain() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "pipeline_step_count": 4,
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            "step_2_transform": "VerticalFlip",
+            "step_2_p": 0.9,
+            "step_3_transform": "ToGray",
+            "step_3_method": "average",
+            "step_3_p": 0.8,
+            "step_4_transform": "Blur",
+            "step_4_blur_range": [3, 3],
+            "step_4_p": 0.7,
+        }
+    )
+
+    assert config.transforms == (
+        TransformConfig(name="HorizontalFlip", params={"p": 1.0}),
+        TransformConfig(name="VerticalFlip", params={"p": 0.9}),
+        TransformConfig(name="ToGray", params={"num_output_channels": 3, "method": "average", "p": 0.8}),
+        TransformConfig(name="Blur", params={"blur_range": [3, 3], "p": 0.7}),
+    )
+
+
+@pytest.mark.unit
+def test_fixed_pipeline_orders_enabled_stage_slots_without_losing_settings() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "pipeline_step_count": 4,
+            "transform": "HorizontalFlip",
+            "pipeline_stage_order": 3,
+            "p": 1.0,
+            "step_2_pipeline_stage_enabled": False,
+            "step_2_transform": "RandomBrightnessContrast",
+            "step_2_brightness_range": [-0.5, 0.5],
+            "step_2_contrast_range": [-0.5, 0.5],
+            "step_2_p": 0.5,
+            "step_3_transform": "VerticalFlip",
+            "step_3_pipeline_stage_order": 1,
+            "step_3_p": 0.8,
+            "step_4_transform": "ToGray",
+            "step_4_pipeline_stage_order": 2,
+            "step_4_method": "average",
+            "step_4_p": 0.7,
+        }
+    )
+
+    assert config.transforms == (
+        TransformConfig(name="VerticalFlip", params={"p": 0.8}),
+        TransformConfig(name="ToGray", params={"num_output_channels": 3, "method": "average", "p": 0.7}),
+        TransformConfig(name="HorizontalFlip", params={"p": 1.0}),
+    )
+
+
+@pytest.mark.unit
+def test_fixed_pipeline_rejects_pipeline_with_no_enabled_stage() -> None:
+    with pytest.raises(InvalidParameterError) as error:
+        build_fixed_pipeline_config(
+            {
+                "pipeline_step_count": 2,
+                "pipeline_stage_enabled": False,
+                "step_2_pipeline_stage_enabled": False,
+            }
+        )
+
+    assert error.value.context["parameter_name"] == "pipeline_stages"
+
+
+@pytest.mark.unit
 def test_random_crop_validates_source_image_dimensions_before_execution() -> None:
     config = build_fixed_pipeline_config(
         {
@@ -220,7 +291,7 @@ def test_fixed_pipeline_rejects_unknown_transform_and_invalid_parameters() -> No
         build_fixed_pipeline_config({"outputs_per_sample": 4})
 
     with pytest.raises(InvalidParameterError) as step_count_error:
-        build_fixed_pipeline_config({"pipeline_step_count": 4})
+        build_fixed_pipeline_config({"pipeline_step_count": MAX_PIPELINE_STEPS + 1})
 
     with pytest.raises(InvalidParameterError) as range_error:
         build_fixed_pipeline_config(

@@ -19,7 +19,8 @@ The current implementation supports the following workflow.
 1. Select one or more image samples in the FiftyOne App, open a filtered image
    view, or use the full image dataset.
 2. Open **Augment with AlbumentationsX**.
-3. Configure one to three ordered transform stages.
+3. Configure up to ten transform stage slots, enable the stages to execute,
+   and order them.
 4. Optionally preview up to three selected samples without creating files,
    samples, manifests, or custom runs.
 5. Create one to three outputs per source sample.
@@ -47,6 +48,9 @@ The MVP is deliberately narrower than the full AlbumentationsX catalog.
 
 - It processes image samples from selected samples, the active view, or the full dataset. It does not process video or 3D media.
 - The augmentation operator supports immediate and delegated execution. Distributed execution and cancellation are not implemented.
+- The FiftyOne operator API does not provide a drag-and-drop repeater, so the
+  MVP uses a bounded ten-slot editor with explicit enable and execution-order
+  controls.
 - Preview is selected-samples only and shows one result per selected source
   sample, capped at three preview results.
 - The normal selector excludes transforms that require external reference data, use unsupported media or targets, or produce unsafe image outputs.
@@ -118,7 +122,7 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 |---|---|
 | Plugin integration | The repository registers augmentation, run-summary, and run-cleanup operators for FiftyOne `>=1.19,<2`. |
 | Catalog and forms | The dynamic form consumes the versioned `albu-spec` catalog, renders supported parameter types, shows target guidance, and reports excluded transforms. |
-| Pipeline execution | The executor builds catalog-backed `ReplayCompose` pipelines with up to three stages and creates new image samples without modifying selected sources. |
+| Pipeline execution | The executor builds catalog-backed `ReplayCompose` pipelines from up to ten ordered stage slots and creates new image samples without modifying selected sources. |
 | Annotation handling | Classification, detections, keypoints, and in-memory semantic masks travel through the supported execution path. |
 | Provenance and cleanup | Manifests, FiftyOne custom runs, source links, replay metadata, run inspection, and containment-checked cleanup are implemented. |
 | Larger-run execution | The augmentation operator can run immediately or through FiftyOne delegated execution and reports processed sources, planned outputs, created outputs, skipped sources, and errors. |
