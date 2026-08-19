@@ -69,8 +69,11 @@ def test_capability_browser_filters_by_name_status_and_target() -> None:
                 name="RandomCrop",
                 status=CapabilityStatus.SUPPORTED_WITH_DEFAULTS,
                 targets=("image", "mask", "bboxes", "keypoints"),
-                reason_code="advanced_parameters_hidden",
-                message="Advanced parameters are hidden in the MVP.",
+                reason_code="advanced_parameters_json_editable",
+                message=(
+                    "Transform uses typed controls where possible and JSON-backed controls for advanced optional "
+                    "parameters."
+                ),
                 advanced_parameters=("fill", "fill_mask"),
                 metadata={
                     "parameter_names": ["height", "width", "fill", "fill_mask", "p"],
@@ -98,9 +101,12 @@ def test_capability_browser_filters_by_name_status_and_target() -> None:
             "name": "RandomCrop",
             "status": "supported_with_defaults",
             "targets": "image, mask, bboxes, keypoints",
-            "reason_code": "advanced_parameters_hidden",
-            "message": "Advanced parameters are hidden in the MVP.",
-            "advanced_parameter_status": "default_only",
+            "reason_code": "advanced_parameters_json_editable",
+            "message": (
+                "Transform uses typed controls where possible and JSON-backed controls for advanced optional "
+                "parameters."
+            ),
+            "advanced_parameter_status": "json_editable",
             "advanced_parameters": "fill, fill_mask",
             "parameter_count": 5,
             "transform_type": "dual",

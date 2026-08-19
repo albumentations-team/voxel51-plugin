@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Final, TypeAlias
 
 import numpy as np
@@ -16,6 +16,7 @@ from albumentationsx_plugin.albumentations_backend.pipeline import (
     build_default_pipeline_factory,
     validate_rgb_array,
 )
+from albumentationsx_plugin.albumentations_backend.pipeline.coercion import coerce_transform_params
 from albumentationsx_plugin.core import (
     DEFAULT_BRIGHTNESS_RANGE,
     DEFAULT_CONTRAST_RANGE,
@@ -174,17 +175,22 @@ def _step_transform_config(
         default=_default_transform_name(step_number),
     )
     parameter_schema = parameter_schema_provider.get_parameter_schema(transform_name)
-    return TransformConfig(
+    parameter_fields = _executable_parameter_fields(
+        selected_transform_name=transform_name,
+        parameter_fields=parameter_schema,
+    )
+    transform = TransformConfig(
         name=transform_name,
         params=_step_transform_params(
             params,
             transform_name=transform_name,
-            parameter_fields=_executable_parameter_fields(
-                selected_transform_name=transform_name,
-                parameter_fields=parameter_schema,
-            ),
+            parameter_fields=parameter_fields,
             step_number=step_number,
         ),
+    )
+    return TransformConfig(
+        name=transform_name,
+        params=coerce_transform_params(transform, _coercion_parameter_fields(parameter_fields)),
     )
 
 
@@ -197,8 +203,8 @@ def _executable_parameter_fields(
     return tuple(
         _executable_parameter_field(selected_transform_name=selected_transform_name, field=field)
         for field in parameter_fields
-        if _is_visible_parameter(field)
-        if supported_parameter_names is None or field.name in supported_parameter_names
+        if _is_executable_parameter(field)
+        if _is_selected_parameter(field, supported_parameter_names=supported_parameter_names)
     )
 
 
@@ -214,8 +220,32 @@ def _fixed_slice_parameter_names(transform_name: str) -> tuple[str, ...] | None:
             return None
 
 
-def _is_visible_parameter(field: FormFieldSchema) -> bool:
-    return field.metadata.get("schema_status") != SCHEMA_STATUS_JSON_FALLBACK
+def _is_executable_parameter(field: FormFieldSchema) -> bool:
+    if _is_json_fallback_parameter(field):
+        return not field.required
+    return True
+
+
+def _is_json_fallback_parameter(field: FormFieldSchema) -> bool:
+    return field.metadata.get("schema_status") == SCHEMA_STATUS_JSON_FALLBACK
+
+
+def _is_selected_parameter(
+    field: FormFieldSchema,
+    *,
+    supported_parameter_names: tuple[str, ...] | None,
+) -> bool:
+    return (
+        supported_parameter_names is None
+        or field.name in supported_parameter_names
+        or _is_json_fallback_parameter(field)
+    )
+
+
+def _coercion_parameter_fields(parameter_fields: tuple[FormFieldSchema, ...]) -> tuple[FormFieldSchema, ...]:
+    return tuple(
+        replace(field, default=None) if _is_json_fallback_parameter(field) else field for field in parameter_fields
+    )
 
 
 def _executable_parameter_field(*, selected_transform_name: str, field: FormFieldSchema) -> FormFieldSchema:
@@ -270,6 +300,8 @@ def _step_transform_params(
     for field in parameter_fields:
         value = _step_parameter_value(params, field, step_number=step_number)
         if value is _MISSING:
+            if _is_json_fallback_parameter(field):
+                continue
             value = _default_parameter_value(field)
         if value is not _MISSING:
             transform_params[field.name] = value
@@ -286,6 +318,11 @@ def _step_parameter_value(
     aliases = _legacy_parameter_aliases(step_number, field.name)
     if field.kind == FieldKind.NUMBER_RANGE:
         return _number_range_param_value(params, parameter_name, field=field, aliases=aliases)
+    if field.kind == FieldKind.JSON:
+        value = _optional_param_value(params, parameter_name, aliases=aliases, default=_MISSING)
+        if isinstance(value, str) and not value.strip() and not field.required:
+            return _MISSING
+        return value
     return _optional_param_value(params, parameter_name, aliases=aliases, default=_MISSING)
 
 
