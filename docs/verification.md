@@ -64,6 +64,7 @@ in the PR description:
 - dataset used;
 - operator opened;
 - input parameters;
+- preview result, if preview behavior changed;
 - expected output samples or errors;
 - whether source data remained unchanged;
 - cleanup result, if cleanup behavior changed.

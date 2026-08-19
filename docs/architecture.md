@@ -72,6 +72,10 @@ Expected modules:
 - `albumentationsx_plugin/hosts/fiftyone/operators/view_run.py`
 - `albumentationsx_plugin/hosts/fiftyone/operators/delete_run.py`
 - `albumentationsx_plugin/hosts/fiftyone/augmentation/executor.py`
+- `albumentationsx_plugin/hosts/fiftyone/augmentation/runtime.py`
+- `albumentationsx_plugin/hosts/fiftyone/augmentation/outputs.py`
+- `albumentationsx_plugin/hosts/fiftyone/augmentation/preview.py`
+- `albumentationsx_plugin/hosts/fiftyone/preview_contract.py`
 - `albumentationsx_plugin/hosts/fiftyone/forms/renderer.py`
 - `albumentationsx_plugin/hosts/fiftyone/samples/adapter.py`
 
@@ -213,6 +217,11 @@ resolves transform classes from albu-spec metadata, validates parameters through
 neutral schemas, and provides a replay runner that can optionally receive
 Albumentations target data. Host-level media IO, label conversion, output sample
 creation, and storage orchestration remain outside that runner.
+
+VOX-29 preview execution is documented in `docs/augmentation-preview.md`.
+Preview uses the same runtime setup and per-source output preparation as the
+materialized executor, but encodes images and diagnostics in memory instead of
+writing files, samples, manifests, or custom runs.
 
 The VOX-15 run manifest layer is documented in `docs/run-manifest.md`. It stores
 `manifest.json` in the plugin-owned run directory and registers the same payload
