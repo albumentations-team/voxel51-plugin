@@ -394,7 +394,8 @@ def test_augment_operator_renders_annotation_field_toggles() -> None:
     assert "keypoints targets" in input_properties[polylines_param]["view"]["caption"]
     assert input_properties[heatmap_param]["type"]["name"] == "Boolean"
     assert input_properties[heatmap_param]["default"] is True
-    assert "image targets" in input_properties[heatmap_param]["view"]["caption"]
+    assert "geometry-only synchronization" in input_properties[heatmap_param]["view"]["caption"]
+    assert "mixed color/intensity stages are blocked" in input_properties[heatmap_param]["view"]["caption"]
 
 
 @pytest.mark.unit

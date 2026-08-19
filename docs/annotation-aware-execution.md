@@ -99,5 +99,8 @@ annotation check is:
 ```bash
 uv run pytest tests/integration/test_fiftyone_fixed_augmentation_executor.py::test_fixed_augmentation_executor_transforms_supported_annotations
 uv run pytest tests/integration/test_fiftyone_fixed_augmentation_executor.py::test_fixed_augmentation_executor_materializes_file_backed_segmentation_masks
+uv run pytest tests/integration/test_fiftyone_fixed_augmentation_executor.py::test_fixed_augmentation_preview_matches_materialized_deterministic_geometry
+uv run pytest tests/integration/test_demo_dataset_workflow.py tests/smoke/test_mvp_demo_workflow.py
 uv run pytest tests/unit/test_fiftyone_annotation_conversion.py
+uv run pytest tests/unit/test_fiftyone_annotation_fields.py tests/unit/test_fiftyone_augment_operator.py
 ```
