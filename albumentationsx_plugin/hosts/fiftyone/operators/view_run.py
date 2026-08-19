@@ -89,6 +89,8 @@ class ViewAlbumentationsXRun(foo.Operator):
         outputs.str("fiftyone_run_key", label="FiftyOne run key")
         outputs.str("cleanup_status", label="Cleanup status")
         outputs.str("cleaned_at", label="Cleaned at")
+        outputs.str("execution_status", label="Execution status")
+        outputs.str("cancelled_at", label="Cancelled at")
         outputs.str("run_label", label="Run label")
         outputs.str("run_label_slug", label="Run label slug")
         outputs.int("source_count", label="Sources")

@@ -6,11 +6,20 @@ from types import SimpleNamespace
 
 import pytest
 
-from albumentationsx_plugin.core import PipelineConfig, RunManifest, TransformConfig
+from albumentationsx_plugin.core import (
+    RUN_EXECUTION_CANCELLED_AT_METADATA_KEY,
+    RUN_EXECUTION_STATUS_CANCELLED,
+    RUN_EXECUTION_STATUS_COMPLETED,
+    RUN_EXECUTION_STATUS_METADATA_KEY,
+    PipelineConfig,
+    RunManifest,
+    TransformConfig,
+)
 from albumentationsx_plugin.hosts.fiftyone.run_summary import (
     RUN_OUTPUT_STATUS_AVAILABLE,
     RUN_OUTPUT_STATUS_CLEANED,
     RUN_OUTPUT_STATUS_MISSING_FILE,
+    RUN_STATUS_CANCELLED,
     RUN_STATUS_CLEANED,
     RUN_STATUS_INVALID,
     RUN_STATUS_MISSING,
@@ -68,11 +77,14 @@ def _manifest(
     run_label_slug: str = "",
     cleanup_status: str = "",
     cleaned_at: str = "",
+    execution_status: str = RUN_EXECUTION_STATUS_COMPLETED,
+    cancelled_at: str = "",
 ) -> RunManifest:
     metadata = {
         "output_dir": "/tmp/outputs",
         "output_tag": "albumentationsx-output",
         "fiftyone_run_key": build_fiftyone_run_key(run_key),
+        RUN_EXECUTION_STATUS_METADATA_KEY: execution_status,
     }
     if run_label_slug:
         metadata["run_label"] = run_label
@@ -81,6 +93,8 @@ def _manifest(
         metadata["cleanup_status"] = cleanup_status
     if cleaned_at:
         metadata["cleaned_at"] = cleaned_at
+    if cancelled_at:
+        metadata[RUN_EXECUTION_CANCELLED_AT_METADATA_KEY] = cancelled_at
 
     return RunManifest(
         run_key=run_key,
@@ -131,6 +145,8 @@ def test_build_run_summary_reads_values_from_manifest(tmp_path) -> None:
     assert summary.output_tag == "albumentationsx-output"
     assert summary.cleanup_status == ""
     assert summary.cleaned_at == ""
+    assert summary.execution_status == RUN_EXECUTION_STATUS_COMPLETED
+    assert summary.cancelled_at == ""
     assert summary.run_label == ""
     assert summary.run_label_slug == ""
     assert summary.pipeline_summary == "HorizontalFlip(p=1.0)"
@@ -158,6 +174,31 @@ def test_build_run_summary_reads_values_from_manifest(tmp_path) -> None:
     assert json.loads(str(summary_json["generated_sample_ids_json"])) == ["created-1"]
     assert json.loads(str(summary_json["available_generated_sample_ids_json"])) == ["created-1"]
     assert json.loads(str(summary_json["selected_replay_json"]))["replay"] == {"applied": True}
+    assert summary_json["execution_status"] == RUN_EXECUTION_STATUS_COMPLETED
+    assert summary_json["cancelled_at"] == ""
+
+
+@pytest.mark.unit
+def test_build_run_summary_reports_cancelled_partial_run(tmp_path) -> None:
+    dataset = _Dataset(sample_ids=("created-1",))
+    store = FileRunStore(dataset.name, storage_root=tmp_path)
+    manifest = _manifest(
+        execution_status=RUN_EXECUTION_STATUS_CANCELLED,
+        cancelled_at="2026-08-19T12:00:00Z",
+    )
+    store.save_manifest(manifest)
+    output_path = store.run_dir(manifest.run_key) / "images/output.png"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(b"fake image bytes")
+
+    summary = build_run_summary(dataset, manifest.run_key, storage_root=tmp_path)
+
+    assert summary.status == RUN_STATUS_CANCELLED
+    assert "cancelled" in summary.message
+    assert summary.execution_status == RUN_EXECUTION_STATUS_CANCELLED
+    assert summary.cancelled_at == "2026-08-19T12:00:00Z"
+    assert summary.available_output_count == 1
+    assert summary.generated_sample_ids == ("created-1",)
 
 
 @pytest.mark.unit

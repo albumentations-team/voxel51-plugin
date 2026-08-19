@@ -14,6 +14,7 @@ import yaml
 import albumentationsx_plugin.hosts.fiftyone.operators.augment as augment_operator_module
 from albumentationsx_plugin.core import (
     MAX_PIPELINE_STEPS,
+    RUN_EXECUTION_STATUS_COMPLETED,
     PipelineConfig,
     RunManifest,
     TransformConfig,
@@ -23,6 +24,7 @@ from albumentationsx_plugin.core import (
 )
 from albumentationsx_plugin.hosts.fiftyone.annotations import annotation_field_param_name
 from albumentationsx_plugin.hosts.fiftyone.augmentation import FixedAugmentationExecutionResult
+from albumentationsx_plugin.hosts.fiftyone.cancellation import FiftyOneCancellationChecker
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_CURRENT_VIEW,
     EXECUTION_SCOPE_ENTIRE_DATASET,
@@ -268,6 +270,7 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert output_json["type"]["properties"]["processed_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["created_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["error_count"]["type"]["name"] == "Number"
+    assert output_json["type"]["properties"]["execution_status"]["type"]["name"] == "String"
     assert output_json["type"]["properties"][PREVIEW_ONLY_FIELD_NAME]["type"]["name"] == "Boolean"
     assert output_json["type"]["properties"]["preview_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["manifest_path"]["type"]["name"] == "String"
@@ -866,6 +869,7 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
             EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
         }
         assert kwargs["storage_root"] is None
+        assert isinstance(kwargs["cancellation_checker"], FiftyOneCancellationChecker)
         assert isinstance(kwargs["progress_reporter"], FiftyOneProgressReporter)
         return FixedAugmentationExecutionResult(
             run_key="albumentationsx-20260731T120000Z-test",
@@ -891,6 +895,7 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
         "skipped_count": 0,
         "error_count": 0,
         "dry_run": False,
+        "execution_status": RUN_EXECUTION_STATUS_COMPLETED,
         "output_tag": "albumentationsx-output",
         "output_dir": "/tmp/outputs",
         "manifest_path": "/tmp/outputs/manifest.json",

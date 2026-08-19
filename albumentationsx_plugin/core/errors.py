@@ -15,6 +15,7 @@ class ErrorCode(StrEnum):
     INVALID_PARAMETER = "invalid_parameter"
     IO_ERROR = "io_error"
     HOST_ADAPTER_ERROR = "host_adapter_error"
+    AUGMENTATION_CANCELLED = "augmentation_cancelled"
 
 
 class PluginError(Exception):
@@ -122,3 +123,14 @@ class HostAdapterError(PluginError):
     ) -> None:
         merged_context = {"host": host, **dict(context or {})}
         super().__init__(ErrorCode.HOST_ADAPTER_ERROR, message, merged_context)
+
+
+class AugmentationCancelledError(PluginError):
+    """Raised when an augmentation run is cancelled before completion."""
+
+    def __init__(
+        self,
+        message: str = "Augmentation was cancelled before completion.",
+        context: Mapping[str, object] | None = None,
+    ) -> None:
+        super().__init__(ErrorCode.AUGMENTATION_CANCELLED, message, dict(context or {}))

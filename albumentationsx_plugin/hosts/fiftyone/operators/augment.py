@@ -10,6 +10,7 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
+from albumentationsx_plugin.hosts.fiftyone.cancellation import FiftyOneCancellationChecker
 from albumentationsx_plugin.hosts.fiftyone.dependencies import (
     is_known_runtime_dependency,
     runtime_dependency_package_name,
@@ -92,6 +93,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
         outputs.int("skipped_count", label="Skipped")
         outputs.int("error_count", label="Errors")
         outputs.bool("dry_run", label="Dry run")
+        outputs.str("execution_status", label="Execution status")
         outputs.bool(PREVIEW_ONLY_FIELD_NAME, label="Preview only")
         outputs.str("output_tag", label="Output tag")
         outputs.str("output_dir", label="Output directory")
@@ -158,6 +160,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
                 selected_sample_ids=source_selected_sample_ids(selected_sample_ids, source_scope),
                 params=execution_params,
                 storage_root=storage_root,
+                cancellation_checker=FiftyOneCancellationChecker(ctx),
                 progress_reporter=FiftyOneProgressReporter(ctx),
             )
         except ModuleNotFoundError as error:
@@ -270,6 +273,7 @@ def _missing_dependency_result(error: ModuleNotFoundError, *, source_scope: str 
         "skipped_count": 0,
         "error_count": 1,
         "dry_run": False,
+        "execution_status": "",
         "output_tag": "",
         "output_dir": "",
         "manifest_path": "",
@@ -296,6 +300,7 @@ def _no_selected_samples_result(params: object, *, source_scope: str) -> JSONDic
         "skipped_count": 0,
         "error_count": 1,
         "dry_run": _dry_run_param(params),
+        "execution_status": "",
         "output_tag": "",
         "output_dir": "",
         "manifest_path": "",
@@ -322,6 +327,7 @@ def _preview_requires_selected_samples_result(params: object) -> JSONDict:
         "skipped_count": 0,
         "error_count": 1,
         "dry_run": _dry_run_param(params),
+        "execution_status": "",
         PREVIEW_ONLY_FIELD_NAME: True,
         "output_tag": "",
         "output_dir": "",
@@ -351,6 +357,7 @@ def _invalid_execution_scope_result(params: object, error: Exception) -> JSONDic
         "skipped_count": 0,
         "error_count": 1,
         "dry_run": _dry_run_param(params),
+        "execution_status": "",
         "output_tag": "",
         "output_dir": "",
         "manifest_path": "",
@@ -374,6 +381,7 @@ def _previous_run_preset_error_result(params: object, error: Exception, *, sourc
         "skipped_count": 0,
         "error_count": 1,
         "dry_run": _dry_run_param(params),
+        "execution_status": "",
         "output_tag": "",
         "output_dir": "",
         "manifest_path": "",

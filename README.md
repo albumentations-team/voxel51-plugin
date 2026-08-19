@@ -81,6 +81,9 @@ the App responsive while progress is reported.
 - Augmentation supports both immediate execution and delegated execution.
   Progress reports processed sources, planned outputs, created outputs, skipped
   sources, and errors.
+- Interrupted or cancelled materialized runs keep source data unchanged, mark
+  the run as `cancelled`, and retain manifest-listed partial outputs for
+  inspection and cleanup.
 - The executable path keeps FiftyOne `Classification`, `Detections`,
   `Keypoints`, and in-memory `Segmentation` annotations aligned with supported
   transforms.
@@ -90,8 +93,11 @@ the App responsive while progress is reported.
 ## Current limits
 
 - The plugin currently processes image samples. Video, 3D media, distributed
-  execution, cancellation, non-image outputs, transforms that need external
+  execution, non-image outputs, transforms that need external
   reference data, and unsafe output types are excluded from the normal selector.
+- FiftyOne `>=1.19,<2` does not expose a stable public cancellation flag to
+  operators, so cancellation detection is best-effort; abrupt process
+  termination can still stop before a final `cancelled` checkpoint is written.
 - External mask-path variants and unsupported FiftyOne label classes are not
   part of the annotation-aware execution path.
 - Some `supported_with_defaults` transforms use documented defaults until their
@@ -151,7 +157,9 @@ keep editing the form without reapplying the saved pipeline. New output samples
 are written under the plugin-owned storage directory and tagged with the run
 key; source samples and source files remain unchanged. Non-dry runs also save
 `manifest.json` under the run output directory and register the manifest in
-FiftyOne's custom run store.
+FiftyOne's custom run store. If a materialized run is cancelled or interrupted
+after outputs have been created, retained partial outputs are recorded in the
+manifest so they can be inspected and deleted by run.
 Then run `View AlbumentationsX Run` to inspect persisted counts, generated
 sample availability, versions, transform config, per-output replay records, and
 stale/missing manifest state. The viewer can also open the generated samples

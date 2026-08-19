@@ -47,7 +47,11 @@ metadata, and transformed label JSON through the operator output only.
 The MVP is deliberately narrower than the full AlbumentationsX catalog.
 
 - It processes image samples from selected samples, the active view, or the full dataset. It does not process video or 3D media.
-- The augmentation operator supports immediate and delegated execution. Distributed execution and cancellation are not implemented.
+- The augmentation operator supports immediate and delegated execution. Distributed execution is not implemented.
+- Cancellation detection is best-effort because supported FiftyOne versions do
+  not expose a stable public cancellation flag to operators. Controlled
+  cancellation/interruption preserves source data and leaves an inspectable
+  partial run for cleanup.
 - The FiftyOne operator API does not provide a drag-and-drop repeater, so the
   MVP uses a bounded ten-slot editor with explicit enable and execution-order
   controls.
@@ -127,6 +131,7 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 | Provenance and cleanup | Manifests, FiftyOne custom runs, source links, replay metadata, run inspection, and containment-checked cleanup are implemented. |
 | Larger-run execution | The augmentation operator can run immediately or through FiftyOne delegated execution and reports processed sources, planned outputs, created outputs, skipped sources, and errors. |
 | Non-persistent preview | Selected samples can be previewed in memory with source/augmented images, replay metadata, and transformed label JSON before creating persistent outputs. |
+| Safe cancellation semantics | Controlled cancellation/interruption marks materialized runs as `cancelled`, retains manifest-listed partial outputs, and keeps cleanup allowlist guarantees. |
 | Local verification | The repository has unit, integration, and smoke tests, a deterministic demo dataset, and a documented local verification gate. |
 | Publication automation | The publication-readiness pull request adds lockfile, full pre-commit, and test checks across Ubuntu, macOS, and Windows; Python 3.10–3.14 are required. |
 
@@ -146,7 +151,6 @@ Work is ordered by release risk and user impact. Each item has an observable com
 
 | Work | Why now | Completion condition |
 |---|---|---|
-| Add safe cancellation semantics for delegated runs | Delegated execution reports progress, but cancellation needs a clear cleanup and checkpoint policy before exposing it. | A cancelled run leaves source data unchanged, preserves inspectable partial outputs or removes them by policy, and documents how users recover or clean up the run. |
 | Add a first-class preset library | Previous runs provide templates inside one dataset, but they are not named, portable presets. | Users can save, rename, import, and export validated pipeline presets without storing per-sample replay data. Tests prove that a preset loads into the form and produces a valid fresh run. |
 
 ### P1 — extend label support safely
