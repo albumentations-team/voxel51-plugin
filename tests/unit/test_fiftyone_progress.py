@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 
+import albumentationsx_plugin.hosts.fiftyone.augmentation.executor as executor_module
 from albumentationsx_plugin.hosts.fiftyone.progress import (
     AugmentationProgress,
     FiftyOneProgressReporter,
@@ -97,3 +100,25 @@ def test_progress_reporters_do_not_raise_when_reporting_fails() -> None:
 
     FiftyOneProgressReporter(Context()).report(_progress())
     NoOpProgressReporter().report(_progress())
+
+
+@pytest.mark.unit
+def test_executor_progress_reporting_logs_reporter_failures(caplog) -> None:
+    class Reporter:
+        def report(self, progress: AugmentationProgress) -> None:
+            raise RuntimeError("progress reporter misconfigured")
+
+    caplog.set_level(logging.DEBUG, logger=executor_module.__name__)
+
+    executor_module._report_progress(
+        Reporter(),
+        stage="running",
+        total_sources=2,
+        processed_sources=1,
+        planned_outputs=2,
+        created_outputs=1,
+        skipped_sources=0,
+        errors=0,
+    )
+
+    assert "Error while reporting augmentation progress" in caplog.text

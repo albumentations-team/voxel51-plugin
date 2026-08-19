@@ -190,6 +190,9 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
         assert run_results.plugin_run_key == result.run_key
         assert run_results.manifest["run_key"] == result.run_key
         assert run_results.manifest_path == result.manifest_path
+        first_created_progress = next(event for event in progress_reporter.events if event.created_outputs == 1)
+        assert first_created_progress.processed_sources == 1
+        assert first_created_progress.total_sources == 2
         final_progress = progress_reporter.events[-1]
         assert final_progress.stage == "complete"
         assert final_progress.processed_sources == 2
@@ -716,6 +719,10 @@ def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_pat
         assert manifest_error_context["sample_id"] == small_id
         assert manifest_error_context["output_index"] == 0
         assert result.fiftyone_run_key in dataset.list_runs()
+        first_error_progress = next(event for event in progress_reporter.events if event.errors == 1)
+        assert first_error_progress.processed_sources == 2
+        assert first_error_progress.total_sources == 2
+        assert first_error_progress.skipped_sources == 0
         final_progress = progress_reporter.events[-1]
         assert final_progress.stage == "complete"
         assert final_progress.processed_sources == 2

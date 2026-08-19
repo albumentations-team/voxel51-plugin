@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from os import PathLike
@@ -56,6 +57,8 @@ from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, Fi
 from albumentationsx_plugin.storage.images import build_output_image_relative_path, load_rgb_image, write_rgb_image
 from albumentationsx_plugin.storage.manifest import FileRunStore, resolve_manifest_output_path
 from albumentationsx_plugin.storage.paths import build_run_key, slugify_run_label
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,7 +210,8 @@ def execute_fixed_augmentation(
         run_label_slug=run_label_slug,
     )
 
-    for source in source_inputs:
+    for source_number, source in enumerate(source_inputs, start=1):
+        processed_sources = source_number
         created_before_sample = len(created_sample_ids)
         for output_index in range(config.outputs_per_sample):
             checkpoint_current_state = True
@@ -342,7 +346,6 @@ def execute_fixed_augmentation(
                 run_label=run_label,
                 run_label_slug=run_label_slug,
             )
-        processed_sources += 1
         _report_progress(
             progress_reporter,
             stage="running",
@@ -427,6 +430,7 @@ def _report_progress(
             )
         )
     except Exception:
+        _LOGGER.debug("Error while reporting augmentation progress", exc_info=True)
         return
 
 
