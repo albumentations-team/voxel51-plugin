@@ -56,7 +56,7 @@ from albumentationsx_plugin.hosts.fiftyone.samples import (
     build_run_tag,
 )
 from albumentationsx_plugin.storage import FileRunStore
-from albumentationsx_plugin.storage.images import load_rgb_image, write_rgb_image
+from albumentationsx_plugin.storage.images import load_rgb_image, write_mask_image, write_rgb_image
 
 
 def _dataset_name() -> str:
@@ -75,6 +75,17 @@ def _write_source_image(root: Path, name: str, *, width: int = 5, height: int = 
     return write_rgb_image(_rgb_array(width=width, height=height), root, f"sources/{name}.png")
 
 
+def _segmentation_mask(width: int = 10, height: int = 8) -> np.ndarray:
+    mask = np.zeros((height, width), dtype=np.uint8)
+    mask[:, :3] = 1
+    mask[2:6, 4:7] = 2
+    return mask
+
+
+def _write_source_mask(root: Path, name: str, *, width: int = 10, height: int = 8) -> Path:
+    return write_mask_image(_segmentation_mask(width=width, height=height), root, f"source-masks/{name}.png")
+
+
 def _sample(filepath: Path, *, width: int = 5, height: int = 4, tag: str = "source") -> fo.Sample:
     return fo.Sample(
         filepath=str(filepath),
@@ -84,8 +95,7 @@ def _sample(filepath: Path, *, width: int = 5, height: int = 4, tag: str = "sour
 
 
 def _annotated_sample(filepath: Path) -> fo.Sample:
-    mask = np.zeros((8, 10), dtype=np.uint8)
-    mask[:, :3] = 1
+    mask = _segmentation_mask()
     return fo.Sample(
         filepath=str(filepath),
         tags=["source"],
@@ -112,6 +122,15 @@ def _annotated_sample(filepath: Path) -> fo.Sample:
             ]
         ),
         segmentation=fo.Segmentation(mask=mask),
+    )
+
+
+def _file_backed_segmentation_sample(filepath: Path, mask_path: Path) -> fo.Sample:
+    return fo.Sample(
+        filepath=str(filepath),
+        tags=["source"],
+        metadata=fo.ImageMetadata(width=10, height=8, mime_type="image/png"),
+        segmentation=fo.Segmentation(mask_path=str(mask_path)),
     )
 
 
@@ -555,6 +574,69 @@ def test_fixed_augmentation_executor_transforms_supported_annotations(tmp_path) 
         assert [field["field_name"] for field in annotations["copied_fields"]] == ["ground_truth"]
         assert manifest.pipeline.target_fields == ("detections", "keypoints", "segmentation")
         assert manifest.pipeline.copy_fields == ("ground_truth",)
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_materializes_file_backed_segmentation_masks(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    storage_root = tmp_path / "plugin-storage"
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, "file-backed-segmentation", width=10, height=8)
+        source_mask_path = _write_source_mask(tmp_path, "file-backed-segmentation", width=10, height=8)
+        sample_id = dataset.add_sample(_file_backed_segmentation_sample(source_path, source_mask_path))
+        source_mask = _load_sample(dataset, sample_id).segmentation.get_mask()
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+            },
+            storage_root=storage_root,
+        )
+
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        assert result.error_count == 0
+        created = _output_samples(dataset)
+        assert len(created) == 1
+        output = created[0]
+        output_mask_path = Path(output.segmentation.mask_path)
+        assert output_mask_path.is_file()
+        assert output_mask_path != source_mask_path
+        assert output_mask_path.parent.name == "masks"
+        assert output_mask_path.is_relative_to(Path(result.output_dir))
+        np.testing.assert_array_equal(output.segmentation.get_mask(), source_mask[:, ::-1])
+
+        manifest = FileRunStore(dataset.name, storage_root=storage_root).load_manifest(result.run_key)
+        image_output_paths = tuple(path for path in manifest.output_paths if path.startswith("images/"))
+        mask_output_paths = tuple(path for path in manifest.output_paths if path.startswith("masks/"))
+        assert len(image_output_paths) == 1
+        assert mask_output_paths == (output_mask_path.relative_to(Path(result.output_dir)).as_posix(),)
+        assert manifest.counters == {
+            "processed": 1,
+            "created": 1,
+            "skipped": 0,
+            "errors": 0,
+            "outputs": 1,
+            "output_files": 2,
+        }
+        assert manifest.replay_records[0]["output_path"] == image_output_paths[0]
+        assert manifest.replay_records[0]["annotation_asset_paths"] == list(mask_output_paths)
+
+        cleanup = cleanup_run(cast(Any, dataset), result.run_key, confirmed=True, storage_root=storage_root)
+
+        assert cleanup.deleted_sample_count == 1
+        assert cleanup.deleted_file_count == 2
+        assert not output_mask_path.exists()
+        assert source_mask_path.exists()
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)

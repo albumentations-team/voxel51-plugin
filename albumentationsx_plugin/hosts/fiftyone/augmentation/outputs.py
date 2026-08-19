@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,6 +11,7 @@ from albumentationsx_plugin.core import AugmentationInput, AugmentationResult, J
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.annotations import (
     ANNOTATION_PAYLOAD_KEY,
+    materialize_annotation_assets,
     target_data_from_annotation_payload,
     transformed_annotation_payload,
 )
@@ -42,6 +43,13 @@ class PreparedOutput:
     result: AugmentationResult
     relative_path: str
     replay_record: JSONDict
+    asset_relative_paths: tuple[str, ...] = ()
+
+    @property
+    def manifest_relative_paths(self) -> tuple[str, ...]:
+        """Return all files that must be listed in the cleanup allowlist."""
+
+        return (self.relative_path, *self.asset_relative_paths)
 
 
 def apply_output(
@@ -104,25 +112,42 @@ def prepare_output(
     )
     written_path = write_rgb_image(applied.image, run_dir, relative_path)
     relative_path_text = relative_path.as_posix()
+    try:
+        materialized = materialize_annotation_assets(
+            applied.labels,
+            run_dir=run_dir,
+            source_filepath=source.filepath,
+            sample_id=source.sample_id,
+            output_index=output_index,
+        )
+    except Exception:
+        written_path.unlink(missing_ok=True)
+        raise
+    result_metadata: JSONDict = {
+        "output_index": output_index,
+        "output_relative_path": relative_path_text,
+        "annotations": applied.annotation_metadata,
+    }
+    if materialized.metadata:
+        result_metadata["annotation_assets"] = materialized.metadata
     return PreparedOutput(
         result=AugmentationResult(
             source_sample_id=source.sample_id,
             output_filepath=str(written_path),
-            labels=applied.labels,
+            labels=materialized.labels,
             replay=applied.replay,
-            metadata={
-                "output_index": output_index,
-                "output_relative_path": relative_path_text,
-                "annotations": applied.annotation_metadata,
-            },
+            metadata=result_metadata,
         ),
         relative_path=relative_path_text,
+        asset_relative_paths=materialized.relative_paths,
         replay_record=build_replay_record(
             source=source,
             output_index=output_index,
             relative_path=relative_path_text,
             replay=applied.replay,
             annotation_metadata=applied.annotation_metadata,
+            annotation_assets=materialized.metadata,
+            annotation_asset_paths=materialized.relative_paths,
         ),
     )
 
@@ -148,6 +173,8 @@ def build_replay_record(
     relative_path: str,
     replay: JSONDict,
     annotation_metadata: Mapping[str, object] | None = None,
+    annotation_assets: Mapping[str, object] | None = None,
+    annotation_asset_paths: Sequence[str] = (),
 ) -> JSONDict:
     """Return one manifest replay record for a materialized output."""
 
@@ -159,4 +186,8 @@ def build_replay_record(
     }
     if annotation_metadata:
         record["annotations"] = normalize_json_mapping(annotation_metadata)
+    if annotation_asset_paths:
+        record["annotation_asset_paths"] = [str(path) for path in annotation_asset_paths]
+    if annotation_assets:
+        record["annotation_assets"] = normalize_json_mapping(annotation_assets)
     return record

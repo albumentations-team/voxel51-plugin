@@ -34,7 +34,8 @@ The executable path handles these FiftyOne label types:
 - `Classification`, copied unchanged;
 - `Detections`, converted through Albumentations bounding-box targets;
 - `Keypoints`, converted through Albumentations keypoint targets;
-- in-memory `Segmentation` masks, converted through Albumentations mask targets.
+- `Segmentation` masks, converted through Albumentations mask targets. File-backed
+  source masks write plugin-owned output mask PNGs.
 
 Selecting a previous run loads its pipeline configuration as a template. A new run samples new random values; it does not replay the prior outputs exactly.
 
@@ -58,7 +59,7 @@ The MVP is deliberately narrower than the full AlbumentationsX catalog.
 - Preview is selected-samples only and shows one result per selected source
   sample, capped at three preview results.
 - The normal selector excludes transforms that require external reference data, use unsupported media or targets, or produce unsafe image outputs.
-- External segmentation-mask paths, detection instance masks, polylines, custom embedded documents, and unsupported FiftyOne label classes are excluded from annotation-aware execution.
+- Detection instance masks, polylines, heatmaps, custom embedded documents, and unsupported FiftyOne label classes are excluded from annotation-aware execution.
 - `supported_with_defaults` transforms keep some advanced optional parameters at their library defaults until the form has safe controls for them.
 - A catalog status proves that the plugin can render and construct a transform under the current dependency set. It does not yet provide a visual regression test for every one of the 110 transform choices.
 
@@ -127,7 +128,7 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 | Plugin integration | The repository registers augmentation, run-summary, and run-cleanup operators for FiftyOne `>=1.19,<2`. |
 | Catalog and forms | The dynamic form consumes the versioned `albu-spec` catalog, renders supported parameter types, shows target guidance, and reports excluded transforms. |
 | Pipeline execution | The executor builds catalog-backed `ReplayCompose` pipelines from up to ten ordered stage slots and creates new image samples without modifying selected sources. |
-| Annotation handling | Classification, detections, keypoints, and in-memory semantic masks travel through the supported execution path. |
+| Annotation handling | Classification, detections, keypoints, and semantic masks travel through the supported execution path. File-backed semantic mask outputs are materialized as plugin-owned PNGs. |
 | Provenance and cleanup | Manifests, FiftyOne custom runs, source links, replay metadata, run inspection, and containment-checked cleanup are implemented. |
 | Larger-run execution | The augmentation operator can run immediately or through FiftyOne delegated execution and reports processed sources, planned outputs, created outputs, skipped sources, and errors. |
 | Non-persistent preview | Selected samples can be previewed in memory with source/augmented images, replay metadata, and transformed label JSON before creating persistent outputs. |
@@ -157,7 +158,7 @@ Work is ordered by release risk and user impact. Each item has an observable com
 
 | Work | Why now | Completion condition |
 |---|---|---|
-| Support external segmentation-mask paths | Many FiftyOne datasets store masks as paths instead of in-memory arrays. | The adapter reads supported external masks, preserves class IDs through geometric transforms, writes an owned output mask, and proves alignment with synthetic-image tests. |
+| Extend segmentation variants | Some datasets need additional mask variants beyond semantic `Segmentation(mask=...)` and `Segmentation(mask_path=...)`. | Each new variant has an explicit adapter, transform compatibility rules, synthetic geometry tests, provenance fields, and cleanup coverage. |
 | Add instance masks and polylines | These labels are common in production vision datasets and cannot be copied through geometric transforms. | Each label type has an explicit adapter, transform compatibility rules, synthetic geometry tests, provenance fields, and cleanup coverage. |
 | Strengthen transform-to-target validation | A transform's declared targets can be narrower than the active dataset schema. | The form blocks unsafe combinations before execution whenever catalog metadata is conclusive; remaining runtime mismatches return a structured error without writing partial labels. |
 

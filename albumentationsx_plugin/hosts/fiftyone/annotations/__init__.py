@@ -1,5 +1,9 @@
 """FiftyOne annotation conversion helpers for augmentation execution."""
 
+from albumentationsx_plugin.hosts.fiftyone.annotations.assets import (
+    MaterializedAnnotationAssets,
+    materialize_annotation_assets,
+)
 from albumentationsx_plugin.hosts.fiftyone.annotations.conversion import (
     AnnotationTargets,
     annotation_payload_from_sample,
@@ -37,11 +41,13 @@ __all__ = [
     "AnnotationField",
     "AnnotationFieldSelection",
     "AnnotationTargets",
+    "MaterializedAnnotationAssets",
     "annotation_field_param_name",
     "annotation_field_selection_is_explicit",
     "annotation_pipeline_compatibility_conflicts",
     "annotation_pipeline_field_roles",
     "annotation_run_metadata",
+    "materialize_annotation_assets",
     "annotation_payload_from_sample",
     "labels_from_annotation_payload",
     "list_supported_annotation_fields",

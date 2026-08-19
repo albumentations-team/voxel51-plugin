@@ -118,10 +118,12 @@ Each created FiftyOne sample is tagged with `albumentationsx-output` and
 sample ID, run key, output tag, and transform summary.
 
 VOX-26 copies supported classification labels and transforms supported
-`Detections`, `Keypoints`, and in-memory `Segmentation` masks through
-Albumentations target APIs for the fixed execution path. Unsupported label
-fields are excluded from output samples and recorded in run annotation metadata
-with a reason.
+`Detections`, `Keypoints`, and semantic `Segmentation` masks through
+Albumentations target APIs for the fixed execution path. In-memory segmentation
+outputs remain in memory; file-backed segmentation outputs are written as
+plugin-owned mask PNGs and added to the manifest cleanup allowlist. Unsupported
+label fields are excluded from output samples and recorded in run annotation
+metadata with a reason.
 
 VOX-15 saves each non-dry execution under the run directory as `manifest.json`
 and registers a FiftyOne custom run. The manifest records versions, source IDs,

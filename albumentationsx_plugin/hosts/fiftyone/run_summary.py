@@ -431,7 +431,7 @@ def _manifest_summary(
     fiftyone_run_key: str,
     selected_output_key: str,
 ) -> RunSummary:
-    available_output_count, missing_output_count = _output_file_counts(run_dir, manifest.output_paths)
+    _, missing_file_count = _output_file_counts(run_dir, manifest.output_paths)
     cleanup_status = _metadata_str(manifest.metadata, RUN_CLEANUP_STATUS_METADATA_KEY)
     cleaned_at = _metadata_str(manifest.metadata, RUN_CLEANED_AT_METADATA_KEY)
     execution_status = _execution_status(manifest.metadata)
@@ -441,9 +441,9 @@ def _manifest_summary(
     if cleanup_status == RUN_CLEANUP_STATUS_CLEANED:
         status = RUN_STATUS_CLEANED
         message = "Run has been cleaned; manifest is retained for audit."
-    elif missing_output_count:
+    elif missing_file_count:
         status = RUN_STATUS_STALE
-        message = f"Run manifest loaded, but {missing_output_count} output file(s) are missing."
+        message = f"Run manifest loaded, but {missing_file_count} output file(s) are missing."
     elif execution_status == RUN_EXECUTION_STATUS_CANCELLED:
         status = RUN_STATUS_CANCELLED
         message = "Run was cancelled; retained partial outputs can be inspected or cleaned up."
@@ -468,9 +468,9 @@ def _manifest_summary(
         run_label_slug=_metadata_str(manifest.metadata, RUN_LABEL_SLUG_METADATA_KEY),
         source_count=_counter(manifest.counters, "processed", fallback=len(manifest.source_sample_ids)),
         created_count=_counter(manifest.counters, "created", fallback=len(manifest.created_sample_ids)),
-        output_count=_counter(manifest.counters, "outputs", fallback=len(manifest.output_paths)),
-        available_output_count=available_output_count,
-        missing_output_count=missing_output_count,
+        output_count=_counter(manifest.counters, "outputs", fallback=_generated_output_count(manifest)),
+        available_output_count=_available_output_count(generated_outputs),
+        missing_output_count=_missing_output_count(generated_outputs),
         error_count=_counter(manifest.counters, "errors", fallback=len(manifest.errors)),
         replay_count=len(manifest.replay_records),
         replay_available=bool(manifest.replay_records),
@@ -510,15 +510,16 @@ def _run_outputs(
     cleanup_status: str,
 ) -> tuple[RunOutputSummary, ...]:
     available_sample_ids = set(_existing_created_sample_ids(dataset, manifest.created_sample_ids))
-    output_count = max(len(manifest.output_paths), len(manifest.replay_records), len(manifest.created_sample_ids))
+    output_count = _generated_output_count(manifest)
     outputs: list[RunOutputSummary] = []
     for position in range(output_count):
         replay_record = _sequence_mapping(manifest.replay_records, position)
-        output_path = _sequence_str(manifest.output_paths, position) or _mapping_str(replay_record, "output_path")
+        output_path = _mapping_str(replay_record, "output_path") or _sequence_str(manifest.output_paths, position)
+        output_file_paths = (output_path, *_mapping_str_sequence(replay_record, "annotation_asset_paths"))
         source_sample_id = _mapping_str(replay_record, "source_sample_id")
         output_index = _mapping_int(replay_record, "output_index", fallback=position)
         generated_sample_id = _sequence_str(manifest.created_sample_ids, position)
-        output_file_available = _output_file_available(run_dir, output_path)
+        output_file_available = _output_files_available(run_dir, output_file_paths)
         generated_sample_available = bool(generated_sample_id and generated_sample_id in available_sample_ids)
         status = _run_output_status(
             cleanup_status=cleanup_status,
@@ -556,6 +557,35 @@ def _run_outputs(
             )
         )
     return tuple(outputs)
+
+
+def _generated_output_count(manifest: RunManifest) -> int:
+    if manifest.replay_records:
+        return max(len(manifest.replay_records), len(manifest.created_sample_ids))
+    return max(len(manifest.output_paths), len(manifest.created_sample_ids))
+
+
+def _available_output_count(outputs: Sequence[RunOutputSummary]) -> int:
+    return sum(1 for output in outputs if output.status == RUN_OUTPUT_STATUS_AVAILABLE)
+
+
+def _missing_output_count(outputs: Sequence[RunOutputSummary]) -> int:
+    return sum(
+        1
+        for output in outputs
+        if output.status
+        in {
+            RUN_OUTPUT_STATUS_MISSING,
+            RUN_OUTPUT_STATUS_MISSING_FILE,
+            RUN_OUTPUT_STATUS_MISSING_SAMPLE,
+        }
+    )
+
+
+def _output_files_available(run_dir: Path, output_paths: Sequence[str]) -> bool:
+    if not output_paths:
+        return False
+    return all(_output_file_available(run_dir, output_path) for output_path in output_paths)
 
 
 def _output_file_available(run_dir: Path, output_path: str) -> bool:
@@ -632,6 +662,13 @@ def _mapping_str(value: Mapping[str, object], name: str) -> str:
 def _mapping_int(value: Mapping[str, object], name: str, *, fallback: int) -> int:
     raw_value = value.get(name, fallback)
     return raw_value if isinstance(raw_value, int) else fallback
+
+
+def _mapping_str_sequence(value: Mapping[str, object], name: str) -> tuple[str, ...]:
+    raw_value = value.get(name, ())
+    if not isinstance(raw_value, Sequence) or isinstance(raw_value, str):
+        return ()
+    return tuple(item for item in raw_value if isinstance(item, str))
 
 
 def _selected_output_available(output: RunOutputSummary | None) -> bool:

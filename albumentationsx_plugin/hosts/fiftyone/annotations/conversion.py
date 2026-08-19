@@ -10,7 +10,7 @@ import fiftyone as fo
 import numpy as np
 import numpy.typing as npt
 
-from albumentationsx_plugin.core import JSONDict, JSONValue
+from albumentationsx_plugin.core import JSONDict, JSONValue, MediaIOError
 from albumentationsx_plugin.core.serialization import normalize_json_mapping, normalize_json_value
 from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
     FIELD_TYPE_CLASSIFICATION,
@@ -24,6 +24,8 @@ _CLASSIFICATION_TYPE: Final[str] = FIELD_TYPE_CLASSIFICATION
 _DETECTIONS_TYPE: Final[str] = FIELD_TYPE_DETECTIONS
 _KEYPOINTS_TYPE: Final[str] = FIELD_TYPE_KEYPOINTS
 _SEGMENTATION_TYPE: Final[str] = FIELD_TYPE_SEGMENTATION
+_SEGMENTATION_MASK_PATH_FIELD: Final[str] = "mask_path"
+_SEGMENTATION_SOURCE_MASK_PATH_FIELD: Final[str] = "source_mask_path"
 
 _ImageShape = tuple[int, int, int]
 
@@ -132,7 +134,7 @@ def transformed_annotation_payload(
 
     output_height, output_width, _channels = output_shape
     copied_field_names = set(str(field_name) for field_name in copy_label_fields)
-    fields = _copy_static_fields(source_payload, copy_label_fields=copy_label_fields)
+    fields: dict[str, object] = {**_copy_static_fields(source_payload, copy_label_fields=copy_label_fields)}
     dropped = {
         "detections": len(target_data.bbox_refs),
         "keypoints": len(target_data.keypoint_refs),
@@ -192,10 +194,18 @@ def transformed_annotation_payload(
     fields = _drop_empty_keypoints(fields)
 
     for raw_mask, ref in zip(_output_sequence(output_targets, "masks"), target_data.mask_refs, strict=False):
-        fields[ref.field_name] = {
+        source_field = _payload_fields(source_payload)[ref.field_name]
+        segmentation_payload: dict[str, object] = {
             _TYPE_FIELD: _SEGMENTATION_TYPE,
             "mask": _mask_to_json(raw_mask),
+            "tags": _str_list(source_field.get("tags")),
         }
+        _set_optional(
+            segmentation_payload,
+            _SEGMENTATION_SOURCE_MASK_PATH_FIELD,
+            _optional_str(source_field.get(_SEGMENTATION_MASK_PATH_FIELD)),
+        )
+        fields[ref.field_name] = normalize_json_mapping(segmentation_payload)
         dropped["masks"] -= 1
 
     return {
@@ -290,13 +300,13 @@ def _keypoint_payload(keypoint: fo.Keypoint) -> JSONDict:
 def _segmentation_payload(label: fo.Segmentation) -> JSONDict | None:
     if not _has_mask(label):
         return None
-    return normalize_json_mapping(
-        {
-            _TYPE_FIELD: _SEGMENTATION_TYPE,
-            "mask": _mask_to_json(label.get_mask()),
-            "tags": _str_list(getattr(label, "tags", None)),
-        }
-    )
+    payload: dict[str, object] = {
+        _TYPE_FIELD: _SEGMENTATION_TYPE,
+        "mask": _mask_to_json(_segmentation_mask(label)),
+        "tags": _str_list(getattr(label, "tags", None)),
+    }
+    _set_optional(payload, _SEGMENTATION_MASK_PATH_FIELD, _segmentation_mask_path(label))
+    return normalize_json_mapping(payload)
 
 
 def _classification_from_payload(payload: Mapping[str, object]) -> fo.Classification:
@@ -347,7 +357,15 @@ def _keypoint_from_payload(payload: Mapping[str, object]) -> fo.Keypoint:
 
 
 def _segmentation_from_payload(payload: Mapping[str, object]) -> fo.Segmentation:
-    return fo.Segmentation(mask=np.asarray(payload.get("mask"), dtype=np.uint8), tags=_str_list(payload.get("tags")))
+    tags = _str_list(payload.get("tags"))
+    mask_path = _optional_str(payload.get(_SEGMENTATION_MASK_PATH_FIELD))
+    if mask_path:
+        return fo.Segmentation(mask_path=mask_path, tags=tags)
+
+    mask = _mask_array(payload)
+    if mask is None:
+        return fo.Segmentation(tags=tags)
+    return fo.Segmentation(mask=np.asarray(mask), tags=tags)
 
 
 def _copy_static_fields(
@@ -375,7 +393,7 @@ def _empty_keypoints_payload(field_payload: Mapping[str, object]) -> JSONDict:
     return normalize_json_mapping({_TYPE_FIELD: _KEYPOINTS_TYPE, "keypoints": keypoints})
 
 
-def _drop_empty_keypoints(fields: Mapping[str, JSONValue]) -> dict[str, JSONValue]:
+def _drop_empty_keypoints(fields: Mapping[str, object]) -> dict[str, object]:
     updated = dict(fields)
     for field_name, field_payload in tuple(updated.items()):
         if not isinstance(field_payload, Mapping) or _payload_type(field_payload) != _KEYPOINTS_TYPE:
@@ -524,6 +542,25 @@ def _has_mask(label: fo.Segmentation) -> bool:
     return bool(value() if callable(value) else value)
 
 
+def _segmentation_mask(label: fo.Segmentation) -> npt.NDArray[Any]:
+    try:
+        return np.asarray(label.get_mask())
+    except (OSError, TypeError, ValueError) as error:
+        raise MediaIOError(
+            filepath=_segmentation_mask_path(label) or "<memory>",
+            message="FiftyOne segmentation mask could not be read.",
+            context={
+                "reason": "unreadable_segmentation_mask",
+                "exception_type": type(error).__name__,
+            },
+        ) from error
+
+
+def _segmentation_mask_path(label: fo.Segmentation) -> str | None:
+    value = getattr(label, _SEGMENTATION_MASK_PATH_FIELD, None)
+    return value if isinstance(value, str) and value.strip() else None
+
+
 def _mask_to_json(mask: object) -> list[JSONValue]:
     return cast(list[JSONValue], np.asarray(mask).tolist())
 
@@ -601,7 +638,7 @@ def _attributes_from_payload(value: object) -> dict[str, fo.Attribute]:
     return attributes
 
 
-def _set_optional(payload: dict[str, JSONValue], key: str, value: object) -> None:
+def _set_optional(payload: dict[str, Any], key: str, value: object) -> None:
     if value is not None:
         payload[key] = normalize_json_value(value)
 
