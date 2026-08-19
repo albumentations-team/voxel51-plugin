@@ -12,7 +12,11 @@ The current FiftyOne adapter supports these dataset label fields:
 - `Classification`: copied to the output sample unchanged.
 - `Detections`: `Detection.bounding_box` values are converted from FiftyOne
   relative coordinates to Albumentations `pascal_voc`, transformed, and written
-  back as relative FiftyOne bounding boxes.
+  back as relative FiftyOne bounding boxes. `Detection(mask=...)` and
+  `Detection(mask_path=...)` instance masks are expanded to full-image mask
+  targets, transformed with the image, and cropped back to each transformed
+  bounding box. Detection mask outputs are stored as in-memory
+  `Detection.mask` values.
 - `Keypoints`: `Keypoint.points` are converted from relative FiftyOne
   coordinates to Albumentations `xy`, transformed, and written back as relative
   points.
@@ -28,9 +32,9 @@ where they can be represented as JSON-safe values.
 ## Unsupported Scope
 
 The first slice does not claim full annotation coverage. Unsupported label
-classes, detection instance masks, polylines, heatmaps, custom embedded
-documents, video labels, 3D labels, and transform-specific target requirements
-should be added in follow-up tasks with focused tests.
+classes, polylines, heatmaps, custom embedded documents, video labels, 3D
+labels, and transform-specific target requirements should be added in follow-up
+tasks with focused tests.
 
 Unsupported label fields are excluded from generated output samples. The run
 manifest stores excluded fields and reason codes under `metadata.annotations` so
@@ -63,4 +67,5 @@ annotation check is:
 ```bash
 uv run pytest tests/integration/test_fiftyone_fixed_augmentation_executor.py::test_fixed_augmentation_executor_transforms_supported_annotations
 uv run pytest tests/integration/test_fiftyone_fixed_augmentation_executor.py::test_fixed_augmentation_executor_materializes_file_backed_segmentation_masks
+uv run pytest tests/unit/test_fiftyone_annotation_conversion.py
 ```

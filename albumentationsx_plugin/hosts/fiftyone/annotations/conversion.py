@@ -9,6 +9,7 @@ from typing import Any, Final, cast
 import fiftyone as fo
 import numpy as np
 import numpy.typing as npt
+from PIL import Image
 
 from albumentationsx_plugin.core import JSONDict, JSONValue, MediaIOError
 from albumentationsx_plugin.core.serialization import normalize_json_mapping, normalize_json_value
@@ -24,8 +25,10 @@ _CLASSIFICATION_TYPE: Final[str] = FIELD_TYPE_CLASSIFICATION
 _DETECTIONS_TYPE: Final[str] = FIELD_TYPE_DETECTIONS
 _KEYPOINTS_TYPE: Final[str] = FIELD_TYPE_KEYPOINTS
 _SEGMENTATION_TYPE: Final[str] = FIELD_TYPE_SEGMENTATION
+_MASK_FIELD: Final[str] = "mask"
 _SEGMENTATION_MASK_PATH_FIELD: Final[str] = "mask_path"
 _SEGMENTATION_SOURCE_MASK_PATH_FIELD: Final[str] = "source_mask_path"
+_PIXEL_COORD_EPSILON: Final[float] = 1e-6
 
 _ImageShape = tuple[int, int, int]
 
@@ -90,7 +93,17 @@ def target_data_from_annotation_payload(
                     continue
                 bboxes.append(_relative_bbox_to_pascal_voc(bbox, image_width=image_width, image_height=image_height))
                 bbox_indices.append(len(bbox_refs))
-                bbox_refs.append(_AnnotationRef(field_name=field_name, label_index=detection_index))
+                detection_ref = _AnnotationRef(field_name=field_name, label_index=detection_index)
+                bbox_refs.append(detection_ref)
+                instance_mask = _full_image_detection_mask(
+                    detection,
+                    bbox,
+                    image_width=image_width,
+                    image_height=image_height,
+                )
+                if instance_mask is not None:
+                    masks.append(instance_mask)
+                    mask_refs.append(detection_ref)
         elif field_type == _KEYPOINTS_TYPE:
             for keypoint_index, keypoint in enumerate(_payload_sequence(field_payload, "keypoints")):
                 for point_index, point in enumerate(_relative_points(keypoint)):
@@ -140,6 +153,7 @@ def transformed_annotation_payload(
         "keypoints": len(target_data.keypoint_refs),
         "masks": len(target_data.mask_refs),
     }
+    output_masks_by_ref = _output_masks_by_ref(target_data, output_targets)
 
     for field_name, field_payload in _payload_fields(source_payload).items():
         if field_name in copied_field_names:
@@ -164,6 +178,18 @@ def transformed_annotation_payload(
             image_width=output_width,
             image_height=output_height,
         )
+        if _MASK_FIELD in detection:
+            instance_mask = _output_detection_mask(
+                ref,
+                detection,
+                output_masks_by_ref,
+                image_width=output_width,
+                image_height=output_height,
+            )
+            if instance_mask is None:
+                continue
+            detection[_MASK_FIELD] = _mask_to_json(instance_mask)
+            dropped["masks"] -= 1
         field = cast(dict[str, object], fields[ref.field_name])
         detections = cast(list[JSONDict], field["detections"])
         detections.append(normalize_json_mapping(detection))
@@ -195,9 +221,11 @@ def transformed_annotation_payload(
 
     for raw_mask, ref in zip(_output_sequence(output_targets, "masks"), target_data.mask_refs, strict=False):
         source_field = _payload_fields(source_payload)[ref.field_name]
+        if _payload_type(source_field) != _SEGMENTATION_TYPE:
+            continue
         segmentation_payload: dict[str, object] = {
             _TYPE_FIELD: _SEGMENTATION_TYPE,
-            "mask": _mask_to_json(raw_mask),
+            _MASK_FIELD: _mask_to_json(raw_mask),
             "tags": _str_list(source_field.get("tags")),
         }
         _set_optional(
@@ -273,6 +301,9 @@ def _detection_payload(detection: fo.Detection) -> JSONDict:
     _set_optional(payload, "label", detection.label)
     _set_optional(payload, "confidence", detection.confidence)
     _set_optional(payload, "index", detection.index)
+    mask = _detection_mask(detection)
+    if mask is not None:
+        payload[_MASK_FIELD] = _mask_to_json(_instance_mask_array(mask))
     return payload
 
 
@@ -302,7 +333,7 @@ def _segmentation_payload(label: fo.Segmentation) -> JSONDict | None:
         return None
     payload: dict[str, object] = {
         _TYPE_FIELD: _SEGMENTATION_TYPE,
-        "mask": _mask_to_json(_segmentation_mask(label)),
+        _MASK_FIELD: _mask_to_json(_segmentation_mask(label)),
         "tags": _str_list(getattr(label, "tags", None)),
     }
     _set_optional(payload, _SEGMENTATION_MASK_PATH_FIELD, _segmentation_mask_path(label))
@@ -324,9 +355,11 @@ def _detections_from_payload(payload: Mapping[str, object]) -> fo.Detections:
 
 
 def _detection_from_payload(payload: Mapping[str, object]) -> fo.Detection:
+    mask = _mask_array(payload)
     detection = fo.Detection(
         label=_optional_str(payload.get("label")),
         bounding_box=_float_sequence(payload.get("bounding_box")),
+        mask=None if mask is None else np.asarray(mask),
         confidence=_optional_float(payload.get("confidence")),
         tags=_str_list(payload.get("tags")),
         attributes=_attributes_from_payload(payload.get("attributes")),
@@ -418,6 +451,16 @@ def _payload_fields(payload: Mapping[str, object]) -> Mapping[str, Mapping[str, 
     }
 
 
+def _output_masks_by_ref(
+    target_data: AnnotationTargets,
+    output_targets: Mapping[str, object],
+) -> dict[_AnnotationRef, npt.NDArray[Any]]:
+    return {
+        ref: np.asarray(raw_mask)
+        for raw_mask, ref in zip(_output_sequence(output_targets, "masks"), target_data.mask_refs, strict=False)
+    }
+
+
 def _payload_type(payload: Mapping[str, object]) -> str:
     value = payload.get(_TYPE_FIELD)
     return value if isinstance(value, str) else ""
@@ -499,6 +542,30 @@ def _pascal_voc_to_relative_bbox(
     ]
 
 
+def _bbox_pixel_slice(
+    bbox: Sequence[float],
+    *,
+    image_width: int,
+    image_height: int,
+) -> tuple[int, int, int, int] | None:
+    x, y, width, height = bbox
+    x_min = _bbox_pixel_min(x, limit=image_width)
+    y_min = _bbox_pixel_min(y, limit=image_height)
+    x_max = _bbox_pixel_max(x + width, limit=image_width)
+    y_max = _bbox_pixel_max(y + height, limit=image_height)
+    if x_max <= x_min or y_max <= y_min:
+        return None
+    return x_min, y_min, x_max, y_max
+
+
+def _bbox_pixel_min(value: float, *, limit: int) -> int:
+    return max(0, min(limit, int(np.floor(_clamp01(value) * limit + _PIXEL_COORD_EPSILON))))
+
+
+def _bbox_pixel_max(value: float, *, limit: int) -> int:
+    return max(0, min(limit, int(np.ceil(_clamp01(value) * limit - _PIXEL_COORD_EPSILON))))
+
+
 def _relative_points(payload: Mapping[str, object]) -> list[list[float]]:
     return [
         _float_sequence(point)[:2] for point in _payload_sequence(payload, "points") if len(_float_sequence(point)) >= 2
@@ -531,15 +598,37 @@ def _target_index(value: object) -> int:
 
 
 def _mask_array(payload: Mapping[str, object]) -> npt.NDArray[Any] | None:
-    value = payload.get("mask")
+    value = payload.get(_MASK_FIELD)
     if value is None:
         return None
     return np.asarray(value)
 
 
-def _has_mask(label: fo.Segmentation) -> bool:
+def _has_mask(label: fo.Detection | fo.Segmentation) -> bool:
     value = label.has_mask
     return bool(value() if callable(value) else value)
+
+
+def _detection_mask(label: fo.Detection) -> npt.NDArray[Any] | None:
+    if not _has_mask(label):
+        return None
+    try:
+        mask = label.get_mask()
+    except (OSError, TypeError, ValueError) as error:
+        raise MediaIOError(
+            filepath=_detection_mask_path(label) or "<memory>",
+            message="FiftyOne detection instance mask could not be read.",
+            context={
+                "reason": "unreadable_detection_mask",
+                "exception_type": type(error).__name__,
+            },
+        ) from error
+    return None if mask is None else np.asarray(mask)
+
+
+def _detection_mask_path(label: fo.Detection) -> str | None:
+    value = getattr(label, _SEGMENTATION_MASK_PATH_FIELD, None)
+    return value if isinstance(value, str) and value.strip() else None
 
 
 def _segmentation_mask(label: fo.Segmentation) -> npt.NDArray[Any]:
@@ -561,8 +650,97 @@ def _segmentation_mask_path(label: fo.Segmentation) -> str | None:
     return value if isinstance(value, str) and value.strip() else None
 
 
+def _full_image_detection_mask(
+    detection: Mapping[str, object],
+    bbox: Sequence[float],
+    *,
+    image_width: int,
+    image_height: int,
+) -> npt.NDArray[np.uint8] | None:
+    local_mask = _mask_array(detection)
+    if local_mask is None:
+        return None
+
+    target_slice = _bbox_pixel_slice(bbox, image_width=image_width, image_height=image_height)
+    if target_slice is None:
+        return None
+
+    x_min, y_min, x_max, y_max = target_slice
+    resized_mask = _resize_instance_mask(
+        _instance_mask_array(local_mask),
+        height=y_max - y_min,
+        width=x_max - x_min,
+    )
+    full_mask = np.zeros((image_height, image_width), dtype=np.uint8)
+    full_mask[y_min:y_max, x_min:x_max] = resized_mask
+    return full_mask
+
+
+def _output_detection_mask(
+    ref: _AnnotationRef,
+    detection: Mapping[str, object],
+    output_masks_by_ref: Mapping[_AnnotationRef, npt.NDArray[Any]],
+    *,
+    image_width: int,
+    image_height: int,
+) -> npt.NDArray[np.uint8] | None:
+    full_mask = output_masks_by_ref.get(ref)
+    if full_mask is None:
+        return None
+
+    bbox = _relative_bbox(detection)
+    if bbox is None:
+        return None
+
+    target_slice = _bbox_pixel_slice(bbox, image_width=image_width, image_height=image_height)
+    if target_slice is None:
+        return None
+
+    x_min, y_min, x_max, y_max = target_slice
+    local_mask = _instance_mask_array(full_mask)[y_min:y_max, x_min:x_max]
+    if not np.any(local_mask):
+        return None
+    return local_mask
+
+
+def _instance_mask_array(mask: object) -> npt.NDArray[np.uint8]:
+    array = np.asarray(mask)
+    if array.ndim > 2:
+        array = array[:, :, 0]
+    if array.ndim != 2:
+        raise MediaIOError(
+            filepath="<memory>",
+            message="FiftyOne detection instance mask must be a 2D array.",
+            context={"reason": "invalid_detection_mask_shape", "shape": _shape_context(array)},
+        )
+    if array.shape[0] <= 0 or array.shape[1] <= 0:
+        raise MediaIOError(
+            filepath="<memory>",
+            message="FiftyOne detection instance mask must have positive width and height.",
+            context={"reason": "invalid_detection_mask_shape", "shape": _shape_context(array)},
+        )
+    return np.asarray(array > 0, dtype=np.uint8)
+
+
+def _resize_instance_mask(
+    mask: npt.NDArray[np.uint8],
+    *,
+    height: int,
+    width: int,
+) -> npt.NDArray[np.uint8]:
+    if mask.shape == (height, width):
+        return mask
+
+    resized = Image.fromarray(mask).resize((width, height), resample=Image.Resampling.NEAREST)
+    return np.asarray(resized, dtype=np.uint8)
+
+
 def _mask_to_json(mask: object) -> list[JSONValue]:
     return cast(list[JSONValue], np.asarray(mask).tolist())
+
+
+def _shape_context(array: np.ndarray) -> list[int]:
+    return [int(part) for part in array.shape]
 
 
 def _array_or_sequence(value: object) -> JSONValue:

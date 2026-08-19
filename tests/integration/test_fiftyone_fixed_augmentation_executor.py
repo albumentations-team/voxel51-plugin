@@ -82,6 +82,18 @@ def _segmentation_mask(width: int = 10, height: int = 8) -> np.ndarray:
     return mask
 
 
+def _detection_instance_mask() -> np.ndarray:
+    return np.asarray(
+        [
+            [1, 0],
+            [1, 1],
+            [0, 1],
+            [1, 1],
+        ],
+        dtype=np.uint8,
+    )
+
+
 def _write_source_mask(root: Path, name: str, *, width: int = 10, height: int = 8) -> Path:
     return write_mask_image(_segmentation_mask(width=width, height=height), root, f"source-masks/{name}.png")
 
@@ -106,6 +118,7 @@ def _annotated_sample(filepath: Path) -> fo.Sample:
                 fo.Detection(
                     label="object",
                     bounding_box=[0.1, 0.25, 0.2, 0.5],
+                    mask=_detection_instance_mask(),
                     confidence=0.8,
                     attributes={"source": fo.CategoricalAttribute(value="manual")},
                 )
@@ -552,6 +565,7 @@ def test_fixed_augmentation_executor_transforms_supported_annotations(tmp_path) 
         assert detection.confidence == pytest.approx(0.8)
         assert detection.attributes["source"].value == "manual"
         assert detection.bounding_box == pytest.approx([0.7, 0.25, 0.2, 0.5])
+        np.testing.assert_array_equal(np.asarray(detection.mask), _detection_instance_mask()[:, ::-1])
 
         assert len(output.keypoints.keypoints) == 1
         keypoint = output.keypoints.keypoints[0]
@@ -680,6 +694,8 @@ def test_fixed_augmentation_preview_matches_materialized_deterministic_geometry(
         preview_fields = cast(dict[str, Any], output.labels["fields"])
         preview_detection = cast(list[dict[str, Any]], preview_fields["detections"]["detections"])[0]
         assert preview_detection["bounding_box"] == pytest.approx([0.7, 0.25, 0.2, 0.5])
+        preview_detection_mask = np.asarray(preview_detection["mask"], dtype=np.uint8)
+        np.testing.assert_array_equal(preview_detection_mask, _detection_instance_mask()[:, ::-1])
         preview_keypoint = cast(list[dict[str, Any]], preview_fields["keypoints"]["keypoints"])[0]
         assert preview_keypoint["points"][0] == pytest.approx([0.7, 0.375])
         preview_mask = np.asarray(cast(dict[str, Any], preview_fields["segmentation"])["mask"], dtype=np.uint8)
@@ -699,6 +715,7 @@ def test_fixed_augmentation_preview_matches_materialized_deterministic_geometry(
             _decode_preview_image(output.output_image), load_rgb_image(created[0].filepath).data
         )
         assert created[0].detections.detections[0].bounding_box == pytest.approx(preview_detection["bounding_box"])
+        np.testing.assert_array_equal(np.asarray(created[0].detections.detections[0].mask), preview_detection_mask)
         assert created[0].keypoints.keypoints[0].points[0] == pytest.approx(preview_keypoint["points"][0])
         np.testing.assert_array_equal(np.asarray(created[0].segmentation.mask), preview_mask)
     finally:
@@ -785,6 +802,7 @@ def test_fixed_augmentation_executor_copies_spatial_annotations_through_image_on
         output = _output_samples(dataset)[0]
         detection = output.detections.detections[0]
         assert detection.bounding_box == pytest.approx([0.1, 0.25, 0.2, 0.5])
+        np.testing.assert_array_equal(np.asarray(detection.mask), _detection_instance_mask())
 
         manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
         annotations = cast(dict[str, Any], manifest.metadata["annotations"])

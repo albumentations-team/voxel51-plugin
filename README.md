@@ -86,8 +86,10 @@ the App responsive while progress is reported.
   inspection and cleanup.
 - The executable path keeps FiftyOne `Classification`, `Detections`,
   `Keypoints`, and semantic `Segmentation` annotations aligned with supported
-  transforms. `Segmentation(mask_path=...)` outputs write plugin-owned mask PNGs
-  that are listed in the run manifest for cleanup.
+  transforms. `Detection(mask=...)` and `Detection(mask_path=...)` instance
+  masks follow their bounding boxes; detection mask outputs are stored as
+  in-memory `Detection.mask` values. `Segmentation(mask_path=...)` outputs
+  write plugin-owned mask PNGs that are listed in the run manifest for cleanup.
 - Every non-dry run stores its pipeline configuration and sampled replay
   metadata. Generated samples and files can be inspected and cleaned up by run.
 
@@ -99,8 +101,8 @@ the App responsive while progress is reported.
 - FiftyOne `>=1.19,<2` does not expose a stable public cancellation flag to
   operators, so cancellation detection is best-effort; abrupt process
   termination can still stop before a final `cancelled` checkpoint is written.
-- Detection instance masks, polylines, heatmaps, and unsupported FiftyOne label
-  classes are not part of the annotation-aware execution path.
+- Polylines, heatmaps, and unsupported FiftyOne label classes are not part of
+  the annotation-aware execution path.
 - Some `supported_with_defaults` transforms use documented defaults until their
   advanced controls are available in the form.
 - `Previous run` restores pipeline configuration; it does not reproduce each

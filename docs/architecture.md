@@ -254,14 +254,14 @@ pipeline validation, replay extraction, or manifest safety rules.
 ### Annotation targets
 
 FiftyOne annotation conversion lives in `hosts/fiftyone/annotations/`.
-Classification labels are copied as static labels. Detections, keypoints, and
-semantic segmentation masks are converted into Albumentations targets, passed
-through the backend runner, and reconstructed on output samples. File-backed
-semantic mask outputs are materialized as plugin-owned files before sample
-creation. Spatial labels must not be copied across geometric transforms unless
-the transform chain is proven compatible with that target type. Unsupported
-FiftyOne label classes and target variants should be added incrementally with
-round-trip tests.
+Classification labels are copied as static labels. Detections, detection
+instance masks, keypoints, and semantic segmentation masks are converted into
+Albumentations targets, passed through the backend runner, and reconstructed on
+output samples. File-backed semantic mask outputs are materialized as
+plugin-owned files before sample creation. Spatial labels must not be copied
+across geometric transforms unless the transform chain is proven compatible
+with that target type. Unsupported FiftyOne label classes and target variants
+should be added incrementally with round-trip tests.
 
 ## Storage and Safety
 
