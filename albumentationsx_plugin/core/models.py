@@ -15,7 +15,11 @@ from albumentationsx_plugin.core.contracts.fixed_slice import (
     FIXED_TRANSFORM_NAMES,
     MAX_OUTPUTS_PER_SAMPLE,
     MAX_PIPELINE_STEPS,
+    PIPELINE_STAGE_ENABLED_FIELD_NAME,
+    PIPELINE_STAGE_ORDER_FIELD_NAME,
     PIPELINE_STEP_COUNT_FIELD_NAME,
+    pipeline_stage_enabled_field_name,
+    pipeline_stage_order_field_name,
     pipeline_step_field_name,
 )
 from albumentationsx_plugin.core.contracts.forms import FieldKind, FormFieldSchema
@@ -53,6 +57,8 @@ __all__ = [
     "MAX_PIPELINE_STEPS",
     "MAX_OUTPUTS_PER_SAMPLE",
     "PIPELINE_STEP_COUNT_FIELD_NAME",
+    "PIPELINE_STAGE_ENABLED_FIELD_NAME",
+    "PIPELINE_STAGE_ORDER_FIELD_NAME",
     "PipelineConfig",
     "RUN_CLEANED_AT_METADATA_KEY",
     "RUN_CLEANUP_STATUS_CLEANED",
@@ -71,5 +77,7 @@ __all__ = [
     "TransformConfig",
     "normalize_json_mapping",
     "normalize_json_value",
+    "pipeline_stage_enabled_field_name",
+    "pipeline_stage_order_field_name",
     "pipeline_step_field_name",
 ]

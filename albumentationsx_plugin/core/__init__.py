@@ -26,6 +26,8 @@ from albumentationsx_plugin.core.models import (
     FIXED_TRANSFORM_NAMES,
     MAX_OUTPUTS_PER_SAMPLE,
     MAX_PIPELINE_STEPS,
+    PIPELINE_STAGE_ENABLED_FIELD_NAME,
+    PIPELINE_STAGE_ORDER_FIELD_NAME,
     PIPELINE_STEP_COUNT_FIELD_NAME,
     RUN_CLEANED_AT_METADATA_KEY,
     RUN_CLEANUP_STATUS_CLEANED,
@@ -50,6 +52,8 @@ from albumentationsx_plugin.core.models import (
     RunManifest,
     TransformCapability,
     TransformConfig,
+    pipeline_stage_enabled_field_name,
+    pipeline_stage_order_field_name,
     pipeline_step_field_name,
 )
 
@@ -77,6 +81,8 @@ __all__ = [
     "OutputStorageBackend",
     "ParameterSchemaProvider",
     "PIPELINE_STEP_COUNT_FIELD_NAME",
+    "PIPELINE_STAGE_ENABLED_FIELD_NAME",
+    "PIPELINE_STAGE_ORDER_FIELD_NAME",
     "PipelineConfig",
     "PipelineFactory",
     "PipelineRunner",
@@ -99,5 +105,7 @@ __all__ = [
     "TransformCatalogProvider",
     "TransformConfig",
     "UnsupportedTransformError",
+    "pipeline_stage_enabled_field_name",
+    "pipeline_stage_order_field_name",
     "pipeline_step_field_name",
 ]

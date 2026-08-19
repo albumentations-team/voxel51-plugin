@@ -72,7 +72,8 @@ the App responsive while progress is reported.
   targets, advanced-parameter status, and exclusion reasons.
 - Form controls use compact captions, readable enum labels, and responsive
   parameter groups instead of repeating defaults and constraints as prose.
-- A pipeline can contain up to three ordered stages.
+- A pipeline can contain up to ten stage slots. Each slot can be enabled or
+  disabled, and lower `Execution order` values run earlier.
 - Runs can target selected samples, the active current view, or the entire
   dataset.
 - Selected samples can be previewed in memory before creating persistent output
@@ -137,18 +138,20 @@ uses stable `demo_id` values for repeatable checks; FiftyOne internal sample IDs
 are database-generated.
 
 In the App, run `Augment with AlbumentationsX`, choose `Execution scope`
-(`Selected samples`, `Current view`, or `Entire dataset`), set `Pipeline steps`,
+(`Selected samples`, `Current view`, or `Entire dataset`), set `Pipeline stages`,
 optionally choose `Previous run` to prefill the form from a saved run in this
 dataset, optionally set `Run label` and `Outputs per sample`, and choose a
-catalog-backed transform for each ordered step. Select one to three source
-samples and enable `Preview only` to render source/augmented image previews,
-sampled replay parameters, and transformed label JSON without writing files,
-creating samples, or registering a run. `Dry run` validates the configuration
-and reports the resolved source scope without writing files or creating samples.
-Run small selections immediately. For larger views or full datasets, choose
-delegated execution in FiftyOne's execution dialog so the App can remain
-responsive and report live progress. Previous-run settings are used as a
-reusable pipeline template with fresh randomness, not as an exact replay of
+catalog-backed transform for each visible stage slot. Each stage slot can be
+skipped with `Enabled` or moved by changing `Execution order`. Select one to
+three source samples and enable `Preview only` to render source/augmented image
+previews, sampled replay parameters, and transformed label JSON without writing
+files, creating samples, or registering a run. `Dry run` validates the
+configuration and reports the resolved source scope without writing files or
+creating samples. Run small selections immediately. For larger views or full
+datasets, choose delegated execution in FiftyOne's execution dialog so the App
+can remain responsive and report live progress. Previous-run settings are used
+as a reusable pipeline template with fresh randomness, including all saved
+stages up to the current ten-slot editor limit, not as an exact replay of
 earlier sampled parameters. Clear `Previous run` after loading if you want to
 keep editing the form without reapplying the saved pipeline. New output samples
 are written under the plugin-owned storage directory and tagged with the run
