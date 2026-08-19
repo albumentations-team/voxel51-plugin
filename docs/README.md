@@ -15,6 +15,8 @@ these files hold development workflow, review, and release notes.
   catalog-backed transform choices and output behavior.
 - [Annotation-aware execution](annotation-aware-execution.md): supported
   FiftyOne label conversion through Albumentations targets.
+- [Augmentation preview](augmentation-preview.md): non-persistent selected-sample
+  preview path and verification checklist.
 - [albu-spec catalog](albu-spec-catalog.md): version-aware transform capability
   registry and review report.
 - [Capability browser](capability-browser.md): read-only FiftyOne operator for

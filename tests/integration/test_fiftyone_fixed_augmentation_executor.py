@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import io
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,13 +10,17 @@ from typing import Any, cast
 import fiftyone as fo
 import numpy as np
 import pytest
+from PIL import Image
 
 from albumentationsx_plugin.core import InvalidParameterError, MediaIOError, RunManifest
 from albumentationsx_plugin.hosts.fiftyone.annotations import (
     SELECTED_LABEL_FIELDS_PARAM_NAME,
     annotation_field_param_name,
 )
-from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
+from albumentationsx_plugin.hosts.fiftyone.augmentation import (
+    execute_fixed_augmentation,
+    execute_fixed_augmentation_preview,
+)
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_CURRENT_VIEW,
     EXECUTION_SCOPE_ENTIRE_DATASET,
@@ -106,6 +112,13 @@ def _output_samples(dataset: fo.Dataset) -> list[Any]:
 
 def _load_sample(dataset: fo.Dataset, sample_id: str) -> Any:
     return cast(Any, dataset[sample_id])
+
+
+def _decode_preview_image(value: str) -> np.ndarray:
+    prefix = "data:image/png;base64,"
+    assert value.startswith(prefix)
+    with Image.open(io.BytesIO(base64.b64decode(value.removeprefix(prefix)))) as image:
+        return np.asarray(image.convert("RGB"), dtype=np.uint8)
 
 
 class _RecordingProgressReporter:
@@ -451,6 +464,70 @@ def test_fixed_augmentation_executor_transforms_supported_annotations(tmp_path) 
         assert [field["field_name"] for field in annotations["copied_fields"]] == ["ground_truth"]
         assert manifest.pipeline.target_fields == ("detections", "keypoints", "segmentation")
         assert manifest.pipeline.copy_fields == ("ground_truth",)
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_preview_matches_materialized_deterministic_geometry(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, "annotated-preview", width=10, height=8)
+        sample_id = dataset.add_sample(_annotated_sample(source_path))
+        storage_root = tmp_path / "plugin-storage"
+        source_mask = np.asarray(_load_sample(dataset, sample_id).segmentation.mask)
+        params = {
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            "outputs_per_sample": 1,
+            "dry_run": False,
+        }
+
+        preview = execute_fixed_augmentation_preview(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params=params,
+        )
+
+        assert preview.source_scope == EXECUTION_SCOPE_SELECTED_SAMPLES
+        assert preview.processed_count == 1
+        assert preview.preview_count == 1
+        assert preview.error_count == 0
+        assert len(dataset) == 1
+        assert dataset.list_runs() == []
+        assert not storage_root.exists()
+
+        output = preview.outputs[0]
+        source_image = load_rgb_image(source_path).data
+        np.testing.assert_array_equal(_decode_preview_image(output.source_image), source_image)
+        np.testing.assert_array_equal(_decode_preview_image(output.output_image), source_image[:, ::-1, :])
+
+        preview_fields = cast(dict[str, Any], output.labels["fields"])
+        preview_detection = cast(list[dict[str, Any]], preview_fields["detections"]["detections"])[0]
+        assert preview_detection["bounding_box"] == pytest.approx([0.7, 0.25, 0.2, 0.5])
+        preview_keypoint = cast(list[dict[str, Any]], preview_fields["keypoints"]["keypoints"])[0]
+        assert preview_keypoint["points"][0] == pytest.approx([0.7, 0.375])
+        preview_mask = np.asarray(cast(dict[str, Any], preview_fields["segmentation"])["mask"], dtype=np.uint8)
+        np.testing.assert_array_equal(preview_mask, source_mask[:, ::-1])
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params=params,
+            storage_root=storage_root,
+        )
+
+        assert result.created_count == 1
+        created = _output_samples(dataset)
+        assert len(created) == 1
+        np.testing.assert_array_equal(
+            _decode_preview_image(output.output_image), load_rgb_image(created[0].filepath).data
+        )
+        assert created[0].detections.detections[0].bounding_box == pytest.approx(preview_detection["bounding_box"])
+        assert created[0].keypoints.keypoints[0].points[0] == pytest.approx(preview_keypoint["points"][0])
+        np.testing.assert_array_equal(np.asarray(created[0].segmentation.mask), preview_mask)
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)

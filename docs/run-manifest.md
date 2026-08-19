@@ -59,6 +59,10 @@ The custom run stores:
 
 Dry runs do not create output files, run directories, manifests, or custom runs.
 
+Preview runs also do not create output files, run directories, manifests, or
+custom runs. Preview returns in-memory images and JSON diagnostics through the
+operator output only; it is not listed by the run summary or cleanup operators.
+
 Saved manifests also act as same-dataset augmentation presets. The
 `Augment with AlbumentationsX` form can load a previous run's `pipeline` config
 to prefill transforms, visible parameters, and output count for a new run.
