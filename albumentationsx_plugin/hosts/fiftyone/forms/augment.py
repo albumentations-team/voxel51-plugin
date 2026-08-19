@@ -27,6 +27,8 @@ from albumentationsx_plugin.core import (
     ParameterSchemaProvider,
     TransformCatalogProvider,
     UnsupportedTransformError,
+    pipeline_stage_enabled_field_name,
+    pipeline_stage_order_field_name,
     pipeline_step_field_name,
 )
 from albumentationsx_plugin.core.serialization import normalize_json_value
@@ -65,7 +67,9 @@ PROBABILITY_FIELD_NAME: Final[str] = "p"
 OUTPUTS_PER_SAMPLE_FIELD_NAME: Final[str] = "outputs_per_sample"
 DRY_RUN_FIELD_NAME: Final[str] = "dry_run"
 DEFAULT_DYNAMIC_TRANSFORM_NAME: Final[str] = "HorizontalFlip"
-PIPELINE_STEP_COUNT_LABEL: Final[str] = "Pipeline steps"
+PIPELINE_STEP_COUNT_LABEL: Final[str] = "Pipeline stages"
+PIPELINE_STAGE_ENABLED_LABEL: Final[str] = "Enabled"
+PIPELINE_STAGE_ORDER_LABEL: Final[str] = "Execution order"
 RANDOM_CROP_TRANSFORM_NAME: Final[str] = "RandomCrop"
 GENERAL_SECTION_FIELD_NAME: Final[str] = "_general_settings"
 ANNOTATION_SECTION_FIELD_NAME: Final[str] = "_annotation_settings"
@@ -190,6 +194,7 @@ class DynamicAugmentFormBuilder:
                     default=selected_step_count,
                     min_value=1,
                     max_value=MAX_PIPELINE_STEPS,
+                    help_text=f"Show 1-{MAX_PIPELINE_STEPS} configurable stage slots.",
                 ),
                 FormFieldSchema(
                     name=RUN_LABEL_FIELD_NAME,
@@ -344,15 +349,18 @@ class DynamicAugmentFormBuilder:
         )
         self.renderer.render_into(
             parameter_group,
-            _step_parameter_fields(
-                parameter_fields=_executable_ui_fields(
-                    selected_transform_name=selected_transform_name,
-                    parameter_fields=parameter_fields,
-                    params=params,
+            (
+                *_pipeline_stage_control_fields(params=params, step_number=step_number),
+                *_step_parameter_fields(
+                    parameter_fields=_executable_ui_fields(
+                        selected_transform_name=selected_transform_name,
+                        parameter_fields=parameter_fields,
+                        params=params,
+                        step_number=step_number,
+                        random_crop_defaults=random_crop_defaults,
+                    ),
                     step_number=step_number,
-                    random_crop_defaults=random_crop_defaults,
                 ),
-                step_number=step_number,
             ),
         )
 
@@ -389,6 +397,12 @@ def _selected_execution_scope(params: Mapping[str, object], *, selected_sample_i
 
 def _selected_bool(raw_value: object, *, default: bool) -> bool:
     return raw_value if isinstance(raw_value, bool) else default
+
+
+def _selected_int(raw_value: object, *, default: int, min_value: int, max_value: int) -> int:
+    if isinstance(raw_value, int) and not isinstance(raw_value, bool) and min_value <= raw_value <= max_value:
+        return raw_value
+    return default
 
 
 def _selected_string(raw_value: object) -> str:
@@ -471,6 +485,41 @@ def _executable_ui_fields(
         compact_field = replace(ui_field, help_text=_compact_help_text(ui_field.help_text))
         fields.append(_with_current_default(compact_field, params=params, step_number=step_number))
     return tuple(fields)
+
+
+def _pipeline_stage_control_fields(
+    *,
+    params: Mapping[str, object],
+    step_number: int,
+) -> tuple[FormFieldSchema, FormFieldSchema]:
+    return (
+        FormFieldSchema(
+            name=pipeline_stage_enabled_field_name(step_number),
+            kind=FieldKind.BOOLEAN,
+            label=PIPELINE_STAGE_ENABLED_LABEL,
+            required=False,
+            default=_selected_bool(
+                params.get(pipeline_stage_enabled_field_name(step_number)),
+                default=True,
+            ),
+            help_text="Skip this stage without clearing its transform settings.",
+        ),
+        FormFieldSchema(
+            name=pipeline_stage_order_field_name(step_number),
+            kind=FieldKind.INTEGER,
+            label=PIPELINE_STAGE_ORDER_LABEL,
+            required=False,
+            default=_selected_int(
+                params.get(pipeline_stage_order_field_name(step_number)),
+                default=step_number,
+                min_value=1,
+                max_value=MAX_PIPELINE_STEPS,
+            ),
+            min_value=1,
+            max_value=MAX_PIPELINE_STEPS,
+            help_text="Lower values run earlier; ties keep stage slot order.",
+        ),
+    )
 
 
 def _with_current_default(

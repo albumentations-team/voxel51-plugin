@@ -11,6 +11,8 @@ from albumentationsx_plugin.core import (
     MAX_PIPELINE_STEPS,
     PIPELINE_STEP_COUNT_FIELD_NAME,
     PipelineConfig,
+    pipeline_stage_enabled_field_name,
+    pipeline_stage_order_field_name,
     pipeline_step_field_name,
 )
 from albumentationsx_plugin.storage import MANIFEST_FILENAME, FileRunStore
@@ -112,6 +114,8 @@ def operator_params_from_pipeline(pipeline: PipelineConfig) -> dict[str, object]
         "outputs_per_sample": pipeline.outputs_per_sample,
     }
     for step_index, transform in enumerate(transforms, start=1):
+        params[pipeline_stage_enabled_field_name(step_index)] = True
+        params[pipeline_stage_order_field_name(step_index)] = step_index
         params[pipeline_step_field_name(step_index, "transform")] = transform.name
         for parameter_name, value in transform.params.items():
             params[pipeline_step_field_name(step_index, parameter_name)] = value

@@ -46,9 +46,9 @@ decides how to load media, write outputs, and create host records.
 
 ## Current Scope
 
-The FiftyOne execution path exposes ordered chains of up to three steps selected
-from the albu-spec capability catalog. Normal executable choices are transforms
-classified as:
+The FiftyOne execution path exposes ordered chains built from up to ten stage
+slots selected from the albu-spec capability catalog. Normal executable choices
+are transforms classified as:
 
 - `supported`
 - `supported_with_defaults`
@@ -56,6 +56,8 @@ classified as:
 Internally, transforms are created by the shared catalog-driven factory. The
 operator form hides advanced optional JSON fallback parameters for
 `supported_with_defaults` transforms and lets the factory supply their defaults.
+The backend receives only the enabled slots, already sorted by the selected
+execution order, so `PipelineConfig` remains the host-neutral ordered contract.
 
 VOX-26 adds the first host-side annotation adapter. The backend runner remains
 host-neutral: FiftyOne label serialization and reconstruction live in

@@ -67,7 +67,8 @@ larger views or datasets to keep the App responsive while progress is reported.
   targets, advanced-parameter status, and exclusion reasons.
 - Form controls use compact captions, readable enum labels, and responsive
   parameter groups instead of repeating defaults and constraints as prose.
-- A pipeline can contain up to three ordered stages.
+- A pipeline can contain up to ten stage slots. Each slot can be enabled or
+  disabled, and lower `Execution order` values run earlier.
 - Runs can target selected samples, the active current view, or the entire
   dataset.
 - Augmentation supports both immediate execution and delegated execution.
@@ -124,17 +125,19 @@ uses stable `demo_id` values for repeatable checks; FiftyOne internal sample IDs
 are database-generated.
 
 In the App, run `Augment with AlbumentationsX`, choose `Execution scope`
-(`Selected samples`, `Current view`, or `Entire dataset`), set `Pipeline steps`,
+(`Selected samples`, `Current view`, or `Entire dataset`), set `Pipeline stages`,
 optionally choose `Previous run` to prefill the form from a saved run in this
 dataset, optionally set `Run label` and `Outputs per sample`, and choose a
-catalog-backed transform for each ordered step. `Dry run` validates the
+catalog-backed transform for each visible stage slot. `Dry run` validates the
 configuration and reports the resolved source scope without writing files or
 creating samples. Run small selections immediately. For larger views or full
 datasets, choose delegated execution in FiftyOne's execution dialog so the App
 can remain responsive and report live progress. Previous-run settings are used
-as a reusable pipeline template with fresh randomness, not as an exact replay of
-earlier sampled parameters. Clear `Previous run` after loading if you want to
-keep editing the form without reapplying the saved pipeline. New output samples
+as a reusable pipeline template with fresh randomness, including all saved
+stages up to the current ten-slot editor limit, not as an exact replay of
+earlier sampled parameters. Each stage slot can be skipped with `Enabled` or
+moved by changing `Execution order`. Clear `Previous run` after loading if you
+want to keep editing the form without reapplying the saved pipeline. New output samples
 are written under the
 plugin-owned storage directory and tagged with the run key; source samples and
 source files remain unchanged. Non-dry runs also save

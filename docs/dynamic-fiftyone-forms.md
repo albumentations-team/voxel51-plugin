@@ -41,9 +41,10 @@ augmentation form hides optional JSON fallback parameters for
 ## Execution Scope
 
 VOX-14 adds a catalog-driven backend pipeline factory. The execution path now
-uses that shared factory internally. VOX-22 adds ordered pipeline editing for up
-to three steps. VOX-25 exposes catalog-backed normal MVP transform choices in
-the executable App flow.
+uses that shared factory internally. VOX-22 adds ordered pipeline editing, and
+VOX-39 expands it to a bounded ten-slot editor with explicit enable and
+execution-order controls. VOX-25 exposes catalog-backed normal MVP transform
+choices in the executable App flow.
 
 VOX-38 adds an explicit `Execution scope` control to the general settings. The
 supported scopes are:
@@ -73,32 +74,38 @@ Executable choices include transforms whose catalog status is:
 Excluded catalog statuses remain visible through the capability report, not as
 normal executable App choices.
 
-Step 1 keeps the original fixed-form field names (`transform`, `p`, `height`,
-and similar) for compatibility. Later steps use prefixed field names such as
-`step_2_transform`, `step_2_p`, and `step_3_height`.
+Slot 1 keeps the original fixed-form field names (`transform`, `p`, `height`,
+and similar) for compatibility. Later slots use prefixed field names such as
+`step_2_transform`, `step_2_p`, `step_3_height`, and `step_10_transform`.
+Each visible slot also has `pipeline_stage_enabled`/`step_N_pipeline_stage_enabled`
+and `pipeline_stage_order`/`step_N_pipeline_stage_order` controls. Disabled
+slots are skipped without clearing their transform settings. Enabled slots are
+sorted by execution order, with slot number as the tie-breaker.
 
 VOX-27 groups the prompt into a general settings section followed by one
-visible section for each active augmentation stage. General settings include the
-optional previous-run preset selector, execution scope, stage count, output
-count, run label, and dry-run flag. Only active stages are rendered, so
-later-stage validation is not shown before those stages are enabled.
+visible section for each configured augmentation stage slot. General settings
+include the optional previous-run preset selector, execution scope, stage-slot
+count, output count, run label, and dry-run flag. Only visible slots are
+rendered, so later-stage validation is not shown before those slots are added.
 
 When a previous run is selected, the form loads that run's `manifest.json` from
 the current dataset and overlays its saved `pipeline` config over current
 pipeline form values. The same overlay is applied during operator execution, so
 submitting only the previous run key still applies the saved pipeline template to
-the new selection. Clear `Previous run` after loading if you want to keep editing
-the form without reapplying the saved pipeline. Replay records are not reused;
-the new run samples fresh random parameters.
+the new selection. Presets preserve saved stages up to the same ten-slot safety
+limit as the editor. Clear `Previous run` after loading if you want to keep
+editing the form without reapplying the saved pipeline. Replay records are not
+reused; the new run samples fresh random parameters.
 
-Stage headings provide the pipeline order, so transform and parameter labels do
-not repeat `Step N`. The form also removes default values and constraint lists
-from help text: the current default is visible in each control, and the field
-schema enforces available bounds. OpenCV interpolation and border-mode enums
-show names such as `Linear (1)` instead of unexplained integers. Parameter
-groups use two columns on desktop and one column below the desktop breakpoint.
-The host adapter flattens these visual groups before execution, so saved runs
-and the pipeline factory keep their existing parameter names.
+Stage headings identify the stable slot. `Execution order` provides the
+pipeline order, so transform and parameter labels do not repeat `Step N`. The
+form also removes default values and constraint lists from help text: the
+current default is visible in each control, and the field schema enforces
+available bounds. OpenCV interpolation and border-mode enums show names such as
+`Linear (1)` instead of unexplained integers. Parameter groups use two columns
+on desktop and one column below the desktop breakpoint. The host adapter
+flattens these visual groups before execution, so saved runs and the pipeline
+factory keep their existing parameter names.
 
 The fixed execution form applies MVP-specific defaults over the raw albu-spec
 schema without mutating catalog metadata: transform probability defaults to

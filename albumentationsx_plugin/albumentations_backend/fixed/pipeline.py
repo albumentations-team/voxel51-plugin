@@ -32,6 +32,8 @@ from albumentationsx_plugin.core import (
     PipelineConfig,
     TransformCatalogProvider,
     TransformConfig,
+    pipeline_stage_enabled_field_name,
+    pipeline_stage_order_field_name,
     pipeline_step_field_name,
 )
 from albumentationsx_plugin.core.serialization import JSONDict, normalize_json_value
@@ -40,6 +42,12 @@ RGBArray: TypeAlias = npt.NDArray[np.uint8]
 _ImageShape: TypeAlias = tuple[int, int, int]
 _MISSING: Final[object] = object()
 SCHEMA_STATUS_JSON_FALLBACK: Final[str] = "json_fallback"
+
+
+@dataclass(frozen=True, slots=True)
+class _PipelineStageSelection:
+    step_number: int
+    execution_order: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,14 +104,14 @@ def build_fixed_pipeline_config(
         max_value=MAX_OUTPUTS_PER_SAMPLE,
         transform_name="<pipeline>",
     )
-    step_count = _pipeline_step_count(params)
+    stage_selections = _selected_pipeline_stages(params)
     transforms = tuple(
         _step_transform_config(
             params,
-            step_number,
+            stage.step_number,
             parameter_schema_provider=parameter_schema_provider,
         )
-        for step_number in range(1, step_count + 1)
+        for stage in stage_selections
     )
 
     config = PipelineConfig(
@@ -131,14 +139,14 @@ def validate_fixed_pipeline_config(config: PipelineConfig, *, image_shape: _Imag
         raise InvalidParameterError(
             transform_name="<pipeline>",
             parameter_name="transforms",
-            message="The fixed MVP slice requires at least one transform.",
+            message="The pipeline editor requires at least one enabled transform.",
             context={"transform_count": len(config.transforms)},
         )
     if len(config.transforms) > MAX_PIPELINE_STEPS:
         raise InvalidParameterError(
             transform_name="<pipeline>",
             parameter_name="transforms",
-            message=f"The fixed MVP slice supports at most {MAX_PIPELINE_STEPS} transforms.",
+            message=f"The pipeline editor supports at most {MAX_PIPELINE_STEPS} transforms.",
             context={"transform_count": len(config.transforms), "max_value": MAX_PIPELINE_STEPS},
         )
     if config.outputs_per_sample > MAX_OUTPUTS_PER_SAMPLE:
@@ -325,6 +333,42 @@ def _default_parameter_value(field: FormFieldSchema) -> object:
     return _MISSING if field.default is None else field.default
 
 
+def _selected_pipeline_stages(params: Mapping[str, object]) -> tuple[_PipelineStageSelection, ...]:
+    visible_step_count = _pipeline_step_count(params)
+    selections: list[_PipelineStageSelection] = []
+    for step_number in range(1, visible_step_count + 1):
+        enabled = _bool_param(
+            params,
+            pipeline_stage_enabled_field_name(step_number),
+            default=True,
+            transform_name="<pipeline>",
+        )
+        if not enabled:
+            continue
+        selections.append(
+            _PipelineStageSelection(
+                step_number=step_number,
+                execution_order=_int_param(
+                    params,
+                    pipeline_stage_order_field_name(step_number),
+                    default=step_number,
+                    min_value=1,
+                    max_value=MAX_PIPELINE_STEPS,
+                    transform_name="<pipeline>",
+                ),
+            )
+        )
+
+    if not selections:
+        raise InvalidParameterError(
+            transform_name="<pipeline>",
+            parameter_name="pipeline_stages",
+            message="At least one pipeline stage must be enabled.",
+            context={"visible_step_count": visible_step_count},
+        )
+    return tuple(sorted(selections, key=lambda stage: (stage.execution_order, stage.step_number)))
+
+
 def _pipeline_step_count(params: Mapping[str, object]) -> int:
     return _int_param(
         params,
@@ -430,6 +474,24 @@ def _int_param(
             parameter_name=parameter_name,
             message=f"{parameter_name} must be less than or equal to {max_value}.",
             context={"value": raw_value, "max_value": max_value},
+        )
+    return raw_value
+
+
+def _bool_param(
+    params: Mapping[str, object],
+    parameter_name: str,
+    *,
+    default: bool,
+    transform_name: str,
+) -> bool:
+    raw_value = _param_value(params, parameter_name, default=default)
+    if not isinstance(raw_value, bool):
+        raise InvalidParameterError(
+            transform_name=transform_name,
+            parameter_name=parameter_name,
+            message=f"{parameter_name} must be a boolean.",
+            context={"value": raw_value},
         )
     return raw_value
 

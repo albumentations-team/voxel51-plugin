@@ -2,7 +2,7 @@
 
 **Status:** the image augmentation MVP is implemented. Publication readiness and broader execution coverage remain open.
 
-**Last reviewed:** 2026-08-17
+**Last reviewed:** 2026-08-19
 
 This document records the current product boundary, the decisions that protect user data, and the work that remains. It is not a historical task list. Detailed implementation notes live in [docs/](docs/README.md); the root [README](README.md) is the installation and usage guide.
 
@@ -19,7 +19,8 @@ The current implementation supports the following workflow.
 1. Select one or more image samples in the FiftyOne App, open a filtered image
    view, or use the full image dataset.
 2. Open **Augment with AlbumentationsX**.
-3. Configure one to three ordered transform stages and create one to three outputs per source sample.
+3. Configure up to ten transform stage slots, enable the stages to execute,
+   order them, and create one to three outputs per source sample.
 4. Inspect the new samples with **View AlbumentationsX Run**.
 5. Remove generated samples and files with **Delete AlbumentationsX Run** after confirmation.
 
@@ -40,6 +41,9 @@ The MVP is deliberately narrower than the full AlbumentationsX catalog.
 
 - It processes image samples from selected samples, the active view, or the full dataset. It does not process video or 3D media.
 - The augmentation operator supports immediate and delegated execution. Distributed execution and cancellation are not implemented.
+- The FiftyOne operator API does not provide a drag-and-drop repeater, so the
+  MVP uses a bounded ten-slot editor with explicit enable and execution-order
+  controls.
 - The normal selector excludes transforms that require external reference data, use unsupported media or targets, or produce unsafe image outputs.
 - External segmentation-mask paths, detection instance masks, polylines, custom embedded documents, and unsupported FiftyOne label classes are excluded from annotation-aware execution.
 - `supported_with_defaults` transforms keep some advanced optional parameters at their library defaults until the form has safe controls for them.
@@ -109,7 +113,7 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 |---|---|
 | Plugin integration | The repository registers augmentation, run-summary, and run-cleanup operators for FiftyOne `>=1.19,<2`. |
 | Catalog and forms | The dynamic form consumes the versioned `albu-spec` catalog, renders supported parameter types, shows target guidance, and reports excluded transforms. |
-| Pipeline execution | The executor builds catalog-backed `ReplayCompose` pipelines with up to three stages and creates new image samples without modifying selected sources. |
+| Pipeline execution | The executor builds catalog-backed `ReplayCompose` pipelines from up to ten ordered stage slots and creates new image samples without modifying selected sources. |
 | Annotation handling | Classification, detections, keypoints, and in-memory semantic masks travel through the supported execution path. |
 | Provenance and cleanup | Manifests, FiftyOne custom runs, source links, replay metadata, run inspection, and containment-checked cleanup are implemented. |
 | Larger-run execution | The augmentation operator can run immediately or through FiftyOne delegated execution and reports processed sources, planned outputs, created outputs, skipped sources, and errors. |
