@@ -61,8 +61,11 @@ VOX-25.
 
 The FiftyOne prompt renders general run settings before transform details, then
 shows a dedicated section for each active pipeline stage. Toolbar placement is
-context-aware: augmentation is disabled until samples are selected, and run
-summary/cleanup actions are disabled until persisted runs exist.
+context-aware: augmentation is disabled until samples are selected or an image
+dataset/view is open, and run summary/cleanup actions are disabled until
+persisted runs exist. The augmentation operator supports immediate and delegated
+execution; immediate execution remains the default, and the form recommends
+delegated execution for larger views or datasets.
 
 Each stage uses the stage heading to show pipeline order, so its field labels do
 not repeat the step number. Parameters use short captions, readable enum labels,
@@ -117,6 +120,12 @@ output files or run metadata.
 After a successful non-dry run creates samples, the operator asks the FiftyOne
 App to reload the dataset so generated outputs are visible without a manual
 browser refresh.
+
+The executor accepts a small progress reporter interface. FiftyOne delegated
+contexts receive updates for processed sources, planned outputs, created
+outputs, skipped sources, and errors. The reporter is non-critical: progress
+backend failures do not fail the augmentation run, and partial failures remain
+inspectable through the run manifest.
 
 Static parameter errors fail before writing output files when possible. Runtime
 per-sample errors, such as a `RandomCrop` larger than one selected image, are

@@ -28,6 +28,7 @@ from albumentationsx_plugin.hosts.fiftyone.presets import (
     selected_previous_run_key,
     storage_root_from_params,
 )
+from albumentationsx_plugin.hosts.fiftyone.progress import FiftyOneProgressReporter
 
 OPERATOR_NAME = "augment_with_albumentationsx"
 OPERATOR_LABEL = "Augment with AlbumentationsX"
@@ -45,7 +46,8 @@ class AugmentWithAlbumentationsX(foo.Operator):
             description="Build and apply AlbumentationsX augmentation pipelines to samples, views, or datasets.",
             dynamic=True,
             allow_immediate_execution=True,
-            allow_delegated_execution=False,
+            allow_delegated_execution=True,
+            default_choice_to_delegated=False,
             allow_distributed_execution=False,
             risk_level=RiskLevel.LOW,
         )
@@ -120,6 +122,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
                 selected_sample_ids=source_selected_sample_ids(selected_sample_ids, source_scope),
                 params=execution_params,
                 storage_root=storage_root,
+                progress_reporter=FiftyOneProgressReporter(ctx),
             )
         except ModuleNotFoundError as error:
             if not _is_missing_runtime_dependency(error):

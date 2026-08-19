@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from os import PathLike
@@ -46,11 +47,18 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_FIELD_NAME,
     selected_execution_scope,
 )
+from albumentationsx_plugin.hosts.fiftyone.progress import (
+    AugmentationProgress,
+    NoOpProgressReporter,
+    ProgressReporter,
+)
 from albumentationsx_plugin.hosts.fiftyone.runs import build_fiftyone_run_key, register_fiftyone_run
 from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, FiftyOneSampleAdapter
 from albumentationsx_plugin.storage.images import build_output_image_relative_path, load_rgb_image, write_rgb_image
 from albumentationsx_plugin.storage.manifest import FileRunStore, resolve_manifest_output_path
 from albumentationsx_plugin.storage.paths import build_run_key, slugify_run_label
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,9 +105,11 @@ def execute_fixed_augmentation(
     selected_sample_ids: Sequence[str] = (),
     output_tag: str = DEFAULT_OUTPUT_TAG,
     storage_root: str | PathLike[str] | None = None,
+    progress_reporter: ProgressReporter | None = None,
 ) -> FixedAugmentationExecutionResult:
     """Execute the temporary fixed-transform image augmentation flow."""
 
+    progress_reporter = progress_reporter or NoOpProgressReporter()
     config = build_fixed_pipeline_config(params)
     catalog_provider = AlbuSpecCatalogProvider()
     annotation_selection = selected_annotation_fields_from_params(params, dataset)
@@ -132,16 +142,39 @@ def execute_fixed_augmentation(
         output_tag=output_tag,
     )
     source_inputs = tuple(adapter.iter_inputs())
+    source_count = len(source_inputs)
+    planned_outputs = source_count * config.outputs_per_sample
     annotation_metadata = annotation_run_metadata(
         selection=annotation_selection,
         pipeline=config,
         catalog_provider=catalog_provider,
     )
+    _report_progress(
+        progress_reporter,
+        stage="starting",
+        total_sources=source_count,
+        processed_sources=0,
+        planned_outputs=planned_outputs,
+        created_outputs=0,
+        skipped_sources=0,
+        errors=0,
+    )
     if dry_run:
+        _report_progress(
+            progress_reporter,
+            stage="dry_run_complete",
+            total_sources=source_count,
+            processed_sources=source_count,
+            planned_outputs=planned_outputs,
+            created_outputs=0,
+            skipped_sources=0,
+            errors=0,
+            dry_run=True,
+        )
         return FixedAugmentationExecutionResult(
             run_key=run_key,
             source_scope=source_scope,
-            processed_count=len(source_inputs),
+            processed_count=source_count,
             created_count=0,
             skipped_count=0,
             error_count=0,
@@ -156,6 +189,7 @@ def execute_fixed_augmentation(
     replay_records: list[JSONDict] = []
     errors: list[JSONDict] = []
     skipped_count = 0
+    processed_sources = 0
     source_sample_ids = tuple(source.sample_id for source in source_inputs)
     _save_current_manifest(
         run_store=run_store,
@@ -165,7 +199,7 @@ def execute_fixed_augmentation(
         created_sample_ids=created_sample_ids,
         output_paths=output_paths,
         replay_records=replay_records,
-        processed_count=len(source_inputs),
+        processed_count=source_count,
         skipped_count=skipped_count,
         errors=errors,
         output_dir=run_dir,
@@ -176,7 +210,8 @@ def execute_fixed_augmentation(
         run_label_slug=run_label_slug,
     )
 
-    for source in source_inputs:
+    for source_number, source in enumerate(source_inputs, start=1):
+        processed_sources = source_number
         created_before_sample = len(created_sample_ids)
         for output_index in range(config.outputs_per_sample):
             checkpoint_current_state = True
@@ -190,6 +225,16 @@ def execute_fixed_augmentation(
                 )
             except PluginError as error:
                 errors.append(_sample_error(source, output_index, error.to_dict()))
+                _report_progress(
+                    progress_reporter,
+                    stage="running",
+                    total_sources=source_count,
+                    processed_sources=processed_sources,
+                    planned_outputs=planned_outputs,
+                    created_outputs=len(created_sample_ids),
+                    skipped_sources=skipped_count,
+                    errors=len(errors),
+                )
             else:
                 output_paths.append(output.relative_path)
                 replay_records.append(output.replay_record)
@@ -201,7 +246,7 @@ def execute_fixed_augmentation(
                     created_sample_ids=created_sample_ids,
                     output_paths=output_paths,
                     replay_records=replay_records,
-                    processed_count=len(source_inputs),
+                    processed_count=source_count,
                     skipped_count=skipped_count,
                     errors=errors,
                     output_dir=run_dir,
@@ -216,6 +261,16 @@ def execute_fixed_augmentation(
                     created_sample_id = adapter.create_output_sample(output.result, manifest)
                 except PluginError as error:
                     errors.append(_sample_error(source, output_index, error.to_dict()))
+                    _report_progress(
+                        progress_reporter,
+                        stage="running",
+                        total_sources=source_count,
+                        processed_sources=processed_sources,
+                        planned_outputs=planned_outputs,
+                        created_outputs=len(created_sample_ids),
+                        skipped_sources=skipped_count,
+                        errors=len(errors),
+                    )
                 else:
                     created_sample_ids.append(created_sample_id)
                     try:
@@ -227,7 +282,7 @@ def execute_fixed_augmentation(
                             created_sample_ids=created_sample_ids,
                             output_paths=output_paths,
                             replay_records=replay_records,
-                            processed_count=len(source_inputs),
+                            processed_count=source_count,
                             skipped_count=skipped_count,
                             errors=errors,
                             output_dir=run_dir,
@@ -242,6 +297,16 @@ def execute_fixed_augmentation(
                         created_sample_ids.pop()
                         raise
                     checkpoint_current_state = False
+                    _report_progress(
+                        progress_reporter,
+                        stage="running",
+                        total_sources=source_count,
+                        processed_sources=processed_sources,
+                        planned_outputs=planned_outputs,
+                        created_outputs=len(created_sample_ids),
+                        skipped_sources=skipped_count,
+                        errors=len(errors),
+                    )
             if checkpoint_current_state:
                 _save_current_manifest(
                     run_store=run_store,
@@ -251,7 +316,7 @@ def execute_fixed_augmentation(
                     created_sample_ids=created_sample_ids,
                     output_paths=output_paths,
                     replay_records=replay_records,
-                    processed_count=len(source_inputs),
+                    processed_count=source_count,
                     skipped_count=skipped_count,
                     errors=errors,
                     output_dir=run_dir,
@@ -271,7 +336,7 @@ def execute_fixed_augmentation(
                 created_sample_ids=created_sample_ids,
                 output_paths=output_paths,
                 replay_records=replay_records,
-                processed_count=len(source_inputs),
+                processed_count=source_count,
                 skipped_count=skipped_count,
                 errors=errors,
                 output_dir=run_dir,
@@ -281,6 +346,16 @@ def execute_fixed_augmentation(
                 run_label=run_label,
                 run_label_slug=run_label_slug,
             )
+        _report_progress(
+            progress_reporter,
+            stage="running",
+            total_sources=source_count,
+            processed_sources=processed_sources,
+            planned_outputs=planned_outputs,
+            created_outputs=len(created_sample_ids),
+            skipped_sources=skipped_count,
+            errors=len(errors),
+        )
 
     final_manifest = _save_current_manifest(
         run_store=run_store,
@@ -290,7 +365,7 @@ def execute_fixed_augmentation(
         created_sample_ids=created_sample_ids,
         output_paths=output_paths,
         replay_records=replay_records,
-        processed_count=len(source_inputs),
+        processed_count=source_count,
         skipped_count=skipped_count,
         errors=errors,
         output_dir=run_dir,
@@ -302,11 +377,21 @@ def execute_fixed_augmentation(
     )
     manifest_path = run_store.manifest_path(run_key)
     fiftyone_run_key = register_fiftyone_run(dataset, final_manifest, manifest_path=manifest_path)
+    _report_progress(
+        progress_reporter,
+        stage="complete",
+        total_sources=source_count,
+        processed_sources=source_count,
+        planned_outputs=planned_outputs,
+        created_outputs=len(created_sample_ids),
+        skipped_sources=skipped_count,
+        errors=len(errors),
+    )
 
     return FixedAugmentationExecutionResult(
         run_key=run_key,
         source_scope=source_scope,
-        processed_count=len(source_inputs),
+        processed_count=source_count,
         created_count=len(created_sample_ids),
         skipped_count=skipped_count,
         error_count=len(errors),
@@ -317,6 +402,36 @@ def execute_fixed_augmentation(
         fiftyone_run_key=fiftyone_run_key,
         errors=tuple(errors),
     )
+
+
+def _report_progress(
+    progress_reporter: ProgressReporter,
+    *,
+    stage: str,
+    total_sources: int,
+    processed_sources: int,
+    planned_outputs: int,
+    created_outputs: int,
+    skipped_sources: int,
+    errors: int,
+    dry_run: bool = False,
+) -> None:
+    try:
+        progress_reporter.report(
+            AugmentationProgress(
+                stage=stage,
+                total_sources=total_sources,
+                processed_sources=processed_sources,
+                planned_outputs=planned_outputs,
+                created_outputs=created_outputs,
+                skipped_sources=skipped_sources,
+                errors=errors,
+                dry_run=dry_run,
+            )
+        )
+    except Exception:
+        _LOGGER.debug("Error while reporting augmentation progress", exc_info=True)
+        return
 
 
 def _save_current_manifest(
