@@ -51,7 +51,10 @@ from albumentationsx_plugin.hosts.fiftyone.form_params import (
     stage_parameter_group_name,
 )
 from albumentationsx_plugin.hosts.fiftyone.forms.defaults import RandomCropDefaults, build_random_crop_defaults
-from albumentationsx_plugin.hosts.fiftyone.forms.renderer import FiftyOneFormRenderer
+from albumentationsx_plugin.hosts.fiftyone.forms.renderer import (
+    JSON_STRING_DEFAULT_METADATA_KEY,
+    FiftyOneFormRenderer,
+)
 from albumentationsx_plugin.hosts.fiftyone.presets import (
     PREVIOUS_RUN_KEY_FIELD_NAME,
     list_previous_run_preset_keys,
@@ -79,6 +82,7 @@ GENERAL_SECTION_FIELD_NAME: Final[str] = "_general_settings"
 ANNOTATION_SECTION_FIELD_NAME: Final[str] = "_annotation_settings"
 ANNOTATION_FIELD_GROUP_NAME: Final[str] = "_annotation_fields"
 STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
+ADVANCED_STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage_advanced"
 PREVIOUS_RUN_WARNING_FIELD_NAME: Final[str] = "_previous_run_warning"
 EXECUTION_MODE_GUIDANCE_FIELD_NAME: Final[str] = "_execution_mode_guidance"
 FIXED_SLICE_PARAMETER_NAMES: Final[dict[str, tuple[str, ...]]] = {
@@ -361,22 +365,37 @@ class DynamicAugmentFormBuilder:
             orientation="2d",
             gap=2,
         )
+        executable_fields = _executable_ui_fields(
+            selected_transform_name=selected_transform_name,
+            parameter_fields=parameter_fields,
+            params=params,
+            step_number=step_number,
+            random_crop_defaults=random_crop_defaults,
+        )
+        standard_fields = tuple(field for field in executable_fields if not _is_json_fallback_parameter(field))
+        advanced_fields = tuple(field for field in executable_fields if _is_json_fallback_parameter(field))
         self.renderer.render_into(
             parameter_group,
             (
                 *_pipeline_stage_control_fields(params=params, step_number=step_number),
                 *_step_parameter_fields(
-                    parameter_fields=_executable_ui_fields(
-                        selected_transform_name=selected_transform_name,
-                        parameter_fields=parameter_fields,
-                        params=params,
-                        step_number=step_number,
-                        random_crop_defaults=random_crop_defaults,
-                    ),
+                    parameter_fields=standard_fields,
                     step_number=step_number,
                 ),
             ),
         )
+        if advanced_fields:
+            parameter_group.view(
+                f"{ADVANCED_STAGE_SECTION_FIELD_PREFIX}_{step_number}",
+                types.Header(
+                    label="Advanced parameters",
+                    description="Optional JSON-backed parameters. Leave empty to use AlbumentationsX defaults.",
+                ),
+            )
+            self.renderer.render_into(
+                parameter_group,
+                _step_parameter_fields(parameter_fields=advanced_fields, step_number=step_number),
+            )
 
 
 def build_dynamic_augment_form(ctx: Any | None) -> types.Object:
@@ -487,9 +506,13 @@ def _executable_ui_fields(
 
     fields: list[FormFieldSchema] = []
     for schema_field in parameter_fields:
-        if not _is_visible_parameter(schema_field):
+        if not _is_ui_parameter(schema_field):
             continue
-        if supported_parameter_names is not None and schema_field.name not in supported_parameter_names:
+        if (
+            supported_parameter_names is not None
+            and schema_field.name not in supported_parameter_names
+            and not _is_json_fallback_parameter(schema_field)
+        ):
             continue
         ui_field = _executable_ui_field(
             selected_transform_name=selected_transform_name,
@@ -545,11 +568,24 @@ def _with_current_default(
     parameter_name = pipeline_step_field_name(step_number, field.name)
     if parameter_name not in params:
         return field
+    if field.kind is FieldKind.JSON and isinstance(params[parameter_name], str):
+        return replace(
+            field,
+            required=False,
+            default=None,
+            metadata={**field.metadata, JSON_STRING_DEFAULT_METADATA_KEY: params[parameter_name]},
+        )
     return replace(field, required=False, default=normalize_json_value(params[parameter_name]))
 
 
-def _is_visible_parameter(field: FormFieldSchema) -> bool:
-    return field.metadata.get("schema_status") != SCHEMA_STATUS_JSON_FALLBACK
+def _is_ui_parameter(field: FormFieldSchema) -> bool:
+    if _is_json_fallback_parameter(field):
+        return not field.required
+    return True
+
+
+def _is_json_fallback_parameter(field: FormFieldSchema) -> bool:
+    return field.metadata.get("schema_status") == SCHEMA_STATUS_JSON_FALLBACK
 
 
 def _executable_ui_field(

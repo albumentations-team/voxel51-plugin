@@ -174,9 +174,21 @@ def _json_value(transform: TransformConfig, field: FormFieldSchema, value: objec
                 transform_name=transform.name,
                 parameter_name=field.name,
                 message=f"{field.name} must be valid JSON.",
-                context={"value": value, "reason_code": "invalid_json_parameter"},
+                context={
+                    "value": value,
+                    "received_value": value,
+                    "expected": _expected_parameter_shape(field),
+                    "reason_code": "invalid_json_parameter",
+                },
             ) from error
     return value
+
+
+def _expected_parameter_shape(field: FormFieldSchema) -> object:
+    type_hint = field.metadata.get("type_hint")
+    if isinstance(type_hint, str | list):
+        return type_hint
+    return field.kind.value
 
 
 def _coerce_list_item(

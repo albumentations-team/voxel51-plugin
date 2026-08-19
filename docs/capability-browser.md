@@ -22,7 +22,9 @@ The operator is available without selected samples. It shows:
   `bboxes`, or `keypoints`.
 
 The output includes both structured `transforms` rows and `transforms_json` for
-copying into issue reports or release notes.
+copying into issue reports or release notes. `json_editable` in the
+advanced-parameter status means optional complex parameters are available in the
+augmentation form as JSON-backed advanced fields.
 
 ## Dependency Behavior
 

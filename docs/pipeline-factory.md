@@ -54,10 +54,13 @@ are transforms classified as:
 - `supported_with_defaults`
 
 Internally, transforms are created by the shared catalog-driven factory. The
-operator form hides advanced optional JSON fallback parameters for
-`supported_with_defaults` transforms and lets the factory supply their defaults.
-The backend receives only the enabled slots, already sorted by the selected
-execution order, so `PipelineConfig` remains the host-neutral ordered contract.
+operator form renders advanced optional JSON fallback parameters for
+`supported_with_defaults` transforms in an advanced section. The fixed pipeline
+builder parses submitted JSON strings before creating `PipelineConfig`, so saved
+manifests and previous-run presets contain JSON-safe parameter values rather
+than host-specific form strings. The backend receives only the enabled slots,
+already sorted by the selected execution order, so `PipelineConfig` remains the
+host-neutral ordered contract.
 
 VOX-26 adds the first host-side annotation adapter. The backend runner remains
 host-neutral: FiftyOne label serialization and reconstruction live in

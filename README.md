@@ -94,8 +94,8 @@ the App responsive while progress is reported.
   reference data, and unsafe output types are excluded from the normal selector.
 - External mask-path variants and unsupported FiftyOne label classes are not
   part of the annotation-aware execution path.
-- Some `supported_with_defaults` transforms use documented defaults until their
-  advanced controls are available in the form.
+- `supported_with_defaults` transforms expose simple typed controls plus an
+  advanced JSON section for optional complex parameters.
 - `Previous run` restores pipeline configuration; it does not reproduce each
   earlier sample's random parameters.
 

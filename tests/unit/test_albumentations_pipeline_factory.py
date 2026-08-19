@@ -131,6 +131,33 @@ def test_parameter_coercion_enforces_exclusive_bounds_from_albu_spec_constraints
 
 
 @pytest.mark.unit
+def test_parameter_coercion_parses_json_fallback_values_and_reports_expected_shape() -> None:
+    schema = (
+        FormFieldSchema(
+            name="advanced",
+            kind=FieldKind.JSON,
+            metadata={
+                "schema_status": "json_fallback",
+                "type_hint": "dict[str, object] | None",
+            },
+        ),
+    )
+
+    assert coerce_transform_params(
+        TransformConfig(name="JsonTransform", params={"advanced": '{"alpha": [1, null]}'}),
+        schema,
+    ) == {"advanced": {"alpha": [1, None]}}
+
+    with pytest.raises(InvalidParameterError) as error:
+        coerce_transform_params(TransformConfig(name="JsonTransform", params={"advanced": '{"alpha":'}), schema)
+
+    assert error.value.context["parameter_name"] == "advanced"
+    assert error.value.context["reason_code"] == "invalid_json_parameter"
+    assert error.value.context["expected"] == "dict[str, object] | None"
+    assert error.value.context["received_value"] == '{"alpha":'
+
+
+@pytest.mark.unit
 def test_pipeline_factory_wraps_constructor_errors() -> None:
     factory = AlbumentationsPipelineFactory(
         registry=cast(AlbumentationsTransformRegistry, _RejectingRegistry()),
