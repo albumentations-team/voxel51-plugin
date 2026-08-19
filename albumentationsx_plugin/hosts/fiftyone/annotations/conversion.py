@@ -16,15 +16,23 @@ from albumentationsx_plugin.core.serialization import normalize_json_mapping, no
 from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
     FIELD_TYPE_CLASSIFICATION,
     FIELD_TYPE_DETECTIONS,
+    FIELD_TYPE_HEATMAP,
     FIELD_TYPE_KEYPOINTS,
+    FIELD_TYPE_POLYLINES,
     FIELD_TYPE_SEGMENTATION,
 )
 
 _TYPE_FIELD: Final[str] = "type"
 _CLASSIFICATION_TYPE: Final[str] = FIELD_TYPE_CLASSIFICATION
 _DETECTIONS_TYPE: Final[str] = FIELD_TYPE_DETECTIONS
+_HEATMAP_TYPE: Final[str] = FIELD_TYPE_HEATMAP
 _KEYPOINTS_TYPE: Final[str] = FIELD_TYPE_KEYPOINTS
+_POLYLINES_TYPE: Final[str] = FIELD_TYPE_POLYLINES
 _SEGMENTATION_TYPE: Final[str] = FIELD_TYPE_SEGMENTATION
+_HEATMAPS_TARGET_FIELD: Final[str] = "heatmaps"
+_HEATMAP_MAP_FIELD: Final[str] = "map"
+_HEATMAP_MAP_PATH_FIELD: Final[str] = "map_path"
+_HEATMAP_SOURCE_MAP_PATH_FIELD: Final[str] = "source_map_path"
 _MASK_FIELD: Final[str] = "mask"
 _SEGMENTATION_MASK_PATH_FIELD: Final[str] = "mask_path"
 _SEGMENTATION_SOURCE_MASK_PATH_FIELD: Final[str] = "source_mask_path"
@@ -37,6 +45,7 @@ _ImageShape = tuple[int, int, int]
 class _AnnotationRef:
     field_name: str
     label_index: int
+    shape_index: int | None = None
     point_index: int | None = None
 
 
@@ -46,6 +55,7 @@ class AnnotationTargets:
 
     values: Mapping[str, object]
     bbox_refs: tuple[_AnnotationRef, ...] = ()
+    heatmap_refs: tuple[_AnnotationRef, ...] = ()
     keypoint_refs: tuple[_AnnotationRef, ...] = ()
     mask_refs: tuple[_AnnotationRef, ...] = ()
 
@@ -76,6 +86,8 @@ def target_data_from_annotation_payload(
     bboxes: list[list[float]] = []
     bbox_indices: list[int] = []
     bbox_refs: list[_AnnotationRef] = []
+    heatmaps: list[npt.NDArray[np.float32]] = []
+    heatmap_refs: list[_AnnotationRef] = []
     keypoints: list[list[float]] = []
     keypoint_indices: list[int] = []
     keypoint_refs: list[_AnnotationRef] = []
@@ -104,6 +116,11 @@ def target_data_from_annotation_payload(
                 if instance_mask is not None:
                     masks.append(instance_mask)
                     mask_refs.append(detection_ref)
+        elif field_type == _HEATMAP_TYPE:
+            heatmap = _heatmap_target_array(field_payload)
+            if heatmap is not None:
+                heatmaps.append(heatmap)
+                heatmap_refs.append(_AnnotationRef(field_name=field_name, label_index=0))
         elif field_type == _KEYPOINTS_TYPE:
             for keypoint_index, keypoint in enumerate(_payload_sequence(field_payload, "keypoints")):
                 for point_index, point in enumerate(_relative_points(keypoint)):
@@ -112,6 +129,20 @@ def target_data_from_annotation_payload(
                     keypoint_refs.append(
                         _AnnotationRef(field_name=field_name, label_index=keypoint_index, point_index=point_index)
                     )
+        elif field_type == _POLYLINES_TYPE:
+            for polyline_index, polyline in enumerate(_payload_sequence(field_payload, "polylines")):
+                for shape_index, shape in enumerate(_polyline_shapes(polyline)):
+                    for point_index, point in enumerate(shape):
+                        keypoints.append([point[0] * image_width, point[1] * image_height])
+                        keypoint_indices.append(len(keypoint_refs))
+                        keypoint_refs.append(
+                            _AnnotationRef(
+                                field_name=field_name,
+                                label_index=polyline_index,
+                                shape_index=shape_index,
+                                point_index=point_index,
+                            )
+                        )
         elif field_type == _SEGMENTATION_TYPE:
             mask = _mask_array(field_payload)
             if mask is not None:
@@ -122,6 +153,8 @@ def target_data_from_annotation_payload(
     if bboxes:
         values["bboxes"] = bboxes
         values["bbox_indices"] = bbox_indices
+    if heatmaps:
+        values[_HEATMAPS_TARGET_FIELD] = np.stack(heatmaps, axis=0)
     if keypoints:
         values["keypoints"] = keypoints
         values["keypoint_indices"] = keypoint_indices
@@ -131,6 +164,7 @@ def target_data_from_annotation_payload(
     return AnnotationTargets(
         values=values,
         bbox_refs=tuple(bbox_refs),
+        heatmap_refs=tuple(heatmap_refs),
         keypoint_refs=tuple(keypoint_refs),
         mask_refs=tuple(mask_refs),
     )
@@ -150,7 +184,13 @@ def transformed_annotation_payload(
     fields: dict[str, object] = {**_copy_static_fields(source_payload, copy_label_fields=copy_label_fields)}
     dropped = {
         "detections": len(target_data.bbox_refs),
-        "keypoints": len(target_data.keypoint_refs),
+        "heatmaps": len(target_data.heatmap_refs),
+        "keypoints": _target_ref_count_by_field_type(target_data.keypoint_refs, source_payload, _KEYPOINTS_TYPE),
+        "polyline_points": _target_ref_count_by_field_type(
+            target_data.keypoint_refs,
+            source_payload,
+            _POLYLINES_TYPE,
+        ),
         "masks": len(target_data.mask_refs),
     }
     output_masks_by_ref = _output_masks_by_ref(target_data, output_targets)
@@ -161,8 +201,12 @@ def transformed_annotation_payload(
         field_type = _payload_type(field_payload)
         if field_type == _DETECTIONS_TYPE:
             fields[field_name] = {_TYPE_FIELD: _DETECTIONS_TYPE, "detections": []}
+        elif field_type == _HEATMAP_TYPE:
+            fields[field_name] = _empty_heatmap_payload(field_payload)
         elif field_type == _KEYPOINTS_TYPE:
             fields[field_name] = _empty_keypoints_payload(field_payload)
+        elif field_type == _POLYLINES_TYPE:
+            fields[field_name] = _empty_polylines_payload(field_payload)
 
     for raw_bbox, raw_ref_index in zip(
         _output_sequence(output_targets, "bboxes"),
@@ -195,29 +239,62 @@ def transformed_annotation_payload(
         detections.append(normalize_json_mapping(detection))
         dropped["detections"] -= 1
 
+    for raw_heatmap, ref in zip(
+        _output_sequence(output_targets, _HEATMAPS_TARGET_FIELD),
+        target_data.heatmap_refs,
+        strict=False,
+    ):
+        source_field = _payload_fields(source_payload)[ref.field_name]
+        if _payload_type(source_field) != _HEATMAP_TYPE:
+            continue
+        heatmap_payload: dict[str, object] = {
+            _TYPE_FIELD: _HEATMAP_TYPE,
+            _HEATMAP_MAP_FIELD: _heatmap_to_json(_heatmap_output_array(raw_heatmap)),
+            "tags": _str_list(source_field.get("tags")),
+        }
+        _set_optional(heatmap_payload, "range", _float_sequence(source_field.get("range")))
+        _set_optional(
+            heatmap_payload,
+            _HEATMAP_SOURCE_MAP_PATH_FIELD,
+            _optional_str(source_field.get(_HEATMAP_MAP_PATH_FIELD)),
+        )
+        fields[ref.field_name] = normalize_json_mapping(heatmap_payload)
+        dropped["heatmaps"] -= 1
+
     for raw_point, raw_ref_index in zip(
         _output_sequence(output_targets, "keypoints"),
         _output_sequence(output_targets, "keypoint_indices"),
         strict=False,
     ):
         ref = target_data.keypoint_refs[_target_index(raw_ref_index)]
-        field = cast(dict[str, object], fields[ref.field_name])
-        keypoints = cast(list[dict[str, object]], field["keypoints"])
-        keypoint = keypoints[ref.label_index]
         point = _absolute_point_to_relative(
             _float_sequence(raw_point), image_width=output_width, image_height=output_height
         )
-        cast(list[list[float]], keypoint["points"]).append(point)
+        source_field = _payload_fields(source_payload)[ref.field_name]
+        source_field_type = _payload_type(source_field)
+        if source_field_type == _KEYPOINTS_TYPE:
+            field = cast(dict[str, object], fields[ref.field_name])
+            keypoints = cast(list[dict[str, object]], field["keypoints"])
+            keypoint = keypoints[ref.label_index]
+            cast(list[list[float]], keypoint["points"]).append(point)
 
-        source_keypoint = _payload_sequence(_payload_fields(source_payload)[ref.field_name], "keypoints")[
-            ref.label_index
-        ]
-        confidence = _payload_sequence(source_keypoint, "confidence")
-        if ref.point_index is not None and ref.point_index < len(confidence):
-            cast(list[JSONValue], keypoint["confidence"]).append(normalize_json_value(confidence[ref.point_index]))
-        dropped["keypoints"] -= 1
+            source_keypoint = _payload_sequence(source_field, "keypoints")[ref.label_index]
+            confidence = _payload_sequence(source_keypoint, "confidence")
+            if ref.point_index is not None and ref.point_index < len(confidence):
+                cast(list[JSONValue], keypoint["confidence"]).append(normalize_json_value(confidence[ref.point_index]))
+            dropped["keypoints"] -= 1
+        elif source_field_type == _POLYLINES_TYPE and ref.shape_index is not None:
+            field = cast(dict[str, object], fields[ref.field_name])
+            polylines = cast(list[dict[str, object]], field["polylines"])
+            polyline = polylines[ref.label_index]
+            shapes = cast(list[list[list[float]]], polyline["points"])
+            shapes[ref.shape_index].append(point)
+            dropped["polyline_points"] -= 1
 
     fields = _drop_empty_keypoints(fields)
+    fields, dropped_polyline_shapes = _drop_empty_polylines(fields)
+    if dropped_polyline_shapes:
+        dropped["polyline_shapes"] = dropped_polyline_shapes
 
     for raw_mask, ref in zip(_output_sequence(output_targets, "masks"), target_data.mask_refs, strict=False):
         source_field = _payload_fields(source_payload)[ref.field_name]
@@ -254,8 +331,12 @@ def labels_from_annotation_payload(payload: Mapping[str, object]) -> dict[str, f
             labels[field_name] = _classification_from_payload(field_payload)
         elif field_type == _DETECTIONS_TYPE:
             labels[field_name] = _detections_from_payload(field_payload)
+        elif field_type == _HEATMAP_TYPE:
+            labels[field_name] = _heatmap_from_payload(field_payload)
         elif field_type == _KEYPOINTS_TYPE:
             labels[field_name] = _keypoints_from_payload(field_payload)
+        elif field_type == _POLYLINES_TYPE:
+            labels[field_name] = _polylines_from_payload(field_payload)
         elif field_type == _SEGMENTATION_TYPE:
             labels[field_name] = _segmentation_from_payload(field_payload)
     return labels
@@ -266,8 +347,12 @@ def _field_payload(label: object) -> JSONDict | None:
         return _classification_payload(label)
     if isinstance(label, fo.Detections):
         return _detections_payload(label)
+    if isinstance(label, fo.Heatmap):
+        return _heatmap_payload(label)
     if isinstance(label, fo.Keypoints):
         return _keypoints_payload(label)
+    if isinstance(label, fo.Polylines):
+        return _polylines_payload(label)
     if isinstance(label, fo.Segmentation):
         return _segmentation_payload(label)
     return None
@@ -307,6 +392,19 @@ def _detection_payload(detection: fo.Detection) -> JSONDict:
     return payload
 
 
+def _heatmap_payload(label: fo.Heatmap) -> JSONDict | None:
+    if not _has_heatmap(label):
+        return None
+    payload: dict[str, object] = {
+        _TYPE_FIELD: _HEATMAP_TYPE,
+        _HEATMAP_MAP_FIELD: _heatmap_to_json(_heatmap_map(label)),
+        "tags": _str_list(getattr(label, "tags", None)),
+    }
+    _set_optional(payload, _HEATMAP_MAP_PATH_FIELD, _heatmap_map_path(label))
+    _set_optional(payload, "range", _optional_heatmap_range(getattr(label, "range", None)))
+    return normalize_json_mapping(payload)
+
+
 def _keypoints_payload(label: fo.Keypoints) -> JSONDict:
     return {
         _TYPE_FIELD: _KEYPOINTS_TYPE,
@@ -325,6 +423,29 @@ def _keypoint_payload(keypoint: fo.Keypoint) -> JSONDict:
     _set_optional(payload, "label", keypoint.label)
     _set_optional(payload, "confidence", _array_or_sequence(keypoint.confidence))
     _set_optional(payload, "index", keypoint.index)
+    return payload
+
+
+def _polylines_payload(label: fo.Polylines) -> JSONDict:
+    return {
+        _TYPE_FIELD: _POLYLINES_TYPE,
+        "polylines": [_polyline_payload(polyline) for polyline in _polylines(label)],
+    }
+
+
+def _polyline_payload(polyline: fo.Polyline) -> JSONDict:
+    payload = normalize_json_mapping(
+        {
+            "points": _polyline_points(polyline),
+            "tags": _str_list(getattr(polyline, "tags", None)),
+            "attributes": _json_mapping_or_empty(polyline.attributes),
+            "closed": bool(getattr(polyline, "closed", False)),
+            "filled": bool(getattr(polyline, "filled", False)),
+        }
+    )
+    _set_optional(payload, "label", polyline.label)
+    _set_optional(payload, "confidence", polyline.confidence)
+    _set_optional(payload, "index", polyline.index)
     return payload
 
 
@@ -370,6 +491,19 @@ def _detection_from_payload(payload: Mapping[str, object]) -> fo.Detection:
     return detection
 
 
+def _heatmap_from_payload(payload: Mapping[str, object]) -> fo.Heatmap:
+    tags = _str_list(payload.get("tags"))
+    heatmap_range = _optional_heatmap_range(payload.get("range"))
+    map_path = _optional_str(payload.get(_HEATMAP_MAP_PATH_FIELD))
+    if map_path:
+        return fo.Heatmap(map_path=map_path, range=heatmap_range, tags=tags)
+
+    heatmap = _heatmap_payload_array(payload)
+    if heatmap is None:
+        return fo.Heatmap(tags=tags)
+    return fo.Heatmap(map=heatmap, range=heatmap_range, tags=tags)
+
+
 def _keypoints_from_payload(payload: Mapping[str, object]) -> fo.Keypoints:
     keypoints = [_keypoint_from_payload(item) for item in _payload_sequence(payload, "keypoints")]
     return fo.Keypoints(keypoints=keypoints)
@@ -387,6 +521,27 @@ def _keypoint_from_payload(payload: Mapping[str, object]) -> fo.Keypoint:
     if isinstance(index, int) and not isinstance(index, bool):
         keypoint.index = index
     return keypoint
+
+
+def _polylines_from_payload(payload: Mapping[str, object]) -> fo.Polylines:
+    polylines = [_polyline_from_payload(item) for item in _payload_sequence(payload, "polylines")]
+    return fo.Polylines(polylines=polylines)
+
+
+def _polyline_from_payload(payload: Mapping[str, object]) -> fo.Polyline:
+    polyline = fo.Polyline(
+        label=_optional_str(payload.get("label")),
+        points=_polyline_shapes(payload),
+        confidence=_optional_float(payload.get("confidence")),
+        tags=_str_list(payload.get("tags")),
+        attributes=_attributes_from_payload(payload.get("attributes")),
+        closed=_optional_bool(payload.get("closed"), default=False),
+        filled=_optional_bool(payload.get("filled"), default=False),
+    )
+    index = payload.get("index")
+    if isinstance(index, int) and not isinstance(index, bool):
+        polyline.index = index
+    return polyline
 
 
 def _segmentation_from_payload(payload: Mapping[str, object]) -> fo.Segmentation:
@@ -415,6 +570,20 @@ def _copy_static_fields(
     return fields
 
 
+def _empty_heatmap_payload(field_payload: Mapping[str, object]) -> JSONDict:
+    payload: dict[str, object] = {
+        _TYPE_FIELD: _HEATMAP_TYPE,
+        "tags": _str_list(field_payload.get("tags")),
+    }
+    _set_optional(payload, "range", _optional_heatmap_range(field_payload.get("range")))
+    _set_optional(
+        payload,
+        _HEATMAP_SOURCE_MAP_PATH_FIELD,
+        _optional_str(field_payload.get(_HEATMAP_MAP_PATH_FIELD)),
+    )
+    return normalize_json_mapping(payload)
+
+
 def _empty_keypoints_payload(field_payload: Mapping[str, object]) -> JSONDict:
     keypoints = []
     for source_keypoint in _payload_sequence(field_payload, "keypoints"):
@@ -424,6 +593,15 @@ def _empty_keypoints_payload(field_payload: Mapping[str, object]) -> JSONDict:
             keypoint["confidence"] = []
         keypoints.append(normalize_json_mapping(keypoint))
     return normalize_json_mapping({_TYPE_FIELD: _KEYPOINTS_TYPE, "keypoints": keypoints})
+
+
+def _empty_polylines_payload(field_payload: Mapping[str, object]) -> JSONDict:
+    polylines = []
+    for source_polyline in _payload_sequence(field_payload, "polylines"):
+        polyline = dict(source_polyline)
+        polyline["points"] = [[] for _shape in _payload_sequence(source_polyline, "points")]
+        polylines.append(normalize_json_mapping(polyline))
+    return normalize_json_mapping({_TYPE_FIELD: _POLYLINES_TYPE, "polylines": polylines})
 
 
 def _drop_empty_keypoints(fields: Mapping[str, object]) -> dict[str, object]:
@@ -438,6 +616,30 @@ def _drop_empty_keypoints(fields: Mapping[str, object]) -> dict[str, object]:
         ]
         updated[field_name] = {_TYPE_FIELD: _KEYPOINTS_TYPE, "keypoints": keypoints}
     return updated
+
+
+def _drop_empty_polylines(fields: Mapping[str, object]) -> tuple[dict[str, object], int]:
+    updated = dict(fields)
+    dropped_shapes = 0
+    for field_name, field_payload in tuple(updated.items()):
+        if not isinstance(field_payload, Mapping) or _payload_type(field_payload) != _POLYLINES_TYPE:
+            continue
+        polylines = []
+        for source_polyline in _payload_sequence(field_payload, "polylines"):
+            min_points = _polyline_min_points(source_polyline)
+            shapes = []
+            for shape in _payload_sequence(source_polyline, "points"):
+                if len(_point_list(shape)) >= min_points:
+                    shapes.append(shape)
+                else:
+                    dropped_shapes += 1
+            if not shapes:
+                continue
+            polyline = dict(source_polyline)
+            polyline["points"] = shapes
+            polylines.append(normalize_json_mapping(polyline))
+        updated[field_name] = {_TYPE_FIELD: _POLYLINES_TYPE, "polylines": polylines}
+    return updated, dropped_shapes
 
 
 def _payload_fields(payload: Mapping[str, object]) -> Mapping[str, Mapping[str, object]]:
@@ -492,6 +694,14 @@ def _keypoints(label: fo.Keypoints) -> list[fo.Keypoint]:
         keypoint
         for keypoint in _runtime_sequence(getattr(label, "keypoints", None))
         if isinstance(keypoint, fo.Keypoint)
+    ]
+
+
+def _polylines(label: fo.Polylines) -> list[fo.Polyline]:
+    return [
+        polyline
+        for polyline in _runtime_sequence(getattr(label, "polylines", None))
+        if isinstance(polyline, fo.Polyline)
     ]
 
 
@@ -572,6 +782,28 @@ def _relative_points(payload: Mapping[str, object]) -> list[list[float]]:
     ]
 
 
+def _polyline_points(polyline: fo.Polyline) -> list[list[list[float]]]:
+    return [_point_list(shape) for shape in _runtime_sequence(getattr(polyline, "points", None))]
+
+
+def _polyline_shapes(payload: Mapping[str, object]) -> list[list[list[float]]]:
+    return [_point_list(shape) for shape in _payload_sequence(payload, "points")]
+
+
+def _point_list(value: object) -> list[list[float]]:
+    if not isinstance(value, list | tuple):
+        return []
+    return [point for raw_point in value if len(point := _float_sequence(raw_point)[:2]) >= 2]
+
+
+def _polyline_min_points(payload: Mapping[str, object]) -> int:
+    return (
+        3
+        if _optional_bool(payload.get("closed"), default=False) or _optional_bool(payload.get("filled"), default=False)
+        else 2
+    )
+
+
 def _absolute_point_to_relative(
     point: Sequence[float],
     *,
@@ -597,6 +829,48 @@ def _target_index(value: object) -> int:
     raise TypeError(f"Unsupported annotation target index: {value!r}")
 
 
+def _target_ref_count_by_field_type(
+    refs: Sequence[_AnnotationRef],
+    source_payload: Mapping[str, object],
+    field_type: str,
+) -> int:
+    fields = _payload_fields(source_payload)
+    return sum(1 for ref in refs if _payload_type(fields.get(ref.field_name, {})) == field_type)
+
+
+def _heatmap_payload_array(payload: Mapping[str, object]) -> npt.NDArray[np.float32] | None:
+    value = payload.get(_HEATMAP_MAP_FIELD)
+    if value is None:
+        return None
+    return _heatmap_output_array(value)
+
+
+def _heatmap_target_array(payload: Mapping[str, object]) -> npt.NDArray[np.float32] | None:
+    heatmap = _heatmap_payload_array(payload)
+    if heatmap is None:
+        return None
+    return heatmap[:, :, np.newaxis]
+
+
+def _heatmap_output_array(value: object) -> npt.NDArray[np.float32]:
+    array = np.asarray(value, dtype=np.float32)
+    if array.ndim == 3 and array.shape[2] == 1:
+        array = array[:, :, 0]
+    if array.ndim != 2:
+        raise MediaIOError(
+            filepath="<memory>",
+            message="FiftyOne heatmap must be a 2D array.",
+            context={"reason": "invalid_heatmap_shape", "shape": _shape_context(array)},
+        )
+    if array.shape[0] <= 0 or array.shape[1] <= 0:
+        raise MediaIOError(
+            filepath="<memory>",
+            message="FiftyOne heatmap must have positive width and height.",
+            context={"reason": "invalid_heatmap_shape", "shape": _shape_context(array)},
+        )
+    return array
+
+
 def _mask_array(payload: Mapping[str, object]) -> npt.NDArray[Any] | None:
     value = payload.get(_MASK_FIELD)
     if value is None:
@@ -607,6 +881,30 @@ def _mask_array(payload: Mapping[str, object]) -> npt.NDArray[Any] | None:
 def _has_mask(label: fo.Detection | fo.Segmentation) -> bool:
     value = label.has_mask
     return bool(value() if callable(value) else value)
+
+
+def _has_heatmap(label: fo.Heatmap) -> bool:
+    value = label.has_map
+    return bool(value() if callable(value) else value)
+
+
+def _heatmap_map(label: fo.Heatmap) -> npt.NDArray[np.float32]:
+    try:
+        return _heatmap_output_array(label.get_map())
+    except (OSError, TypeError, ValueError) as error:
+        raise MediaIOError(
+            filepath=_heatmap_map_path(label) or "<memory>",
+            message="FiftyOne heatmap could not be read.",
+            context={
+                "reason": "unreadable_heatmap",
+                "exception_type": type(error).__name__,
+            },
+        ) from error
+
+
+def _heatmap_map_path(label: fo.Heatmap) -> str | None:
+    value = getattr(label, _HEATMAP_MAP_PATH_FIELD, None)
+    return value if isinstance(value, str) and value.strip() else None
 
 
 def _detection_mask(label: fo.Detection) -> npt.NDArray[Any] | None:
@@ -739,6 +1037,10 @@ def _mask_to_json(mask: object) -> list[JSONValue]:
     return cast(list[JSONValue], np.asarray(mask).tolist())
 
 
+def _heatmap_to_json(heatmap: object) -> list[JSONValue]:
+    return cast(list[JSONValue], np.asarray(heatmap, dtype=np.float32).tolist())
+
+
 def _shape_context(array: np.ndarray) -> list[int]:
     return [int(part) for part in array.shape]
 
@@ -769,8 +1071,17 @@ def _optional_float(value: object) -> float | None:
     return None
 
 
+def _optional_heatmap_range(value: object) -> list[float] | None:
+    values = _float_sequence(value)
+    return values[:2] if len(values) >= 2 else None
+
+
 def _optional_str(value: object) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _optional_bool(value: object, *, default: bool) -> bool:
+    return value if isinstance(value, bool) else default
 
 
 def _str_list(value: object) -> list[str]:

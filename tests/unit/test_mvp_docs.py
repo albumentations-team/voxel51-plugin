@@ -29,7 +29,14 @@ def test_readme_documents_installation_and_current_limits() -> None:
     assert "fiftyone plugins requirements @albumentations/albumentationsx --install" in readme
     assert "## Current limits" in readme
     assert "up to ten stage slots" in readme
-    for label_type in ("`Classification`", "`Detections`", "`Keypoints`", "`Segmentation`"):
+    for label_type in (
+        "`Classification`",
+        "`Detections`",
+        "`Keypoints`",
+        "`Polylines`",
+        "`Heatmap`",
+        "`Segmentation`",
+    ):
         assert label_type in readme
     assert "DESIGN.md" not in readme
 

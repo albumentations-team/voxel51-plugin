@@ -20,6 +20,16 @@ The current FiftyOne adapter supports these dataset label fields:
 - `Keypoints`: `Keypoint.points` are converted from relative FiftyOne
   coordinates to Albumentations `xy`, transformed, and written back as relative
   points.
+- `Polylines`: each `Polyline.points` contour vertex is converted from relative
+  FiftyOne coordinates to Albumentations `xy` keypoints, transformed, grouped
+  back into its source contour, and written as relative points. Labels,
+  confidences, tags, JSON-safe attributes, indices, `closed`, and `filled` are
+  preserved.
+- `Heatmap`: the 2D heatmap map is converted to a batched image-like target,
+  transformed with geometric stages, and written to output samples as an
+  in-memory `Heatmap.map`. File-backed source `map_path` values are preserved
+  in copied heatmaps and recorded as `source_map_path` in transformed payloads,
+  but transformed heatmap outputs are not materialized as separate files yet.
 - `Segmentation`: `Segmentation(mask=...)` masks are passed through
   Albumentations `masks` and written to the output sample in memory.
   `Segmentation(mask_path=...)` masks are read from disk, transformed through the
@@ -29,12 +39,26 @@ The current FiftyOne adapter supports these dataset label fields:
 Supported label attributes, tags, labels, confidences, and indices are preserved
 where they can be represented as JSON-safe values.
 
+`Polylines` use vertex-based semantics. Albumentations keypoint handling can
+remove vertices that become invisible after transforms such as crops. The plugin
+drops open contours with fewer than two remaining points and closed/filled
+contours with fewer than three remaining points; it does not perform full
+polygon clipping.
+
+`Heatmap` support is intended for geometry-only target synchronization.
+AlbumentationsX 2.3.8 does not expose a dedicated heatmap target parameter, so
+the plugin maps heatmaps through image-like additional targets. To avoid
+silently applying color/intensity transforms to heatmap values, the compatibility
+check rejects pipelines that combine selected heatmaps, a geometric image target,
+and image-only stages. Pure image-only pipelines copy selected heatmaps
+unchanged.
+
 ## Unsupported Scope
 
-The first slice does not claim full annotation coverage. Unsupported label
-classes, polylines, heatmaps, custom embedded documents, video labels, 3D
-labels, and transform-specific target requirements should be added in follow-up
-tasks with focused tests.
+The current slice does not claim full annotation coverage. Unsupported label
+classes, custom embedded documents, video labels, 3D labels, and
+transform-specific target requirements should be added in follow-up tasks with
+focused tests.
 
 Unsupported label fields are excluded from generated output samples. The run
 manifest stores excluded fields and reason codes under `metadata.annotations` so
@@ -53,9 +77,9 @@ Albumentations targets -> transformed payload -> FiftyOne output labels
 ```
 
 The backend runner remains host-neutral. It only receives target names such as
-`bboxes`, `keypoints`, and `masks`, configures `ReplayCompose`, and returns the
-transformed target values. FiftyOne-specific reconstruction stays in
-`hosts/fiftyone/annotations/`. File-backed semantic mask results are
+`bboxes`, `keypoints`, `masks`, and `heatmaps`, configures `ReplayCompose`, and
+returns the transformed target values. FiftyOne-specific reconstruction stays
+in `hosts/fiftyone/annotations/`. File-backed semantic mask results are
 materialized under the plugin-owned run directory and listed in the manifest
 cleanup allowlist.
 

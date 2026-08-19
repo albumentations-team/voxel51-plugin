@@ -25,6 +25,9 @@ uv run fiftyone app launch albumentationsx-demo
 The dataset contains three samples with stable `demo_id` values:
 `demo-001`, `demo-002`, and `demo-003`. FiftyOne's internal sample IDs are
 created by the database and should not be used as stable test fixtures.
+Each sample includes `Classification`, `Detections`, `Keypoints`, `Polylines`,
+`Heatmap`, and `Segmentation` labels so annotation-aware execution can be
+checked from the App.
 
 ## MVP Smoke Check
 

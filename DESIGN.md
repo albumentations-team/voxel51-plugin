@@ -37,6 +37,11 @@ The executable path handles these FiftyOne label types:
   transformed through Albumentations mask targets and cropped back to the
   transformed boxes. Detection mask outputs are stored in memory;
 - `Keypoints`, converted through Albumentations keypoint targets;
+- `Polylines`, converted through Albumentations keypoint targets with
+  vertex-based crop/drop semantics;
+- `Heatmap`, converted through Albumentations image-like targets for
+  geometry-only synchronization. Transformed heatmap outputs are stored as
+  in-memory `Heatmap.map` values;
 - `Segmentation` masks, converted through Albumentations mask targets. File-backed
   source masks write plugin-owned output mask PNGs.
 
@@ -62,9 +67,13 @@ The MVP is deliberately narrower than the full AlbumentationsX catalog.
 - Preview is selected-samples only and shows one result per selected source
   sample, capped at three preview results.
 - The normal selector excludes transforms that require external reference data, use unsupported media or targets, or produce unsafe image outputs.
-- Polylines, heatmaps, custom embedded documents, and unsupported FiftyOne label classes are excluded from annotation-aware execution.
+- Custom embedded documents and unsupported FiftyOne label classes are excluded from annotation-aware execution.
 - `supported_with_defaults` transforms keep some advanced optional parameters at their library defaults until the form has safe controls for them.
 - A catalog status proves that the plugin can render and construct a transform under the current dependency set. It does not yet provide a visual regression test for every one of the 110 transform choices.
+- Heatmap support is limited to geometry-only target synchronization. Mixed
+  pipelines that would transform a selected heatmap and also apply image-only
+  color/intensity stages are rejected until per-target replay can keep heatmap
+  values separate from image effects.
 
 ## Architecture
 
@@ -131,7 +140,7 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 | Plugin integration | The repository registers augmentation, run-summary, and run-cleanup operators for FiftyOne `>=1.19,<2`. |
 | Catalog and forms | The dynamic form consumes the versioned `albu-spec` catalog, renders supported parameter types, shows target guidance, and reports excluded transforms. |
 | Pipeline execution | The executor builds catalog-backed `ReplayCompose` pipelines from up to ten ordered stage slots and creates new image samples without modifying selected sources. |
-| Annotation handling | Classification, detections, keypoints, and semantic masks travel through the supported execution path. File-backed semantic mask outputs are materialized as plugin-owned PNGs. |
+| Annotation handling | Classification, detections, keypoints, polylines, heatmaps, and semantic masks travel through the supported execution path. File-backed semantic mask outputs are materialized as plugin-owned PNGs. |
 | Annotation compatibility | Selected spatial labels are checked against transform target support from both schema-level label types and runtime payload requirements. |
 | Provenance and cleanup | Manifests, FiftyOne custom runs, source links, replay metadata, run inspection, and containment-checked cleanup are implemented. |
 | Larger-run execution | The augmentation operator can run immediately or through FiftyOne delegated execution and reports processed sources, planned outputs, created outputs, skipped sources, and errors. |
@@ -163,7 +172,7 @@ Work is ordered by release risk and user impact. Each item has an observable com
 | Work | Why now | Completion condition |
 |---|---|---|
 | Extend segmentation variants | Some datasets need additional mask variants beyond semantic `Segmentation(mask=...)` and `Segmentation(mask_path=...)`. | Each new variant has an explicit adapter, transform compatibility rules, synthetic geometry tests, provenance fields, and cleanup coverage. |
-| Add more spatial label variants | Polylines, heatmaps, and similar labels are common in production vision datasets and cannot be copied through geometric transforms. | Each label type has an explicit adapter, transform compatibility rules, synthetic geometry tests, provenance fields, and cleanup coverage. |
+| Add more spatial label variants | Some production datasets use label classes beyond the current classification, detection, keypoint, polyline, heatmap, and segmentation adapters. | Each label type has an explicit adapter, transform compatibility rules, synthetic geometry tests, provenance fields, and cleanup coverage. |
 | Strengthen transform-to-target validation | A transform's declared targets can be narrower than the active dataset schema. | The form blocks unsafe combinations before execution whenever catalog metadata is conclusive; remaining runtime mismatches return a structured error without writing partial labels. |
 
 ### P2 — broaden media and transform classes deliberately

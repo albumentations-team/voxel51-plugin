@@ -85,11 +85,15 @@ the App responsive while progress is reported.
   the run as `cancelled`, and retain manifest-listed partial outputs for
   inspection and cleanup.
 - The executable path keeps FiftyOne `Classification`, `Detections`,
-  `Keypoints`, and semantic `Segmentation` annotations aligned with supported
-  transforms. `Detection(mask=...)` and `Detection(mask_path=...)` instance
-  masks follow their bounding boxes; detection mask outputs are stored as
-  in-memory `Detection.mask` values. `Segmentation(mask_path=...)` outputs
-  write plugin-owned mask PNGs that are listed in the run manifest for cleanup.
+  `Keypoints`, `Polylines`, `Heatmap`, and semantic `Segmentation`
+  annotations aligned with supported transforms. `Detection(mask=...)` and
+  `Detection(mask_path=...)` instance masks follow their bounding boxes;
+  detection mask outputs are stored as in-memory `Detection.mask` values.
+  `Polylines` vertices use Albumentations keypoint targets. `Heatmap` maps
+  use image-like targets for geometry and write transformed output maps in
+  memory.
+  `Segmentation(mask_path=...)` outputs write plugin-owned mask PNGs that are
+  listed in the run manifest for cleanup.
 - Every non-dry run stores its pipeline configuration and sampled replay
   metadata. Generated samples and files can be inspected and cleaned up by run.
 
@@ -101,8 +105,15 @@ the App responsive while progress is reported.
 - FiftyOne `>=1.19,<2` does not expose a stable public cancellation flag to
   operators, so cancellation detection is best-effort; abrupt process
   termination can still stop before a final `cancelled` checkpoint is written.
-- Polylines, heatmaps, and unsupported FiftyOne label classes are not part of
-  the annotation-aware execution path.
+- Unsupported FiftyOne label classes are not part of the annotation-aware
+  execution path.
+- `Polylines` use vertex-based transform semantics. Crops do not perform full
+  polygon clipping; vertices outside the output image can be removed, and
+  contours with too few remaining points are dropped.
+- Heatmap support is intended for geometry-only target synchronization. When a
+  selected heatmap would be transformed by a geometric stage, the plugin blocks
+  mixed image-only color/intensity stages until per-target replay can keep
+  heatmap values untouched by those effects.
 - Some `supported_with_defaults` transforms use documented defaults until their
   advanced controls are available in the form.
 - `Previous run` restores pipeline configuration; it does not reproduce each
@@ -137,8 +148,9 @@ uv run fiftyone app launch albumentationsx-demo
 
 The workflow generates three tiny PNG images under `sample_data/generated/` and
 creates a persistent FiftyOne dataset named `albumentationsx-demo`. The dataset
-uses stable `demo_id` values for repeatable checks; FiftyOne internal sample IDs
-are database-generated.
+uses stable `demo_id` values plus `Classification`, `Detections`, `Keypoints`,
+`Polylines`, `Heatmap`, and `Segmentation` labels for repeatable checks;
+FiftyOne internal sample IDs are database-generated.
 
 In the App, run `Augment with AlbumentationsX`, choose `Execution scope`
 (`Selected samples`, `Current view`, or `Entire dataset`), set `Pipeline stages`,

@@ -94,6 +94,10 @@ def _detection_instance_mask() -> np.ndarray:
     )
 
 
+def _heatmap_map(width: int = 10, height: int = 8) -> np.ndarray:
+    return np.arange(width * height, dtype=np.float32).reshape(height, width) / 100.0
+
+
 def _write_source_mask(root: Path, name: str, *, width: int = 10, height: int = 8) -> Path:
     return write_mask_image(_segmentation_mask(width=width, height=height), root, f"source-masks/{name}.png")
 
@@ -134,6 +138,19 @@ def _annotated_sample(filepath: Path) -> fo.Sample:
                 )
             ]
         ),
+        polylines=fo.Polylines(
+            polylines=[
+                fo.Polyline(
+                    label="lane",
+                    points=[[[0.2, 0.25], [0.4, 0.25], [0.4, 0.5]]],
+                    confidence=0.6,
+                    attributes={"source": fo.CategoricalAttribute(value="manual")},
+                    closed=False,
+                    filled=False,
+                )
+            ]
+        ),
+        heatmap=fo.Heatmap(map=_heatmap_map(), range=[0.0, 1.0], tags=["soft-target"]),
         segmentation=fo.Segmentation(mask=mask),
     )
 
@@ -574,24 +591,51 @@ def test_fixed_augmentation_executor_transforms_supported_annotations(tmp_path) 
         assert keypoint.points[0] == pytest.approx([0.7, 0.375])
         assert keypoint.confidence == pytest.approx([0.9])
 
+        assert len(output.polylines.polylines) == 1
+        polyline = output.polylines.polylines[0]
+        assert polyline.label == "lane"
+        assert polyline.confidence == pytest.approx(0.6)
+        assert polyline.attributes["source"].value == "manual"
+        assert polyline.closed is False
+        assert polyline.filled is False
+        np.testing.assert_allclose(
+            np.asarray(polyline.points[0], dtype=np.float32),
+            np.asarray([[0.7, 0.25], [0.5, 0.25], [0.5, 0.5]], dtype=np.float32),
+        )
+
+        np.testing.assert_allclose(np.asarray(output.heatmap.map, dtype=np.float32), _heatmap_map()[:, ::-1])
+        assert output.heatmap.range == [0.0, 1.0]
+        assert output.heatmap.tags == ["soft-target"]
+
         np.testing.assert_array_equal(np.asarray(output.segmentation.mask), source_mask[:, ::-1])
 
         manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
         annotations = cast(dict[str, Any], manifest.metadata["annotations"])
         assert isinstance(annotations, dict)
-        assert annotations["fields"] == ["ground_truth", "detections", "keypoints", "segmentation"]
+        assert annotations["fields"] == [
+            "ground_truth",
+            "detections",
+            "keypoints",
+            "polylines",
+            "heatmap",
+            "segmentation",
+        ]
         assert annotations["runtime_target_requirements"] == {
             "detections": ["bboxes", "mask"],
             "keypoints": ["keypoints"],
+            "polylines": ["keypoints"],
+            "heatmap": ["image"],
             "segmentation": ["mask"],
         }
         assert [field["field_name"] for field in annotations["transformed_fields"]] == [
             "detections",
             "keypoints",
+            "polylines",
+            "heatmap",
             "segmentation",
         ]
         assert [field["field_name"] for field in annotations["copied_fields"]] == ["ground_truth"]
-        assert manifest.pipeline.target_fields == ("detections", "keypoints", "segmentation")
+        assert manifest.pipeline.target_fields == ("detections", "keypoints", "polylines", "heatmap", "segmentation")
         assert manifest.pipeline.copy_fields == ("ground_truth",)
     finally:
         if dataset_name in fo.list_datasets():
@@ -703,6 +747,13 @@ def test_fixed_augmentation_preview_matches_materialized_deterministic_geometry(
         np.testing.assert_array_equal(preview_detection_mask, _detection_instance_mask()[:, ::-1])
         preview_keypoint = cast(list[dict[str, Any]], preview_fields["keypoints"]["keypoints"])[0]
         assert preview_keypoint["points"][0] == pytest.approx([0.7, 0.375])
+        preview_polyline = cast(list[dict[str, Any]], preview_fields["polylines"]["polylines"])[0]
+        np.testing.assert_allclose(
+            np.asarray(preview_polyline["points"][0], dtype=np.float32),
+            np.asarray([[0.7, 0.25], [0.5, 0.25], [0.5, 0.5]], dtype=np.float32),
+        )
+        preview_heatmap = np.asarray(cast(dict[str, Any], preview_fields["heatmap"])["map"], dtype=np.float32)
+        np.testing.assert_allclose(preview_heatmap, _heatmap_map()[:, ::-1])
         preview_mask = np.asarray(cast(dict[str, Any], preview_fields["segmentation"])["mask"], dtype=np.uint8)
         np.testing.assert_array_equal(preview_mask, source_mask[:, ::-1])
 
@@ -722,6 +773,11 @@ def test_fixed_augmentation_preview_matches_materialized_deterministic_geometry(
         assert created[0].detections.detections[0].bounding_box == pytest.approx(preview_detection["bounding_box"])
         np.testing.assert_array_equal(np.asarray(created[0].detections.detections[0].mask), preview_detection_mask)
         assert created[0].keypoints.keypoints[0].points[0] == pytest.approx(preview_keypoint["points"][0])
+        np.testing.assert_allclose(
+            np.asarray(created[0].polylines.polylines[0].points[0], dtype=np.float32),
+            np.asarray(preview_polyline["points"][0], dtype=np.float32),
+        )
+        np.testing.assert_allclose(np.asarray(created[0].heatmap.map, dtype=np.float32), preview_heatmap)
         np.testing.assert_array_equal(np.asarray(created[0].segmentation.mask), preview_mask)
     finally:
         if dataset_name in fo.list_datasets():
@@ -756,6 +812,11 @@ def test_fixed_augmentation_executor_uses_selected_annotation_fields(tmp_path) -
         assert output.ground_truth.label == "cat"
         assert output.get_field("detections") is None
         assert output.keypoints.keypoints[0].points[0] == pytest.approx([0.7, 0.375])
+        np.testing.assert_allclose(
+            np.asarray(output.polylines.polylines[0].points[0], dtype=np.float32),
+            np.asarray([[0.7, 0.25], [0.5, 0.25], [0.5, 0.5]], dtype=np.float32),
+        )
+        np.testing.assert_allclose(np.asarray(output.heatmap.map, dtype=np.float32), _heatmap_map()[:, ::-1])
         np.testing.assert_array_equal(
             np.asarray(output.segmentation.mask),
             np.asarray(_load_sample(dataset, sample_id).segmentation.mask)[:, ::-1],
@@ -763,16 +824,18 @@ def test_fixed_augmentation_executor_uses_selected_annotation_fields(tmp_path) -
 
         manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
         annotations = cast(dict[str, Any], manifest.metadata["annotations"])
-        assert annotations["fields"] == ["ground_truth", "keypoints", "segmentation"]
+        assert annotations["fields"] == ["ground_truth", "keypoints", "polylines", "heatmap", "segmentation"]
         assert [field["field_name"] for field in annotations["transformed_fields"]] == [
             "keypoints",
+            "polylines",
+            "heatmap",
             "segmentation",
         ]
         assert [field["field_name"] for field in annotations["copied_fields"]] == ["ground_truth"]
         assert ("detections", "not_selected") in {
             (field["field_name"], field["reason"]) for field in annotations["excluded_fields"]
         }
-        assert manifest.pipeline.target_fields == ("keypoints", "segmentation")
+        assert manifest.pipeline.target_fields == ("keypoints", "polylines", "heatmap", "segmentation")
         assert manifest.pipeline.copy_fields == ("ground_truth",)
     finally:
         if dataset_name in fo.list_datasets():
@@ -796,7 +859,7 @@ def test_fixed_augmentation_executor_copies_spatial_annotations_through_image_on
                 "p": 1.0,
                 "outputs_per_sample": 1,
                 "dry_run": False,
-                SELECTED_LABEL_FIELDS_PARAM_NAME: ["detections"],
+                SELECTED_LABEL_FIELDS_PARAM_NAME: ["detections", "polylines", "heatmap"],
             },
             storage_root=tmp_path / "plugin-storage",
         )
@@ -808,14 +871,19 @@ def test_fixed_augmentation_executor_copies_spatial_annotations_through_image_on
         detection = output.detections.detections[0]
         assert detection.bounding_box == pytest.approx([0.1, 0.25, 0.2, 0.5])
         np.testing.assert_array_equal(np.asarray(detection.mask), _detection_instance_mask())
+        np.testing.assert_allclose(
+            np.asarray(output.polylines.polylines[0].points[0], dtype=np.float32),
+            np.asarray([[0.2, 0.25], [0.4, 0.25], [0.4, 0.5]], dtype=np.float32),
+        )
+        np.testing.assert_allclose(np.asarray(output.heatmap.map, dtype=np.float32), _heatmap_map())
 
         manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
         annotations = cast(dict[str, Any], manifest.metadata["annotations"])
-        assert annotations["fields"] == ["detections"]
+        assert annotations["fields"] == ["detections", "polylines", "heatmap"]
         assert annotations["transformed_fields"] == []
-        assert [field["field_name"] for field in annotations["copied_fields"]] == ["detections"]
+        assert [field["field_name"] for field in annotations["copied_fields"]] == ["detections", "polylines", "heatmap"]
         assert manifest.pipeline.target_fields == ()
-        assert manifest.pipeline.copy_fields == ("detections",)
+        assert manifest.pipeline.copy_fields == ("detections", "polylines", "heatmap")
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)

@@ -255,16 +255,19 @@ pipeline validation, replay extraction, or manifest safety rules.
 
 FiftyOne annotation conversion lives in `hosts/fiftyone/annotations/`.
 Classification labels are copied as static labels. Detections, detection
-instance masks, keypoints, and semantic segmentation masks are converted into
-Albumentations targets, passed through the backend runner, and reconstructed on
-output samples. File-backed semantic mask outputs are materialized as
-plugin-owned files before sample creation. Spatial labels must not be copied
-across geometric transforms unless the transform chain is proven compatible
-with that target type. Compatibility is checked first from the dataset schema
-and then from serialized source annotation payloads, because some target needs
-are value-dependent, such as detection instance masks. Unsupported FiftyOne
-label classes and target variants should be added incrementally with round-trip
-tests.
+instance masks, keypoints, polylines, heatmaps, and semantic segmentation masks
+are converted into Albumentations targets, passed through the backend runner,
+and reconstructed on output samples. Polylines are represented as keypoint
+target vertices and regrouped into their source contours after transformation.
+Heatmaps are represented as batched image-like targets for geometry-only
+synchronization and reconstructed as in-memory `Heatmap.map` values.
+File-backed semantic mask outputs are materialized as plugin-owned files before
+sample creation. Spatial labels must not be copied across geometric transforms
+unless the transform chain is proven compatible with that target type.
+Compatibility is checked first from the dataset schema and then from serialized
+source annotation payloads, because some target needs are value-dependent, such
+as detection instance masks. Unsupported FiftyOne label classes and target
+variants should be added incrementally with round-trip tests.
 
 ## Storage and Safety
 

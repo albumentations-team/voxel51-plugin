@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 import fiftyone as fo
+import numpy as np
 import pytest
 
 from scripts.create_demo_dataset import (
@@ -41,6 +42,12 @@ def test_create_list_and_delete_demo_dataset(tmp_path) -> None:
             assert "albumentationsx-demo" in sample.tags
             assert sample.metadata.width == spec.width
             assert sample.metadata.height == spec.height
+            assert sample.ground_truth.label == spec.label
+            assert len(sample.detections.detections) == 1
+            assert len(sample.keypoints.keypoints) == 1
+            assert len(sample.polylines.polylines) == 1
+            assert np.asarray(sample.heatmap.map).shape == (spec.height, spec.width)
+            assert np.asarray(sample.segmentation.mask).shape == (spec.height, spec.width)
 
         deleted = delete_demo_dataset(dataset_name=dataset_name, data_root=data_root, delete_files=True)
 

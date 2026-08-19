@@ -25,16 +25,24 @@ SELECTED_LABEL_FIELDS_PARAM_NAME: Final[str] = "selected_label_fields"
 
 FIELD_TYPE_CLASSIFICATION: Final[str] = "classification"
 FIELD_TYPE_DETECTIONS: Final[str] = "detections"
+FIELD_TYPE_HEATMAP: Final[str] = "heatmap"
 FIELD_TYPE_KEYPOINTS: Final[str] = "keypoints"
+FIELD_TYPE_POLYLINES: Final[str] = "polylines"
 FIELD_TYPE_SEGMENTATION: Final[str] = "segmentation"
 
 ANNOTATION_ROLE_TRANSFORMED: Final[str] = "transformed"
 ANNOTATION_ROLE_COPIED: Final[str] = "copied"
 
+_ALBU_TARGET_IMAGE: Final[str] = "image"
 _ALBU_TARGET_BBOXES: Final[str] = "bboxes"
 _ALBU_TARGET_KEYPOINTS: Final[str] = "keypoints"
 _ALBU_TARGET_MASK: Final[str] = "mask"
-_ALBU_TARGET_ORDER: Final[tuple[str, ...]] = (_ALBU_TARGET_BBOXES, _ALBU_TARGET_KEYPOINTS, _ALBU_TARGET_MASK)
+_ALBU_TARGET_ORDER: Final[tuple[str, ...]] = (
+    _ALBU_TARGET_IMAGE,
+    _ALBU_TARGET_BBOXES,
+    _ALBU_TARGET_KEYPOINTS,
+    _ALBU_TARGET_MASK,
+)
 _MASK_FIELD: Final[str] = "mask"
 _TRANSFORM_TYPE_IMAGE_ONLY: Final[str] = "image_only"
 _EXCLUDED_REASON_NOT_SELECTED: Final[str] = "not_selected"
@@ -287,11 +295,20 @@ def annotation_pipeline_compatibility_conflicts(
     if not spatial_fields:
         return ()
 
+    transformed_targets = _transformed_targets(pipeline, catalog_provider)
     for stage_number, transform in enumerate(pipeline.transforms, start=1):
         capability = catalog_provider.get_transform_capability(transform.name)
         if capability is None:
             continue
         if _capability_transform_type(capability.metadata) == _TRANSFORM_TYPE_IMAGE_ONLY:
+            conflicts.extend(
+                _image_only_stage_conflicts(
+                    stage_number=stage_number,
+                    transform_name=transform.name,
+                    spatial_fields=spatial_fields,
+                    transformed_targets=transformed_targets,
+                )
+            )
             continue
         targets = set(capability.targets)
         for field in spatial_fields:
@@ -311,6 +328,36 @@ def annotation_pipeline_compatibility_conflicts(
                         }
                     )
                 )
+    return tuple(conflicts)
+
+
+def _image_only_stage_conflicts(
+    *,
+    stage_number: int,
+    transform_name: str,
+    spatial_fields: Sequence[AnnotationField],
+    transformed_targets: frozenset[str],
+) -> tuple[JSONDict, ...]:
+    conflicts: list[JSONDict] = []
+    for field in spatial_fields:
+        if field.label_type != FIELD_TYPE_HEATMAP or _ALBU_TARGET_IMAGE not in transformed_targets:
+            continue
+        conflicts.append(
+            normalize_json_mapping(
+                {
+                    "field_name": field.name,
+                    "label_type": field.label_type,
+                    "target": _ALBU_TARGET_IMAGE,
+                    "transform_name": transform_name,
+                    "stage_number": stage_number,
+                    "reason": "image_only_stage_would_alter_heatmap",
+                    "message": (
+                        f"{transform_name} is an image-only stage. Heatmaps can only be safely transformed "
+                        "through image-like targets when the active pipeline is geometry-only."
+                    ),
+                }
+            )
+        )
     return tuple(conflicts)
 
 
@@ -431,8 +478,12 @@ def _annotation_field(field_name: str, label_type: object) -> AnnotationField | 
         return AnnotationField(field_name, FIELD_TYPE_CLASSIFICATION)
     if isinstance(label_type, type) and issubclass(label_type, fo.Detections):
         return AnnotationField(field_name, FIELD_TYPE_DETECTIONS, albu_target=_ALBU_TARGET_BBOXES)
+    if isinstance(label_type, type) and issubclass(label_type, fo.Heatmap):
+        return AnnotationField(field_name, FIELD_TYPE_HEATMAP, albu_target=_ALBU_TARGET_IMAGE)
     if isinstance(label_type, type) and issubclass(label_type, fo.Keypoints):
         return AnnotationField(field_name, FIELD_TYPE_KEYPOINTS, albu_target=_ALBU_TARGET_KEYPOINTS)
+    if isinstance(label_type, type) and issubclass(label_type, fo.Polylines):
+        return AnnotationField(field_name, FIELD_TYPE_POLYLINES, albu_target=_ALBU_TARGET_KEYPOINTS)
     if isinstance(label_type, type) and issubclass(label_type, fo.Segmentation):
         return AnnotationField(field_name, FIELD_TYPE_SEGMENTATION, albu_target=_ALBU_TARGET_MASK)
     return None
@@ -468,7 +519,9 @@ def _runtime_field_targets(field_payload: Mapping[str, object]) -> tuple[str, ..
         if any(_MASK_FIELD in detection for detection in detections):
             targets.add(_ALBU_TARGET_MASK)
         return _ordered_targets(targets)
-    if field_type == FIELD_TYPE_KEYPOINTS:
+    if field_type == FIELD_TYPE_HEATMAP:
+        return (_ALBU_TARGET_IMAGE,)
+    if field_type in {FIELD_TYPE_KEYPOINTS, FIELD_TYPE_POLYLINES}:
         return (_ALBU_TARGET_KEYPOINTS,)
     if field_type == FIELD_TYPE_SEGMENTATION and _MASK_FIELD in field_payload:
         return (_ALBU_TARGET_MASK,)
