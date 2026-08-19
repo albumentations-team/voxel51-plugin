@@ -59,6 +59,10 @@ from albumentationsx_plugin.hosts.fiftyone.presets import (
     selected_previous_run_key,
     storage_root_from_params,
 )
+from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
+    MAX_PREVIEW_SAMPLES,
+    PREVIEW_ONLY_FIELD_NAME,
+)
 from albumentationsx_plugin.hosts.fiftyone.progress import DELEGATED_EXECUTION_RECOMMENDED_SOURCE_COUNT
 
 SCHEMA_STATUS_JSON_FALLBACK: Final[str] = "json_fallback"
@@ -218,6 +222,16 @@ class DynamicAugmentFormBuilder:
                     kind=FieldKind.BOOLEAN,
                     label="Dry run",
                     default=_selected_bool(params.get(DRY_RUN_FIELD_NAME), default=False),
+                ),
+                FormFieldSchema(
+                    name=PREVIEW_ONLY_FIELD_NAME,
+                    kind=FieldKind.BOOLEAN,
+                    label="Preview only",
+                    default=_selected_bool(params.get(PREVIEW_ONLY_FIELD_NAME), default=False),
+                    help_text=(
+                        f"Render up to {MAX_PREVIEW_SAMPLES} selected samples in memory without creating samples, "
+                        "files, manifests, or custom runs."
+                    ),
                 ),
             ),
         )

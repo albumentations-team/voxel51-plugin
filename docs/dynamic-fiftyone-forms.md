@@ -85,8 +85,16 @@ sorted by execution order, with slot number as the tie-breaker.
 VOX-27 groups the prompt into a general settings section followed by one
 visible section for each configured augmentation stage slot. General settings
 include the optional previous-run preset selector, execution scope, stage-slot
-count, output count, run label, and dry-run flag. Only visible slots are
-rendered, so later-stage validation is not shown before those slots are added.
+count, output count, run label, dry-run flag, and preview-only flag. Only
+visible slots are rendered, so later-stage validation is not shown before those
+slots are added.
+
+VOX-29 adds `Preview only` to the general settings. Preview is intentionally
+bounded to selected samples: the operator renders up to three selected source
+samples as source/augmented image pairs and JSON diagnostics, then returns
+without creating samples, files, manifests, custom runs, or dataset reloads.
+The preview output schema is shown only while `preview_only` is selected so
+normal run summaries remain compact.
 
 When a previous run is selected, the form loads that run's `manifest.json` from
 the current dataset and overlays its saved `pipeline` config over current

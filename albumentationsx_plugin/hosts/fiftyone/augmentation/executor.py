@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.metadata
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 from typing import Any
@@ -13,17 +13,11 @@ from typing import Any
 import fiftyone as fo
 
 import albumentationsx_plugin
-from albumentationsx_plugin.albumentations_backend.catalog import AlbuSpecCatalogProvider
-from albumentationsx_plugin.albumentations_backend.fixed import (
-    FixedImagePipeline,
-    build_fixed_pipeline_config,
-    create_fixed_image_pipeline,
-)
+from albumentationsx_plugin.albumentations_backend.fixed import FixedImagePipeline
 from albumentationsx_plugin.core import (
     RUN_LABEL_FIELD_NAME,
     RUN_LABEL_SLUG_METADATA_KEY,
     AugmentationInput,
-    AugmentationResult,
     InvalidParameterError,
     JSONDict,
     MediaIOError,
@@ -32,29 +26,16 @@ from albumentationsx_plugin.core import (
     RunManifest,
 )
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
-from albumentationsx_plugin.hosts.fiftyone.annotations import (
-    ANNOTATION_PAYLOAD_KEY,
-    annotation_run_metadata,
-    selected_annotation_fields_from_params,
-    target_and_copy_fields,
-    target_data_from_annotation_payload,
-    transformed_annotation_payload,
-    validate_annotation_pipeline_compatibility,
-    validate_selected_annotation_fields,
-)
-from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
-    EXECUTION_SCOPE_ENTIRE_DATASET,
-    EXECUTION_SCOPE_FIELD_NAME,
-    selected_execution_scope,
-)
+from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import PreparedOutput, prepare_output
+from albumentationsx_plugin.hosts.fiftyone.augmentation.runtime import build_fixed_augmentation_runtime
+from albumentationsx_plugin.hosts.fiftyone.execution_scope import EXECUTION_SCOPE_FIELD_NAME
 from albumentationsx_plugin.hosts.fiftyone.progress import (
     AugmentationProgress,
     NoOpProgressReporter,
     ProgressReporter,
 )
 from albumentationsx_plugin.hosts.fiftyone.runs import build_fiftyone_run_key, register_fiftyone_run
-from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, FiftyOneSampleAdapter
-from albumentationsx_plugin.storage.images import build_output_image_relative_path, load_rgb_image, write_rgb_image
+from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG
 from albumentationsx_plugin.storage.manifest import FileRunStore, resolve_manifest_output_path
 from albumentationsx_plugin.storage.paths import build_run_key, slugify_run_label
 
@@ -110,45 +91,27 @@ def execute_fixed_augmentation(
     """Execute the temporary fixed-transform image augmentation flow."""
 
     progress_reporter = progress_reporter or NoOpProgressReporter()
-    config = build_fixed_pipeline_config(params)
-    catalog_provider = AlbuSpecCatalogProvider()
-    annotation_selection = selected_annotation_fields_from_params(params, dataset)
-    validate_selected_annotation_fields(annotation_selection)
-    validate_annotation_pipeline_compatibility(
-        selection=annotation_selection,
-        pipeline=config,
-        catalog_provider=catalog_provider,
+    runtime = build_fixed_augmentation_runtime(
+        dataset=dataset,
+        params=params,
+        view=view,
+        selected_sample_ids=selected_sample_ids,
+        output_tag=output_tag,
     )
-    target_fields, copy_fields = target_and_copy_fields(
-        selection=annotation_selection,
-        pipeline=config,
-        catalog_provider=catalog_provider,
-    )
-    config = replace(config, target_fields=target_fields, copy_fields=copy_fields)
-    pipeline = create_fixed_image_pipeline(config)
+    config = runtime.config
+    pipeline = runtime.pipeline
+    source_scope = runtime.source_scope
+    adapter = runtime.adapter
+    source_inputs = runtime.source_inputs
+    annotation_metadata = runtime.annotation_metadata
     dry_run = _bool_param(params, "dry_run", default=False)
-    source_scope = selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
     run_label = _optional_str_param(params, RUN_LABEL_FIELD_NAME)
     run_label_slug = slugify_run_label(run_label)
     run_key = build_run_key(run_label=run_label)
     run_store = FileRunStore(dataset_name=dataset.name, storage_root=storage_root)
     run_dir = run_store.run_dir(run_key)
-    adapter = FiftyOneSampleAdapter(
-        dataset=dataset,
-        view=None if source_scope == EXECUTION_SCOPE_ENTIRE_DATASET else view,
-        selected_sample_ids=selected_sample_ids,
-        selected_label_fields=annotation_selection.selected_field_names,
-        include_all_label_fields=False,
-        output_tag=output_tag,
-    )
-    source_inputs = tuple(adapter.iter_inputs())
     source_count = len(source_inputs)
     planned_outputs = source_count * config.outputs_per_sample
-    annotation_metadata = annotation_run_metadata(
-        selection=annotation_selection,
-        pipeline=config,
-        catalog_provider=catalog_provider,
-    )
     _report_progress(
         progress_reporter,
         stage="starting",
@@ -488,7 +451,7 @@ def _checkpoint_prepared_output(
     errors: list[JSONDict],
     output_dir: Path,
     output_tag: str,
-    output: _PreparedOutput,
+    output: PreparedOutput,
     annotation_metadata: Mapping[str, object] | None = None,
     source_scope: str = "",
     run_label: str = "",
@@ -534,13 +497,6 @@ def _delete_created_sample(dataset: fo.Dataset, sample_id: str) -> None:
         return
 
 
-@dataclass(frozen=True, slots=True)
-class _PreparedOutput:
-    result: AugmentationResult
-    relative_path: str
-    replay_record: JSONDict
-
-
 def _prepare_one_output(
     *,
     source: AugmentationInput,
@@ -548,50 +504,13 @@ def _prepare_one_output(
     config: PipelineConfig,
     run_dir: Path,
     output_index: int,
-) -> _PreparedOutput:
-    loaded = load_rgb_image(source.filepath)
-    source_annotation_payload = _source_annotation_payload(source)
-    annotation_targets = target_data_from_annotation_payload(
-        source_annotation_payload,
-        loaded.data.shape,
-        label_fields=config.target_fields,
-    )
-    pipeline_result = pipeline.apply(loaded.data, targets=annotation_targets.values)
-    transformed_labels = transformed_annotation_payload(
-        source_annotation_payload,
-        annotation_targets,
-        pipeline_result.targets,
-        pipeline_result.image.shape,
-        copy_label_fields=config.copy_fields,
-    )
-    relative_path = build_output_image_relative_path(
-        source.filepath,
-        sample_id=source.sample_id,
+) -> PreparedOutput:
+    return prepare_output(
+        source=source,
+        pipeline=pipeline,
+        config=config,
+        run_dir=run_dir,
         output_index=output_index,
-    )
-    written_path = write_rgb_image(pipeline_result.image, run_dir, relative_path)
-    replay = pipeline_result.replay
-    relative_path_text = relative_path.as_posix()
-    return _PreparedOutput(
-        result=AugmentationResult(
-            source_sample_id=source.sample_id,
-            output_filepath=str(written_path),
-            labels=transformed_labels,
-            replay=replay,
-            metadata={
-                "output_index": output_index,
-                "output_relative_path": relative_path_text,
-                "annotations": _annotation_result_metadata(transformed_labels),
-            },
-        ),
-        relative_path=relative_path_text,
-        replay_record=_replay_record(
-            source=source,
-            output_index=output_index,
-            relative_path=relative_path_text,
-            replay=replay,
-            annotation_metadata=_annotation_result_metadata(transformed_labels),
-        ),
     )
 
 
@@ -692,32 +611,3 @@ def _sample_error(source: AugmentationInput, output_index: int, error: JSONDict)
         context["sample_id"] = source.sample_id
         context["output_index"] = output_index
     return error
-
-
-def _source_annotation_payload(source: AugmentationInput) -> Mapping[str, object]:
-    value = source.metadata.get(ANNOTATION_PAYLOAD_KEY)
-    return value if isinstance(value, Mapping) else {}
-
-
-def _annotation_result_metadata(labels: Mapping[str, object]) -> JSONDict:
-    value = labels.get("metadata")
-    return normalize_json_mapping(value) if isinstance(value, Mapping) else {}
-
-
-def _replay_record(
-    *,
-    source: AugmentationInput,
-    output_index: int,
-    relative_path: str,
-    replay: JSONDict,
-    annotation_metadata: Mapping[str, object] | None = None,
-) -> JSONDict:
-    record: JSONDict = {
-        "source_sample_id": source.sample_id,
-        "output_index": output_index,
-        "output_path": relative_path,
-        "replay": replay,
-    }
-    if annotation_metadata:
-        record["annotations"] = normalize_json_mapping(annotation_metadata)
-    return record

@@ -39,6 +39,18 @@ from albumentationsx_plugin.hosts.fiftyone.presets import (
     STORAGE_ROOT_PARAM_NAME,
     operator_params_from_pipeline,
 )
+from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
+    MAX_PREVIEW_SAMPLES,
+    PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON,
+    PREVIEW_FIELD_LABELS_JSON,
+    PREVIEW_FIELD_OUTPUT_IMAGE,
+    PREVIEW_FIELD_REPLAY_JSON,
+    PREVIEW_FIELD_SOURCE_IMAGE,
+    PREVIEW_FIELD_SOURCE_SAMPLE_ID,
+    PREVIEW_ONLY_FIELD_NAME,
+    PREVIEW_REQUIRES_SELECTION_ERROR_CODE,
+    preview_field_name,
+)
 from albumentationsx_plugin.hosts.fiftyone.progress import (
     DELEGATED_EXECUTION_RECOMMENDED_SOURCE_COUNT,
     FiftyOneProgressReporter,
@@ -246,13 +258,46 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["outputs_per_sample"]["required"] is False
     assert input_properties["outputs_per_sample"]["default"] == 1
     assert input_properties["dry_run"]["type"]["name"] == "Boolean"
+    assert input_properties[PREVIEW_ONLY_FIELD_NAME]["type"]["name"] == "Boolean"
+    assert input_properties[PREVIEW_ONLY_FIELD_NAME]["default"] is False
+    assert (
+        f"up to {MAX_PREVIEW_SAMPLES} selected samples" in input_properties[PREVIEW_ONLY_FIELD_NAME]["view"]["caption"]
+    )
     assert output_json["type"]["properties"]["run_key"]["type"]["name"] == "String"
     assert output_json["type"]["properties"]["source_scope"]["type"]["name"] == "String"
     assert output_json["type"]["properties"]["processed_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["created_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["error_count"]["type"]["name"] == "Number"
+    assert output_json["type"]["properties"][PREVIEW_ONLY_FIELD_NAME]["type"]["name"] == "Boolean"
+    assert output_json["type"]["properties"]["preview_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["manifest_path"]["type"]["name"] == "String"
     assert output_json["type"]["properties"]["fiftyone_run_key"]["type"]["name"] == "String"
+
+
+@pytest.mark.unit
+def test_augment_operator_resolves_preview_output_fields() -> None:
+    operator = AugmentWithAlbumentationsX()
+    context = SimpleNamespace(params={PREVIEW_ONLY_FIELD_NAME: True})
+
+    output_json = operator.resolve_output(context).to_json()
+    output_properties = output_json["type"]["properties"]
+    source_image = output_properties[preview_field_name(1, PREVIEW_FIELD_SOURCE_IMAGE)]
+    output_image = output_properties[preview_field_name(1, PREVIEW_FIELD_OUTPUT_IMAGE)]
+    replay_json = output_properties[preview_field_name(1, PREVIEW_FIELD_REPLAY_JSON)]
+    labels_json = output_properties[preview_field_name(1, PREVIEW_FIELD_LABELS_JSON)]
+
+    assert output_properties["preview_note"]["view"]["read_only"] is True
+    assert output_properties[preview_field_name(1, PREVIEW_FIELD_SOURCE_SAMPLE_ID)]["type"]["name"] == "String"
+    assert source_image["type"]["name"] == "String"
+    assert source_image["view"]["name"] == "ImageView"
+    assert source_image["view"]["height"] == "240px"
+    assert output_image["type"]["name"] == "String"
+    assert output_image["view"]["name"] == "ImageView"
+    assert replay_json["view"]["name"] == "CodeView"
+    assert replay_json["view"]["language"] == "json"
+    assert replay_json["view"]["read_only"] is True
+    assert labels_json["view"]["name"] == "CodeView"
+    assert preview_field_name(MAX_PREVIEW_SAMPLES, PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON) in output_properties
 
 
 @pytest.mark.unit
@@ -931,6 +976,103 @@ def test_augment_operator_execute_delegates_entire_dataset_scope_without_view(mo
     assert result["source_scope"] == EXECUTION_SCOPE_ENTIRE_DATASET
     assert result["processed_count"] == 3
     assert result["error_count"] == 0
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_delegates_preview_for_selected_samples(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ("sample-1", "sample-2", "sample-3", "sample-4")
+        params = {
+            "transform": "HorizontalFlip",
+            PREVIEW_ONLY_FIELD_NAME: True,
+            "dry_run": True,
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW,
+        }
+        triggered: list[str] = []
+
+        @classmethod
+        def trigger(cls, operator_name: str):
+            cls.triggered.append(operator_name)
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise AssertionError("materialized executor should not run for preview")
+
+    def fake_execute_fixed_augmentation_preview(**kwargs):
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["view"] is Context.view
+        assert kwargs["selected_sample_ids"] == ("sample-1", "sample-2", "sample-3")
+        assert kwargs["params"] == {
+            "transform": "HorizontalFlip",
+            PREVIEW_ONLY_FIELD_NAME: True,
+            "dry_run": False,
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
+        }
+        return SimpleNamespace(
+            to_dict=lambda: {
+                "run_key": "",
+                "source_scope": EXECUTION_SCOPE_SELECTED_SAMPLES,
+                "processed_count": 3,
+                "created_count": 0,
+                "skipped_count": 0,
+                "error_count": 0,
+                "dry_run": False,
+                PREVIEW_ONLY_FIELD_NAME: True,
+                "output_tag": "",
+                "output_dir": "",
+                "manifest_path": "",
+                "fiftyone_run_key": "",
+                "errors": [],
+                "preview_count": 3,
+            }
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+    monkeypatch.setattr(
+        augment_operator_module,
+        "_execute_fixed_augmentation_preview",
+        fake_execute_fixed_augmentation_preview,
+    )
+
+    result = operator.execute(Context())
+
+    assert result[PREVIEW_ONLY_FIELD_NAME] is True
+    assert result["preview_count"] == 3
+    assert Context.triggered == []
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_reports_preview_without_selected_samples(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        selected = ()
+        params = {PREVIEW_ONLY_FIELD_NAME: True, EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW}
+
+    def fake_execute_fixed_augmentation_preview(**_kwargs):
+        raise AssertionError("preview executor should not run without selected samples")
+
+    monkeypatch.setattr(
+        augment_operator_module,
+        "_execute_fixed_augmentation_preview",
+        fake_execute_fixed_augmentation_preview,
+    )
+
+    result = operator.execute(Context())
+
+    assert result["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
+    assert result["error_count"] == 1
+    assert result[PREVIEW_ONLY_FIELD_NAME] is True
+    assert result["preview_count"] == 0
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = errors[0]
+    assert isinstance(first_error, dict)
+    assert first_error["code"] == PREVIEW_REQUIRES_SELECTION_ERROR_CODE
 
 
 @pytest.mark.unit

@@ -61,6 +61,9 @@ VOX-25.
   as `step_2_brightness_range`, `step_2_height`, and `step_10_method`.
 - `dry_run`: validates selection and parameters without writing output files or
   creating samples.
+- `preview_only`: renders up to three selected source samples in memory without
+  writing output files, creating samples, saving manifests, or registering
+  custom runs.
 - `run_label`: optional short prefix added to generated run keys so users can
   find related runs more easily.
 
@@ -130,6 +133,13 @@ output files or run metadata.
 After a successful non-dry run creates samples, the operator asks the FiftyOne
 App to reload the dataset so generated outputs are visible without a manual
 browser refresh.
+
+VOX-29 adds a non-persistent preview path. Preview requires selected source
+samples and returns source/augmented PNG data URIs plus JSON replay and label
+diagnostics in the operator output. It reuses the same runtime setup and
+per-source image/annotation transformation code as materialized execution, but
+it does not create output samples, files, manifests, custom runs, or dataset
+reloads.
 
 The executor accepts a small progress reporter interface. FiftyOne delegated
 contexts receive updates for processed sources, planned outputs, created
