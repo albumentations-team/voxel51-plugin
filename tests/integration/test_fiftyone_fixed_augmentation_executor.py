@@ -580,6 +580,11 @@ def test_fixed_augmentation_executor_transforms_supported_annotations(tmp_path) 
         annotations = cast(dict[str, Any], manifest.metadata["annotations"])
         assert isinstance(annotations, dict)
         assert annotations["fields"] == ["ground_truth", "detections", "keypoints", "segmentation"]
+        assert annotations["runtime_target_requirements"] == {
+            "detections": ["bboxes", "mask"],
+            "keypoints": ["keypoints"],
+            "segmentation": ["mask"],
+        }
         assert [field["field_name"] for field in annotations["transformed_fields"]] == [
             "detections",
             "keypoints",

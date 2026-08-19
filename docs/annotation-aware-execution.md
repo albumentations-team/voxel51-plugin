@@ -59,6 +59,14 @@ transformed target values. FiftyOne-specific reconstruction stays in
 materialized under the plugin-owned run directory and listed in the manifest
 cleanup allowlist.
 
+Compatibility checks run in two passes. The first pass uses the dataset schema
+to reject selected label fields whose declared target type is incompatible with
+the requested transform chain. The second pass uses the serialized source
+annotation payloads. This catches value-dependent requirements, such as a
+`Detections` field that normally needs `bboxes` targets but also needs `mask`
+targets when any selected detection carries an instance mask. Runtime target
+requirements are stored in run annotation metadata for inspection.
+
 ## Verification
 
 Use the complete local gate in [Verification](verification.md). The focused

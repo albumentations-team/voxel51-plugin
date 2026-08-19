@@ -7,6 +7,7 @@ import fiftyone as fo
 import pytest
 
 from albumentationsx_plugin.core import (
+    AugmentationInput,
     CapabilityStatus,
     HostAdapterError,
     PipelineConfig,
@@ -14,10 +15,12 @@ from albumentationsx_plugin.core import (
     TransformConfig,
 )
 from albumentationsx_plugin.hosts.fiftyone.annotations import (
+    ANNOTATION_PAYLOAD_KEY,
     SELECTED_LABEL_FIELDS_PARAM_NAME,
     annotation_field_param_name,
     annotation_pipeline_compatibility_conflicts,
     annotation_run_metadata,
+    annotation_target_requirements_from_inputs,
     selected_annotation_fields_from_params,
     target_and_copy_fields,
     validate_annotation_pipeline_compatibility,
@@ -72,6 +75,31 @@ def _capability(name: str, *, transform_type: str, targets: tuple[str, ...]) -> 
         targets=targets,
         metadata={"transform_type": transform_type},
     )
+
+
+def _source_input_with_payload(payload: dict[str, object]) -> AugmentationInput:
+    return AugmentationInput(
+        sample_id="sample-1",
+        filepath="/tmp/source.png",
+        metadata={ANNOTATION_PAYLOAD_KEY: payload},
+    )
+
+
+def _detection_payload(*, with_mask: bool) -> dict[str, object]:
+    detection: dict[str, object] = {
+        "label": "object",
+        "bounding_box": [0.1, 0.2, 0.3, 0.4],
+    }
+    if with_mask:
+        detection["mask"] = [[1, 0], [0, 1]]
+    return {
+        "fields": {
+            "detections": {
+                "type": "detections",
+                "detections": [detection],
+            }
+        }
+    }
 
 
 @pytest.mark.unit
@@ -184,6 +212,71 @@ def test_annotation_pipeline_compatibility_blocks_missing_spatial_target() -> No
 
 
 @pytest.mark.unit
+def test_runtime_annotation_requirements_include_detection_instance_masks() -> None:
+    requirements = annotation_target_requirements_from_inputs(
+        (_source_input_with_payload(_detection_payload(with_mask=True)),)
+    )
+
+    assert requirements == {"detections": ("bboxes", "mask")}
+
+
+@pytest.mark.unit
+def test_runtime_detection_masks_require_mask_compatible_geometry() -> None:
+    selection = selected_annotation_fields_from_params(
+        {SELECTED_LABEL_FIELDS_PARAM_NAME: ["detections"]},
+        _dataset(),
+    )
+    pipeline = PipelineConfig(transforms=(TransformConfig(name="BBoxOnlyGeometry"),))
+    catalog = _CatalogProvider((_capability("BBoxOnlyGeometry", transform_type="dual", targets=("image", "bboxes")),))
+    requirements = annotation_target_requirements_from_inputs(
+        (_source_input_with_payload(_detection_payload(with_mask=True)),)
+    )
+
+    with pytest.raises(HostAdapterError) as error:
+        validate_annotation_pipeline_compatibility(
+            selection=selection,
+            pipeline=pipeline,
+            catalog_provider=catalog,
+            runtime_target_requirements=requirements,
+        )
+
+    assert error.value.context["reason"] == "annotation_target_incompatible"
+    assert error.value.context["field_name"] == "detections"
+    assert error.value.context["target"] == "mask"
+    assert error.value.context["transform_name"] == "BBoxOnlyGeometry"
+
+
+@pytest.mark.unit
+def test_runtime_bbox_only_detections_do_not_require_mask_compatible_geometry() -> None:
+    selection = selected_annotation_fields_from_params(
+        {SELECTED_LABEL_FIELDS_PARAM_NAME: ["detections"]},
+        _dataset(),
+    )
+    pipeline = PipelineConfig(transforms=(TransformConfig(name="BBoxOnlyGeometry"),))
+    catalog = _CatalogProvider((_capability("BBoxOnlyGeometry", transform_type="dual", targets=("image", "bboxes")),))
+    requirements = annotation_target_requirements_from_inputs(
+        (_source_input_with_payload(_detection_payload(with_mask=False)),)
+    )
+
+    validate_annotation_pipeline_compatibility(
+        selection=selection,
+        pipeline=pipeline,
+        catalog_provider=catalog,
+        runtime_target_requirements=requirements,
+    )
+
+    assert (
+        annotation_pipeline_compatibility_conflicts(
+            selection=selection,
+            pipeline=pipeline,
+            catalog_provider=catalog,
+            runtime_target_requirements=requirements,
+        )
+        == ()
+    )
+
+
+@pytest.mark.unit
 def test_annotation_run_metadata_records_selected_transformed_copied_and_excluded_fields() -> None:
     selection = selected_annotation_fields_from_params(
         {annotation_field_param_name("secondary_detections"): False},
@@ -205,6 +298,7 @@ def test_annotation_run_metadata_records_selected_transformed_copied_and_exclude
             selection=selection,
             pipeline=pipeline,
             catalog_provider=catalog,
+            runtime_target_requirements={"detections": ("bboxes", "mask")},
         ),
     )
     transformed_fields = cast(list[dict[str, Any]], metadata["transformed_fields"])
@@ -220,6 +314,7 @@ def test_annotation_run_metadata_records_selected_transformed_copied_and_exclude
         "segmentation",
     ]
     assert [field["field_name"] for field in copied_fields] == ["ground_truth"]
+    assert metadata["runtime_target_requirements"] == {"detections": ["bboxes", "mask"]}
     assert ("secondary_detections", "not_selected") in {
         (field["field_name"], field["reason"]) for field in excluded_fields
     }

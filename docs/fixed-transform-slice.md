@@ -126,7 +126,10 @@ boxes. Detection mask outputs are stored as in-memory `Detection.mask` values.
 In-memory segmentation outputs remain in memory; file-backed segmentation
 outputs are written as plugin-owned mask PNGs and added to the manifest cleanup
 allowlist. Unsupported label fields are excluded from output samples and
-recorded in run annotation metadata with a reason.
+recorded in run annotation metadata with a reason. Compatibility checks use both
+schema-level label types and runtime annotation payloads, so detection fields
+with instance masks must run through transforms that advertise both `bboxes` and
+`mask` target support.
 
 VOX-15 saves each non-dry execution under the run directory as `manifest.json`
 and registers a FiftyOne custom run. The manifest records versions, source IDs,

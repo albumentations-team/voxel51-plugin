@@ -260,8 +260,11 @@ Albumentations targets, passed through the backend runner, and reconstructed on
 output samples. File-backed semantic mask outputs are materialized as
 plugin-owned files before sample creation. Spatial labels must not be copied
 across geometric transforms unless the transform chain is proven compatible
-with that target type. Unsupported FiftyOne label classes and target variants
-should be added incrementally with round-trip tests.
+with that target type. Compatibility is checked first from the dataset schema
+and then from serialized source annotation payloads, because some target needs
+are value-dependent, such as detection instance masks. Unsupported FiftyOne
+label classes and target variants should be added incrementally with round-trip
+tests.
 
 ## Storage and Safety
 
