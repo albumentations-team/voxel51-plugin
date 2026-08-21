@@ -369,6 +369,7 @@ def test_augment_operator_renders_annotation_field_toggles() -> None:
                 "ground_truth": _field(fo.Classification),
                 "detections": _field(fo.Detections),
                 "polylines": _field(fo.Polylines),
+                "heatmap": _field(fo.Heatmap),
             }
         )
         params: dict[str, object] = {}
@@ -377,6 +378,8 @@ def test_augment_operator_renders_annotation_field_toggles() -> None:
     input_properties = _form_properties(input_json)
     ground_truth_param = annotation_field_param_name("ground_truth")
     detections_param = annotation_field_param_name("detections")
+    polylines_param = annotation_field_param_name("polylines")
+    heatmap_param = annotation_field_param_name("heatmap")
 
     assert input_properties["_annotation_settings"]["view"]["name"] == "Header"
     assert input_properties["_annotation_settings"]["view"]["label"] == "Annotations"
@@ -388,7 +391,13 @@ def test_augment_operator_renders_annotation_field_toggles() -> None:
     assert input_properties[detections_param]["type"]["name"] == "Boolean"
     assert input_properties[detections_param]["default"] is True
     assert "bboxes targets" in input_properties[detections_param]["view"]["caption"]
-    assert annotation_field_param_name("polylines") not in input_properties
+    assert input_properties[polylines_param]["type"]["name"] == "Boolean"
+    assert input_properties[polylines_param]["default"] is True
+    assert "keypoints targets" in input_properties[polylines_param]["view"]["caption"]
+    assert input_properties[heatmap_param]["type"]["name"] == "Boolean"
+    assert input_properties[heatmap_param]["default"] is True
+    assert "geometry-only synchronization" in input_properties[heatmap_param]["view"]["caption"]
+    assert "mixed color/intensity stages are blocked" in input_properties[heatmap_param]["view"]["caption"]
 
 
 @pytest.mark.unit

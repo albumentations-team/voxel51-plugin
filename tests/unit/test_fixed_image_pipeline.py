@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+from typing import cast
 
 import numpy as np
 import pytest
@@ -52,6 +53,26 @@ def test_horizontal_flip_pipeline_transforms_rgb_array_and_records_replay() -> N
     first_transform = transforms[0]
     assert isinstance(first_transform, dict)
     assert first_transform["__class_fullname__"] == "HorizontalFlip"
+
+
+@pytest.mark.unit
+def test_horizontal_flip_pipeline_transforms_heatmap_image_sequence_target() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            "outputs_per_sample": 1,
+        }
+    )
+    pipeline = create_fixed_image_pipeline(config)
+    source = _rgb_array()
+    heatmaps = np.arange(20, dtype=np.float32).reshape(1, 4, 5, 1)
+
+    result = pipeline.apply(source, targets={"heatmaps": heatmaps})
+    result_heatmaps = cast(np.ndarray, result.targets["heatmaps"])
+
+    assert result_heatmaps.shape == heatmaps.shape
+    np.testing.assert_array_equal(result_heatmaps[0, :, :, 0], heatmaps[0, :, ::-1, 0])
 
 
 @pytest.mark.unit

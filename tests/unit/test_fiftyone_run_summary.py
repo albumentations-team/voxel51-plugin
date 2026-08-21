@@ -259,6 +259,63 @@ def test_build_run_summary_selects_requested_output_replay(tmp_path) -> None:
 
 
 @pytest.mark.unit
+def test_build_run_summary_keeps_annotation_assets_with_their_generated_output(tmp_path) -> None:
+    dataset = _Dataset(sample_ids=("created-1",))
+    store = FileRunStore(dataset.name, storage_root=tmp_path)
+    run_key = "albumentationsx-20260731T150000Z-summary-assets"
+    manifest = RunManifest(
+        run_key=run_key,
+        plugin_version="0.0.0",
+        dependency_versions={"albumentationsx": "2.3.7", "albu-spec": "0.0.6", "fiftyone": "1.19.0"},
+        pipeline=PipelineConfig(
+            transforms=(TransformConfig(name="HorizontalFlip", params={"p": 1.0}),),
+            outputs_per_sample=1,
+        ),
+        source_sample_ids=("source-1",),
+        created_sample_ids=("created-1",),
+        output_paths=("images/output.png", "masks/output-segmentation.png"),
+        replay_records=(
+            {
+                "source_sample_id": "source-1",
+                "output_index": 0,
+                "output_path": "images/output.png",
+                "annotation_asset_paths": ["masks/output-segmentation.png"],
+                "replay": {"applied": True},
+            },
+        ),
+        counters={"processed": 1, "created": 1, "skipped": 0, "errors": 0, "outputs": 1, "output_files": 2},
+        metadata={
+            "output_dir": "/tmp/outputs",
+            "output_tag": "albumentationsx-output",
+            "fiftyone_run_key": build_fiftyone_run_key(run_key),
+        },
+    )
+    store.save_manifest(manifest)
+    for relative_path in manifest.output_paths:
+        output_path = store.run_dir(manifest.run_key) / relative_path
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"fake bytes")
+
+    summary = build_run_summary(dataset, manifest.run_key, storage_root=tmp_path)
+
+    assert summary.output_count == 1
+    assert summary.available_output_count == 1
+    assert summary.missing_output_count == 0
+    assert len(summary.generated_outputs) == 1
+    assert summary.generated_outputs[0].output_path == "images/output.png"
+    assert summary.generated_outputs[0].status == RUN_OUTPUT_STATUS_AVAILABLE
+
+    (store.run_dir(manifest.run_key) / "masks/output-segmentation.png").unlink()
+    stale_summary = build_run_summary(dataset, manifest.run_key, storage_root=tmp_path)
+
+    assert stale_summary.status == RUN_STATUS_STALE
+    assert stale_summary.output_count == 1
+    assert stale_summary.available_output_count == 0
+    assert stale_summary.missing_output_count == 1
+    assert stale_summary.generated_outputs[0].status == RUN_OUTPUT_STATUS_MISSING_FILE
+
+
+@pytest.mark.unit
 def test_build_run_summary_exposes_run_label_metadata(tmp_path) -> None:
     dataset = _Dataset()
     store = FileRunStore(dataset.name, storage_root=tmp_path)

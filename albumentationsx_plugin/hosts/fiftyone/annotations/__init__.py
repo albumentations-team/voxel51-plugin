@@ -1,5 +1,9 @@
 """FiftyOne annotation conversion helpers for augmentation execution."""
 
+from albumentationsx_plugin.hosts.fiftyone.annotations.assets import (
+    MaterializedAnnotationAssets,
+    materialize_annotation_assets,
+)
 from albumentationsx_plugin.hosts.fiftyone.annotations.conversion import (
     AnnotationTargets,
     annotation_payload_from_sample,
@@ -11,6 +15,7 @@ from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
     ANNOTATION_EXCLUDED_FIELDS_KEY,
     ANNOTATION_FIELD_PARAM_PREFIX,
     ANNOTATION_PAYLOAD_KEY,
+    FIELD_TYPE_HEATMAP,
     SELECTED_LABEL_FIELDS_PARAM_NAME,
     AnnotationField,
     AnnotationFieldSelection,
@@ -19,6 +24,7 @@ from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
     annotation_pipeline_compatibility_conflicts,
     annotation_pipeline_field_roles,
     annotation_run_metadata,
+    annotation_target_requirements_from_inputs,
     list_supported_annotation_fields,
     resolve_annotation_field_selection,
     resolve_annotation_fields,
@@ -33,15 +39,19 @@ __all__ = [
     "ANNOTATION_EXCLUDED_FIELDS_KEY",
     "ANNOTATION_FIELD_PARAM_PREFIX",
     "ANNOTATION_PAYLOAD_KEY",
+    "FIELD_TYPE_HEATMAP",
     "SELECTED_LABEL_FIELDS_PARAM_NAME",
     "AnnotationField",
     "AnnotationFieldSelection",
     "AnnotationTargets",
+    "MaterializedAnnotationAssets",
     "annotation_field_param_name",
     "annotation_field_selection_is_explicit",
     "annotation_pipeline_compatibility_conflicts",
     "annotation_pipeline_field_roles",
     "annotation_run_metadata",
+    "annotation_target_requirements_from_inputs",
+    "materialize_annotation_assets",
     "annotation_payload_from_sample",
     "labels_from_annotation_payload",
     "list_supported_annotation_fields",

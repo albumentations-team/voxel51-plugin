@@ -33,6 +33,7 @@ from albumentationsx_plugin.core import (
 )
 from albumentationsx_plugin.core.serialization import normalize_json_value
 from albumentationsx_plugin.hosts.fiftyone.annotations import (
+    FIELD_TYPE_HEATMAP,
     SELECTED_LABEL_FIELDS_PARAM_NAME,
     AnnotationField,
     annotation_field_param_name,
@@ -457,6 +458,11 @@ def _annotation_field_default(field: AnnotationField, params: Mapping[str, objec
 def _annotation_field_caption(field: AnnotationField) -> str:
     if field.albu_target is None:
         return "Classification labels are copied."
+    if field.label_type == FIELD_TYPE_HEATMAP:
+        return (
+            "Heatmap labels use image targets for geometry-only synchronization; "
+            "mixed color/intensity stages are blocked."
+        )
     return f"{field.label_type.capitalize()} labels use {field.albu_target} targets."
 
 

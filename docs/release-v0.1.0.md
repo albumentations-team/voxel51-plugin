@@ -12,13 +12,14 @@ This page is the release note and checklist for the first public MVP release of
   `Delete AlbumentationsX Run`;
 - renders catalog-backed AlbumentationsX transform forms from albu-spec
   metadata;
-- lets users configure up to three ordered augmentation stages;
+- lets users configure up to ten ordered augmentation stage slots;
 - can prefill augmentation settings from a previous run in the current dataset;
 - applies the pipeline to selected samples in the active dataset or filtered
   view;
 - creates new output samples without mutating source samples or source files;
 - transforms supported FiftyOne `Classification`, `Detections`, `Keypoints`,
-  and in-memory `Segmentation` mask fields in the executable path;
+  `Polylines`, `Heatmap`, and `Segmentation` mask fields in the executable
+  path;
 - persists run manifests with sampled replay metadata and dependency versions;
 - supports read-only run inspection and confirmed cleanup of generated samples
   and files.
@@ -36,9 +37,16 @@ This page is the release note and checklist for the first public MVP release of
   `supported_with_defaults` transforms.
 - Previous-run presets reuse saved pipeline configuration with fresh randomness;
   they do not replay per-sample random parameters from earlier outputs.
-- Unsupported FiftyOne label classes, external mask-path variants, 3D/media
-  transforms, external-data transforms, and transforms with unsafe outputs are
-  excluded from normal App choices.
+- Unsupported FiftyOne label classes, 3D/media transforms, external-data
+  transforms, and transforms with unsafe outputs are excluded from normal App
+  choices.
+- File-backed semantic segmentation masks are materialized as plugin-owned PNGs;
+  detection instance masks and transformed heatmaps are stored in memory on
+  generated samples.
+- Polyline support uses vertex-based semantics rather than full polygon
+  clipping. Heatmap support is limited to geometry-only target synchronization;
+  mixed geometry + image-only color/intensity pipelines are blocked when
+  heatmaps are selected.
 - Cleaned runs keep `manifest.json` for auditability, so they remain visible in
   `View AlbumentationsX Run` but are hidden from cleanup suggestions.
 - Successful or partial cleanup runs ask the FiftyOne App to reload the dataset
@@ -80,17 +88,23 @@ Validate from the final release branch before tagging:
    `uv run python scripts/create_demo_dataset.py create --overwrite`.
 4. Launch `albumentationsx-demo` in the FiftyOne App.
 5. Select one or more samples.
-6. Run `Augment with AlbumentationsX` with a non-dry pipeline of at least two
-   stages.
+6. Run `Augment with AlbumentationsX` with a non-dry geometry pipeline, such as
+   `HorizontalFlip`.
 7. Run `Augment with AlbumentationsX` again, select the previous run key, and
    confirm the form is prefilled from the saved pipeline config.
 8. Confirm generated samples appear after the automatic App reload.
 9. Confirm transformed supported annotations remain aligned with the generated
-   images.
+   images: detections and detection masks move with boxes, keypoints and
+   polylines flip with the image, heatmap values remain spatially aligned, and
+   segmentation masks preserve discrete regions.
 10. Run `View AlbumentationsX Run` and confirm counts, versions, transform
-   config, and replay availability are visible.
-11. Run `Delete AlbumentationsX Run` with confirmation checked.
-12. Confirm generated samples and output files are gone, source samples and
+   config, replay availability, selected annotation fields, runtime target
+   requirements, and dropped annotation diagnostics are visible.
+11. Run a second `Augment with AlbumentationsX` check with a selected `Heatmap`
+   field and a mixed geometry + image-only color/intensity pipeline; confirm the
+   operator rejects it before creating outputs.
+12. Run `Delete AlbumentationsX Run` with confirmation checked.
+13. Confirm generated samples and output files are gone, source samples and
    source files remain, and the cleaned run is not suggested for cleanup again.
 
 ## Git Tag Checklist

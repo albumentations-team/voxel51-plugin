@@ -119,10 +119,27 @@ Each created FiftyOne sample is tagged with `albumentationsx-output` and
 sample ID, run key, output tag, and transform summary.
 
 VOX-26 copies supported classification labels and transforms supported
-`Detections`, `Keypoints`, and in-memory `Segmentation` masks through
-Albumentations target APIs for the fixed execution path. Unsupported label
-fields are excluded from output samples and recorded in run annotation metadata
-with a reason.
+`Detections`, `Keypoints`, `Polylines`, `Heatmap`, and semantic `Segmentation`
+masks through Albumentations target APIs for the fixed execution path.
+Detection instance masks stored as `Detection(mask=...)` or
+`Detection(mask_path=...)` are
+transformed through full-image mask targets and cropped back to the transformed
+boxes. Detection mask outputs are stored as in-memory `Detection.mask` values.
+Polyline vertices are transformed through Albumentations keypoint targets and
+grouped back into their source contours. Contours with too few visible vertices
+after geometric transforms are dropped. Heatmap maps are transformed through
+batched image-like targets and written to output samples as in-memory
+`Heatmap.map` values.
+In-memory segmentation outputs remain in memory; file-backed segmentation
+outputs are written as plugin-owned mask PNGs and added to the manifest cleanup
+allowlist. Unsupported label fields are excluded from output samples and
+recorded in run annotation metadata with a reason. Compatibility checks use both
+schema-level label types and runtime annotation payloads, so detection fields
+with instance masks must run through transforms that advertise both `bboxes` and
+`mask` target support. Heatmaps can be synchronized with geometry-only target
+pipelines; mixed pipelines that would also apply image-only color/intensity
+stages to heatmap values are rejected until per-target replay can handle them
+separately.
 
 VOX-15 saves each non-dry execution under the run directory as `manifest.json`
 and registers a FiftyOne custom run. The manifest records versions, source IDs,

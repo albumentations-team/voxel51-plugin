@@ -221,7 +221,7 @@ def execute_fixed_augmentation(
                         errors=len(errors),
                     )
                 else:
-                    output_paths.append(output.relative_path)
+                    output_paths.extend(output.manifest_relative_paths)
                     replay_records.append(output.replay_record)
                     manifest = _checkpoint_prepared_output(
                         run_store=run_store,
@@ -563,10 +563,20 @@ def _checkpoint_prepared_output(
             execution_status=execution_status,
         )
     except PluginError:
-        output_paths.pop()
+        _rollback_output_paths(output_paths, output)
         replay_records.pop()
-        _delete_pre_manifest_output_file(output_dir, output.relative_path)
+        _delete_pre_manifest_output_files(output_dir, output.manifest_relative_paths)
         raise
+
+
+def _rollback_output_paths(output_paths: list[str], output: PreparedOutput) -> None:
+    for _relative_path in output.manifest_relative_paths:
+        output_paths.pop()
+
+
+def _delete_pre_manifest_output_files(run_dir: Path, relative_paths: Sequence[str]) -> None:
+    for relative_path in relative_paths:
+        _delete_pre_manifest_output_file(run_dir, relative_path)
 
 
 def _delete_pre_manifest_output_file(run_dir: Path, relative_path: str) -> None:
@@ -625,8 +635,10 @@ def _manifest(
         "created": len(created_sample_ids),
         "skipped": skipped_count,
         "errors": len(errors),
-        "outputs": len(output_paths),
+        "outputs": len(replay_records),
     }
+    if len(output_paths) != len(replay_records):
+        counters["output_files"] = len(output_paths)
     metadata: JSONDict = {
         "output_dir": str(output_dir),
         "output_tag": output_tag,

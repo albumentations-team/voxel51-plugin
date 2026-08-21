@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import fiftyone as fo
+import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET_NAME = "albumentationsx-demo"
@@ -248,9 +249,74 @@ def _build_samples(data_root: Path) -> list[fo.Sample]:
                 scenario=spec.scenario,
                 source="generated",
                 ground_truth=fo.Classification(label=spec.label),
+                detections=_demo_detections(spec),
+                keypoints=_demo_keypoints(spec),
+                polylines=_demo_polylines(spec),
+                heatmap=fo.Heatmap(map=_demo_heatmap(spec), range=[0.0, 1.0], tags=["demo"]),
+                segmentation=fo.Segmentation(mask=_demo_segmentation_mask(spec), tags=["demo"]),
             )
         )
     return samples
+
+
+def _demo_detections(spec: DemoSampleSpec) -> fo.Detections:
+    return fo.Detections(
+        detections=[
+            fo.Detection(
+                label=spec.label,
+                bounding_box=[0.12, 0.25, 0.32, 0.5],
+                mask=np.asarray(
+                    [
+                        [1, 1, 0, 0],
+                        [1, 1, 1, 0],
+                        [0, 1, 1, 1],
+                        [0, 0, 1, 1],
+                    ],
+                    dtype=np.uint8,
+                ),
+                confidence=0.9,
+                attributes={"scenario": fo.CategoricalAttribute(value=spec.scenario)},
+            )
+        ]
+    )
+
+
+def _demo_keypoints(spec: DemoSampleSpec) -> fo.Keypoints:
+    return fo.Keypoints(
+        keypoints=[
+            fo.Keypoint(
+                label=f"{spec.label}-anchor",
+                points=[[0.25, 0.5], [0.42, 0.38]],
+                confidence=[0.95, 0.85],
+            )
+        ]
+    )
+
+
+def _demo_polylines(spec: DemoSampleSpec) -> fo.Polylines:
+    return fo.Polylines(
+        polylines=[
+            fo.Polyline(
+                label=f"{spec.label}-outline",
+                points=[[[0.16, 0.32], [0.28, 0.24], [0.44, 0.44], [0.58, 0.55]]],
+                confidence=0.8,
+                closed=False,
+                filled=False,
+            )
+        ]
+    )
+
+
+def _demo_heatmap(spec: DemoSampleSpec) -> np.ndarray:
+    y_indices, x_indices = np.indices((spec.height, spec.width), dtype=np.float32)
+    return (x_indices + y_indices) / float(spec.width + spec.height - 2)
+
+
+def _demo_segmentation_mask(spec: DemoSampleSpec) -> np.ndarray:
+    mask = np.zeros((spec.height, spec.width), dtype=np.uint8)
+    mask[spec.height // 4 : (spec.height * 3) // 4, spec.width // 8 : spec.width // 3] = 1
+    mask[spec.height // 3 : (spec.height * 2) // 3, spec.width // 2 : (spec.width * 3) // 4] = 2
+    return mask
 
 
 def _summarize_dataset(dataset: fo.Dataset, data_root: Path, *, image_count: int) -> DemoDatasetSummary:

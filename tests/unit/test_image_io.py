@@ -10,9 +10,12 @@ from PIL import Image
 from albumentationsx_plugin.core import MediaIOError
 from albumentationsx_plugin.storage.images import (
     build_output_image_relative_path,
+    build_output_mask_relative_path,
     load_rgb_image,
     resolve_output_image_path,
+    validate_mask_array,
     validate_rgb_array,
+    write_mask_image,
     write_rgb_image,
 )
 
@@ -22,6 +25,12 @@ def _rgb_array(width: int = 5, height: int = 4) -> np.ndarray:
     image[..., 0] = 255
     image[:, :, 1] = np.arange(width, dtype=np.uint8)
     return image
+
+
+def _mask_array(width: int = 5, height: int = 4) -> np.ndarray:
+    mask = np.zeros((height, width), dtype=np.uint8)
+    mask[:, :2] = 1
+    return mask
 
 
 @pytest.mark.unit
@@ -106,6 +115,22 @@ def test_validate_rgb_array_reports_invalid_dtype() -> None:
 
 
 @pytest.mark.unit
+def test_validate_mask_array_reports_invalid_shape_dtype_and_range() -> None:
+    with pytest.raises(MediaIOError) as shape_error:
+        validate_mask_array(np.zeros((4, 5, 1), dtype=np.uint8))
+
+    with pytest.raises(MediaIOError) as dtype_error:
+        validate_mask_array(np.zeros((4, 5), dtype=np.float32))
+
+    with pytest.raises(MediaIOError) as range_error:
+        validate_mask_array(np.full((4, 5), -1, dtype=np.int16))
+
+    assert shape_error.value.context["reason"] == "invalid_shape"
+    assert dtype_error.value.context["reason"] == "invalid_dtype"
+    assert range_error.value.context["reason"] == "invalid_value_range"
+
+
+@pytest.mark.unit
 def test_write_rgb_image_refuses_to_overwrite_existing_outputs(tmp_path) -> None:
     image = _rgb_array()
 
@@ -116,6 +141,38 @@ def test_write_rgb_image_refuses_to_overwrite_existing_outputs(tmp_path) -> None
 
     assert output_path.exists()
     assert error.value.context["reason"] == "output_exists"
+
+
+@pytest.mark.unit
+def test_write_mask_image_preserves_semantic_class_ids(tmp_path) -> None:
+    mask = _mask_array()
+    mask[0, 0] = 255
+
+    output_path = write_mask_image(mask, tmp_path, "masks/result.png")
+
+    with Image.open(output_path) as image:
+        loaded = np.asarray(image)
+    np.testing.assert_array_equal(loaded, mask)
+
+
+@pytest.mark.unit
+def test_write_mask_image_preserves_uint16_class_ids(tmp_path) -> None:
+    mask = np.zeros((4, 5), dtype=np.int32)
+    mask[:, :2] = 300
+
+    output_path = write_mask_image(mask, tmp_path, "masks/result.png")
+
+    with Image.open(output_path) as image:
+        loaded = np.asarray(image)
+    np.testing.assert_array_equal(loaded, mask.astype(np.uint16))
+
+
+@pytest.mark.unit
+def test_write_mask_image_requires_png_outputs(tmp_path) -> None:
+    with pytest.raises(MediaIOError) as error:
+        write_mask_image(_mask_array(), tmp_path, "masks/result.jpg")
+
+    assert error.value.context["reason"] == "unsupported_mask_extension"
 
 
 @pytest.mark.unit
@@ -148,6 +205,18 @@ def test_output_image_relative_path_is_deterministic_and_manifest_safe() -> None
     )
 
     assert relative_path.as_posix() == "images/My-Image-sample-id-1-0007.png"
+
+
+@pytest.mark.unit
+def test_output_mask_relative_path_is_deterministic_and_manifest_safe() -> None:
+    relative_path = build_output_mask_relative_path(
+        "/source data/My Image.JPG",
+        sample_id="sample/id:1",
+        output_index=7,
+        field_name="semantic mask/main",
+    )
+
+    assert relative_path.as_posix() == "masks/My-Image-sample-id-1-0007-semantic-mask-main.png"
 
 
 @pytest.mark.unit

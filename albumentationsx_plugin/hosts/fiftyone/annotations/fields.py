@@ -9,7 +9,13 @@ from typing import Any, Final, TypeGuard
 
 import fiftyone as fo
 
-from albumentationsx_plugin.core import HostAdapterError, JSONDict, PipelineConfig, TransformCatalogProvider
+from albumentationsx_plugin.core import (
+    AugmentationInput,
+    HostAdapterError,
+    JSONDict,
+    PipelineConfig,
+    TransformCatalogProvider,
+)
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 
 ANNOTATION_PAYLOAD_KEY: Final[str] = "annotation_payload"
@@ -19,15 +25,25 @@ SELECTED_LABEL_FIELDS_PARAM_NAME: Final[str] = "selected_label_fields"
 
 FIELD_TYPE_CLASSIFICATION: Final[str] = "classification"
 FIELD_TYPE_DETECTIONS: Final[str] = "detections"
+FIELD_TYPE_HEATMAP: Final[str] = "heatmap"
 FIELD_TYPE_KEYPOINTS: Final[str] = "keypoints"
+FIELD_TYPE_POLYLINES: Final[str] = "polylines"
 FIELD_TYPE_SEGMENTATION: Final[str] = "segmentation"
 
 ANNOTATION_ROLE_TRANSFORMED: Final[str] = "transformed"
 ANNOTATION_ROLE_COPIED: Final[str] = "copied"
 
+_ALBU_TARGET_IMAGE: Final[str] = "image"
 _ALBU_TARGET_BBOXES: Final[str] = "bboxes"
 _ALBU_TARGET_KEYPOINTS: Final[str] = "keypoints"
 _ALBU_TARGET_MASK: Final[str] = "mask"
+_ALBU_TARGET_ORDER: Final[tuple[str, ...]] = (
+    _ALBU_TARGET_IMAGE,
+    _ALBU_TARGET_BBOXES,
+    _ALBU_TARGET_KEYPOINTS,
+    _ALBU_TARGET_MASK,
+)
+_MASK_FIELD: Final[str] = "mask"
 _TRANSFORM_TYPE_IMAGE_ONLY: Final[str] = "image_only"
 _EXCLUDED_REASON_NOT_SELECTED: Final[str] = "not_selected"
 
@@ -44,7 +60,13 @@ class AnnotationField:
     def is_spatial(self) -> bool:
         """Return whether this field must track image geometry."""
 
-        return self.albu_target is not None
+        return bool(self.albu_targets)
+
+    @property
+    def albu_targets(self) -> tuple[str, ...]:
+        """Return declared Albumentations target requirements from the schema."""
+
+        return () if self.albu_target is None else (self.albu_target,)
 
     def to_dict(self, *, role: str | None = None) -> JSONDict:
         """Serialize the field for run manifests and operator diagnostics."""
@@ -228,6 +250,7 @@ def validate_annotation_pipeline_compatibility(
     selection: AnnotationFieldSelection,
     pipeline: PipelineConfig,
     catalog_provider: TransformCatalogProvider,
+    runtime_target_requirements: Mapping[str, Sequence[str]] | None = None,
 ) -> None:
     """Reject selected spatial fields that a geometric stage cannot transform."""
 
@@ -235,6 +258,7 @@ def validate_annotation_pipeline_compatibility(
         selection=selection,
         pipeline=pipeline,
         catalog_provider=catalog_provider,
+        runtime_target_requirements=runtime_target_requirements,
     )
     if not conflicts:
         return
@@ -260,38 +284,80 @@ def annotation_pipeline_compatibility_conflicts(
     selection: AnnotationFieldSelection,
     pipeline: PipelineConfig,
     catalog_provider: TransformCatalogProvider,
+    runtime_target_requirements: Mapping[str, Sequence[str]] | None = None,
 ) -> tuple[JSONDict, ...]:
     """Return selected field/transform conflicts without raising."""
 
     conflicts: list[JSONDict] = []
-    spatial_fields = tuple(field for field in selection.selected_fields if field.albu_target is not None)
+    spatial_fields = tuple(
+        field for field in selection.selected_fields if _field_target_requirements(field, runtime_target_requirements)
+    )
     if not spatial_fields:
         return ()
 
+    transformed_targets = _transformed_targets(pipeline, catalog_provider)
     for stage_number, transform in enumerate(pipeline.transforms, start=1):
         capability = catalog_provider.get_transform_capability(transform.name)
         if capability is None:
             continue
         if _capability_transform_type(capability.metadata) == _TRANSFORM_TYPE_IMAGE_ONLY:
+            conflicts.extend(
+                _image_only_stage_conflicts(
+                    stage_number=stage_number,
+                    transform_name=transform.name,
+                    spatial_fields=spatial_fields,
+                    transformed_targets=transformed_targets,
+                )
+            )
             continue
         targets = set(capability.targets)
         for field in spatial_fields:
-            if field.albu_target not in targets:
+            for target in _field_target_requirements(field, runtime_target_requirements):
+                if target in targets:
+                    continue
                 conflicts.append(
                     normalize_json_mapping(
                         {
                             "field_name": field.name,
                             "label_type": field.label_type,
-                            "target": field.albu_target,
+                            "target": target,
                             "transform_name": transform.name,
                             "stage_number": stage_number,
                             "reason": "missing_transform_target",
-                            "message": (
-                                f"{transform.name} does not advertise support for {field.albu_target} targets."
-                            ),
+                            "message": (f"{transform.name} does not advertise support for {target} targets."),
                         }
                     )
                 )
+    return tuple(conflicts)
+
+
+def _image_only_stage_conflicts(
+    *,
+    stage_number: int,
+    transform_name: str,
+    spatial_fields: Sequence[AnnotationField],
+    transformed_targets: frozenset[str],
+) -> tuple[JSONDict, ...]:
+    conflicts: list[JSONDict] = []
+    for field in spatial_fields:
+        if field.label_type != FIELD_TYPE_HEATMAP or _ALBU_TARGET_IMAGE not in transformed_targets:
+            continue
+        conflicts.append(
+            normalize_json_mapping(
+                {
+                    "field_name": field.name,
+                    "label_type": field.label_type,
+                    "target": _ALBU_TARGET_IMAGE,
+                    "transform_name": transform_name,
+                    "stage_number": stage_number,
+                    "reason": "image_only_stage_would_alter_heatmap",
+                    "message": (
+                        f"{transform_name} is an image-only stage. Heatmaps can only be safely transformed "
+                        "through image-like targets when the active pipeline is geometry-only."
+                    ),
+                }
+            )
+        )
     return tuple(conflicts)
 
 
@@ -320,6 +386,7 @@ def annotation_run_metadata(
     selection: AnnotationFieldSelection,
     pipeline: PipelineConfig,
     catalog_provider: TransformCatalogProvider,
+    runtime_target_requirements: Mapping[str, Sequence[str]] | None = None,
 ) -> JSONDict:
     """Build manifest metadata for selected/copied/transformed annotation fields."""
 
@@ -331,15 +398,35 @@ def annotation_run_metadata(
     selected_fields = tuple(field.to_dict(role=role) for field, role in roles)
     transformed_fields = tuple(field.to_dict(role=role) for field, role in roles if role == ANNOTATION_ROLE_TRANSFORMED)
     copied_fields = tuple(field.to_dict(role=role) for field, role in roles if role == ANNOTATION_ROLE_COPIED)
-    return normalize_json_mapping(
-        {
-            "fields": [field.name for field in selection.selected_fields],
-            "selected_fields": list(selected_fields),
-            "transformed_fields": list(transformed_fields),
-            "copied_fields": list(copied_fields),
-            "excluded_fields": [dict(field) for field in selection.excluded_fields],
-        }
-    )
+    metadata: dict[str, object] = {
+        "fields": [field.name for field in selection.selected_fields],
+        "selected_fields": list(selected_fields),
+        "transformed_fields": list(transformed_fields),
+        "copied_fields": list(copied_fields),
+        "excluded_fields": [dict(field) for field in selection.excluded_fields],
+    }
+    runtime_requirements = _runtime_target_requirements_to_json(runtime_target_requirements)
+    if runtime_requirements:
+        metadata["runtime_target_requirements"] = runtime_requirements
+    return normalize_json_mapping(metadata)
+
+
+def annotation_target_requirements_from_inputs(
+    source_inputs: Sequence[AugmentationInput],
+) -> dict[str, tuple[str, ...]]:
+    """Infer target requirements from serialized source annotation payloads."""
+
+    requirements: dict[str, set[str]] = {}
+    for source_input in source_inputs:
+        payload = source_input.metadata.get(ANNOTATION_PAYLOAD_KEY)
+        if not isinstance(payload, Mapping):
+            continue
+        for field_name, field_payload in _payload_fields(payload).items():
+            targets = _runtime_field_targets(field_payload)
+            if not targets:
+                continue
+            requirements.setdefault(field_name, set()).update(targets)
+    return {field_name: _ordered_targets(targets) for field_name, targets in requirements.items()}
 
 
 def target_and_copy_fields(
@@ -391,11 +478,84 @@ def _annotation_field(field_name: str, label_type: object) -> AnnotationField | 
         return AnnotationField(field_name, FIELD_TYPE_CLASSIFICATION)
     if isinstance(label_type, type) and issubclass(label_type, fo.Detections):
         return AnnotationField(field_name, FIELD_TYPE_DETECTIONS, albu_target=_ALBU_TARGET_BBOXES)
+    if isinstance(label_type, type) and issubclass(label_type, fo.Heatmap):
+        return AnnotationField(field_name, FIELD_TYPE_HEATMAP, albu_target=_ALBU_TARGET_IMAGE)
     if isinstance(label_type, type) and issubclass(label_type, fo.Keypoints):
         return AnnotationField(field_name, FIELD_TYPE_KEYPOINTS, albu_target=_ALBU_TARGET_KEYPOINTS)
+    if isinstance(label_type, type) and issubclass(label_type, fo.Polylines):
+        return AnnotationField(field_name, FIELD_TYPE_POLYLINES, albu_target=_ALBU_TARGET_KEYPOINTS)
     if isinstance(label_type, type) and issubclass(label_type, fo.Segmentation):
         return AnnotationField(field_name, FIELD_TYPE_SEGMENTATION, albu_target=_ALBU_TARGET_MASK)
     return None
+
+
+def _field_target_requirements(
+    field: AnnotationField,
+    runtime_target_requirements: Mapping[str, Sequence[str]] | None,
+) -> tuple[str, ...]:
+    runtime_targets = () if runtime_target_requirements is None else runtime_target_requirements.get(field.name, ())
+    return _ordered_targets((*field.albu_targets, *runtime_targets))
+
+
+def _runtime_target_requirements_to_json(
+    runtime_target_requirements: Mapping[str, Sequence[str]] | None,
+) -> dict[str, list[str]]:
+    if not runtime_target_requirements:
+        return {}
+    return {
+        field_name: list(targets)
+        for field_name, targets in (
+            (str(field_name), _ordered_targets(targets)) for field_name, targets in runtime_target_requirements.items()
+        )
+        if targets
+    }
+
+
+def _runtime_field_targets(field_payload: Mapping[str, object]) -> tuple[str, ...]:
+    field_type = _payload_type(field_payload)
+    if field_type == FIELD_TYPE_DETECTIONS:
+        detections = _payload_sequence(field_payload, "detections")
+        targets = {_ALBU_TARGET_BBOXES}
+        if any(_MASK_FIELD in detection for detection in detections):
+            targets.add(_ALBU_TARGET_MASK)
+        return _ordered_targets(targets)
+    if field_type == FIELD_TYPE_HEATMAP:
+        return (_ALBU_TARGET_IMAGE,)
+    if field_type in {FIELD_TYPE_KEYPOINTS, FIELD_TYPE_POLYLINES}:
+        return (_ALBU_TARGET_KEYPOINTS,)
+    if field_type == FIELD_TYPE_SEGMENTATION and _MASK_FIELD in field_payload:
+        return (_ALBU_TARGET_MASK,)
+    return ()
+
+
+def _ordered_targets(targets: Sequence[str] | set[str]) -> tuple[str, ...]:
+    target_set = {str(target) for target in targets if str(target)}
+    ordered = [target for target in _ALBU_TARGET_ORDER if target in target_set]
+    ordered.extend(sorted(target_set.difference(_ALBU_TARGET_ORDER)))
+    return tuple(ordered)
+
+
+def _payload_fields(payload: Mapping[str, object]) -> Mapping[str, Mapping[str, object]]:
+    fields = payload.get("fields")
+    if not isinstance(fields, Mapping):
+        return {}
+    return {
+        str(field_name): field_payload
+        for field_name, field_payload in fields.items()
+        if isinstance(field_payload, Mapping)
+    }
+
+
+def _payload_type(payload: Mapping[str, object]) -> str:
+    value = payload.get("type")
+    return value if isinstance(value, str) else ""
+
+
+def _payload_sequence(payload: Mapping[str, object], key: str) -> list[Mapping[str, object]]:
+    value = payload.get(key)
+    if not isinstance(value, list | tuple):
+        return []
+    return [item for item in value if isinstance(item, Mapping)]
 
 
 def _unsupported_label_fields(schema: Mapping[str, Any]) -> dict[str, type[fo.Label]]:

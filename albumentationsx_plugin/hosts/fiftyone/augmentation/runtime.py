@@ -18,6 +18,7 @@ from albumentationsx_plugin.core import AugmentationInput, JSONDict, PipelineCon
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.annotations import (
     annotation_run_metadata,
+    annotation_target_requirements_from_inputs,
     selected_annotation_fields_from_params,
     target_and_copy_fields,
     validate_annotation_pipeline_compatibility,
@@ -67,7 +68,6 @@ def build_fixed_augmentation_runtime(
         catalog_provider=catalog_provider,
     )
     config = replace(config, target_fields=target_fields, copy_fields=copy_fields)
-    pipeline = create_fixed_image_pipeline(config)
     source_scope = selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
     adapter = FiftyOneSampleAdapter(
         dataset=dataset,
@@ -78,11 +78,20 @@ def build_fixed_augmentation_runtime(
         output_tag=output_tag,
     )
     source_inputs = tuple(adapter.iter_inputs())
+    runtime_target_requirements = annotation_target_requirements_from_inputs(source_inputs)
+    validate_annotation_pipeline_compatibility(
+        selection=annotation_selection,
+        pipeline=config,
+        catalog_provider=catalog_provider,
+        runtime_target_requirements=runtime_target_requirements,
+    )
+    pipeline = create_fixed_image_pipeline(config)
     annotation_metadata = normalize_json_mapping(
         annotation_run_metadata(
             selection=annotation_selection,
             pipeline=config,
             catalog_provider=catalog_provider,
+            runtime_target_requirements=runtime_target_requirements,
         )
     )
     return FixedAugmentationRuntime(

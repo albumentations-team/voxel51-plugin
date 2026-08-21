@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import fiftyone as fo
+import numpy as np
 import pytest
 
 from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
@@ -59,6 +60,13 @@ def test_mvp_demo_workflow_creates_inspects_and_deletes_a_run(tmp_path) -> None:
         assert len(dataset) == len(DEMO_SAMPLES) + 1
         assert len(output_samples) == 1
         assert Path(output_samples[0].filepath).exists()
+        output = output_samples[0]
+        assert output.ground_truth.label == source_samples[0].ground_truth.label
+        assert len(output.detections.detections) == 1
+        assert len(output.keypoints.keypoints) == 1
+        assert len(output.polylines.polylines) == 1
+        assert np.asarray(output.heatmap.map).shape == np.asarray(source_samples[0].heatmap.map).shape
+        assert np.asarray(output.segmentation.mask).shape == np.asarray(source_samples[0].segmentation.mask).shape
         assert dataset.has_run(result.fiftyone_run_key)
 
         summary_context = SimpleNamespace(
