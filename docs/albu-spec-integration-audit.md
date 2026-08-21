@@ -163,8 +163,10 @@ Expected upstream direction:
 - distinguish optional advanced data hooks from required execution inputs.
 
 Local decision: keep these transforms excluded until the plugin has explicit
-host UI and storage flows for reference data. Name-based classification should
-remain documented and narrow.
+host UI and storage flows for reference data. VOX-43 records the current local
+contract as `ExternalInputRequirement` entries on each affected
+`TransformCapability`; see [External-data transforms](external-data-transforms.md).
+Name-based classification should remain documented and narrow.
 
 #### ASPEC-3: Output safety is not machine-readable
 

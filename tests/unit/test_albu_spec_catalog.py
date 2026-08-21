@@ -61,7 +61,9 @@ def test_albu_spec_catalog_classifies_key_transform_capabilities() -> None:
 
     assert histogram_matching is not None
     assert histogram_matching.status == CapabilityStatus.REQUIRES_EXTERNAL_DATA
-    assert histogram_matching.reason_code == "requires_metadata_input"
+    assert histogram_matching.reason_code == "requires_external_input_adapter"
+    assert [external_input.name for external_input in histogram_matching.external_inputs] == ["reference_images"]
+    assert histogram_matching.external_inputs[0].metadata_key == "hm_metadata"
 
     assert normalize is not None
     assert normalize.status == CapabilityStatus.UNSUPPORTED_OUTPUT
@@ -106,6 +108,8 @@ def test_capability_report_groups_supported_and_excluded_transforms() -> None:
     assert "- supported_with_defaults: 41" in report
     assert "- json_editable: 41" in report
     assert "- default_only: 0" in report
+    assert "- HistogramMatching: reference_images (metadata_sequence)" in report
+    assert "- TextImage: text_regions (metadata_sequence), font_file (file_path)" in report
     assert "- unsupported_output: Normalize, ToFloat" in report
     assert "- blocked_media_target: CenterCrop3D" in report
 

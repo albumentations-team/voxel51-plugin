@@ -26,6 +26,14 @@ def build_capability_report(provider: AlbuSpecCatalogProvider | None = None) -> 
         for capability in capabilities
         if capability.status is CapabilityStatus.SUPPORTED_WITH_DEFAULTS and capability.advanced_parameters
     ]
+    external_input_lines = [
+        f"- {capability.name}: "
+        + ", ".join(
+            f"{external_input.name} ({external_input.kind.value})" for external_input in capability.external_inputs
+        )
+        for capability in capabilities
+        if capability.external_inputs
+    ]
 
     version_key = (
         f"albumentationsx-{catalog.version_info['albumentationsx']}__albu-spec-{catalog.version_info['albu_spec']}"
@@ -44,6 +52,10 @@ def build_capability_report(provider: AlbuSpecCatalogProvider | None = None) -> 
     lines.extend(["", "Advanced parameter editability:"])
     lines.append(f"- json_editable: {len(json_editable_advanced_names)}")
     lines.append("- default_only: 0")
+
+    if external_input_lines:
+        lines.extend(["", "External input requirements:"])
+        lines.extend(external_input_lines)
 
     lines.extend(["", "Supported transform names:"])
     for name in supported_transform_names:

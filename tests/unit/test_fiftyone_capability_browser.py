@@ -8,7 +8,12 @@ import pytest
 import yaml
 
 import albumentationsx_plugin.hosts.fiftyone.operators.capabilities as capabilities_operator_module
-from albumentationsx_plugin.core import CapabilityStatus, TransformCapability
+from albumentationsx_plugin.core import (
+    CapabilityStatus,
+    ExternalInputKind,
+    ExternalInputRequirement,
+    TransformCapability,
+)
 from albumentationsx_plugin.hosts.fiftyone.capabilities import (
     CapabilityBrowserFilters,
     build_capability_browser_result,
@@ -108,6 +113,7 @@ def test_capability_browser_filters_by_name_status_and_target() -> None:
             ),
             "advanced_parameter_status": "json_editable",
             "advanced_parameters": "fill, fill_mask",
+            "external_inputs": "",
             "parameter_count": 5,
             "transform_type": "dual",
             "module": "albumentations.augmentations.crops.transforms",
@@ -136,6 +142,37 @@ def test_capability_browser_exposes_excluded_reasons() -> None:
     assert row["status"] == "unsupported_output"
     assert row["reason_code"] == "non_uint8_image_output"
     assert "not safe plugin image outputs" in cast(str, row["message"])
+    assert row["external_inputs"] == ""
+
+
+@pytest.mark.unit
+def test_capability_browser_exposes_external_input_requirements() -> None:
+    provider = FakeCatalogProvider(
+        (
+            TransformCapability(
+                name="HistogramMatching",
+                status=CapabilityStatus.REQUIRES_EXTERNAL_DATA,
+                targets=("image",),
+                reason_code="requires_external_input_adapter",
+                message="Transform requires external input adapters before it can be executed safely.",
+                external_inputs=(
+                    ExternalInputRequirement(
+                        name="reference_images",
+                        kind=ExternalInputKind.METADATA_SEQUENCE,
+                        parameter_name="metadata_key",
+                        metadata_key="hm_metadata",
+                    ),
+                ),
+            ),
+        )
+    )
+
+    payload = build_capability_browser_result(CapabilityBrowserFilters(), provider=provider).to_dict()
+    row = _first_row(payload)
+
+    assert row["status"] == "requires_external_data"
+    assert row["reason_code"] == "requires_external_input_adapter"
+    assert row["external_inputs"] == "reference_images"
 
 
 @pytest.mark.unit
@@ -200,6 +237,8 @@ def test_capability_operator_resolves_filter_inputs_and_outputs(monkeypatch) -> 
     assert output_properties["capability_version_key"]["type"]["name"] == "String"
     assert output_properties["total_count"]["type"]["name"] == "Number"
     assert output_properties["transforms"]["type"]["name"] == "List"
+    transform_properties = output_properties["transforms"]["type"]["element_type"]["properties"]
+    assert transform_properties["external_inputs"]["type"]["name"] == "String"
 
 
 @pytest.mark.unit

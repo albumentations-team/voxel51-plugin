@@ -1,7 +1,12 @@
 """Grouped host-neutral DTO contracts."""
 
 from albumentationsx_plugin.core.contracts.augmentation import AugmentationInput, AugmentationResult
-from albumentationsx_plugin.core.contracts.catalog import CapabilityStatus, TransformCapability
+from albumentationsx_plugin.core.contracts.catalog import (
+    CapabilityStatus,
+    ExternalInputKind,
+    ExternalInputRequirement,
+    TransformCapability,
+)
 from albumentationsx_plugin.core.contracts.fixed_slice import (
     DEFAULT_BRIGHTNESS_RANGE,
     DEFAULT_CONTRAST_RANGE,
@@ -43,6 +48,8 @@ __all__ = [
     "DEFAULT_CONTRAST_RANGE",
     "DEFAULT_CROP_SIZE",
     "DEFAULT_TRANSFORM_PROBABILITY",
+    "ExternalInputKind",
+    "ExternalInputRequirement",
     "FieldKind",
     "FIXED_TRANSFORM_NAMES",
     "FormFieldSchema",

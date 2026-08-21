@@ -67,6 +67,7 @@ class ShowAlbumentationsXCapabilities(foo.Operator):
         row.str("message", label="Reason")
         row.str("advanced_parameter_status", label="Advanced parameters")
         row.str("advanced_parameters", label="Advanced parameter names")
+        row.str("external_inputs", label="External inputs")
         row.int("parameter_count", label="Parameters")
         row.str("transform_type", label="Transform type")
         row.str("module", label="Module")

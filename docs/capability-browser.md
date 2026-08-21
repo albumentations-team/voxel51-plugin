@@ -11,7 +11,7 @@ The operator is available without selected samples. It shows:
 - total, supported, excluded, and matching transform counts;
 - status counts for the full catalog and the current filter result;
 - one row per matching transform with supported targets, advanced-parameter
-  status, reason code, and explanation.
+  status, external input requirements, reason code, and explanation.
 
 ## Filters
 
@@ -25,6 +25,9 @@ The output includes both structured `transforms` rows and `transforms_json` for
 copying into issue reports or release notes. `json_editable` in the
 advanced-parameter status means optional complex parameters are available in the
 augmentation form as JSON-backed advanced fields.
+For `requires_external_data` transforms, `External inputs` lists the declared
+input requirement names that future VOX-43 adapters must resolve before the
+transform can become executable.
 
 ## Dependency Behavior
 

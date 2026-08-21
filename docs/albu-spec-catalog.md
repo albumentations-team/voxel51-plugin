@@ -30,7 +30,9 @@ The catalog exposes every transform known to albu-spec with one status:
   parameters stay hidden or JSON-backed later.
 - `hidden`: valid metadata, intentionally not shown in normal UI choices.
 - `requires_external_data`: requires metadata/reference inputs not wired into
-  the MVP pipeline.
+  the MVP pipeline. These entries carry `ExternalInputRequirement` metadata so
+  future adapters can render and validate explicit inputs before changing the
+  executable status.
 - `requires_manual_schema`: needs explicit schema handling before UI exposure.
 - `blocked_media_target`: not a 2D image transform.
 - `unsupported_target`: depends on catalog-wide annotation target handling that
@@ -55,7 +57,8 @@ uv run python scripts/report_transform_capabilities.py --format json
 ```
 
 The report includes the version key, total transform count, status counts,
-supported choices, and excluded transform names by status.
+supported choices, advanced parameter editability, external input requirements,
+and excluded transform names by status.
 
 ## Current Snapshot
 
@@ -79,3 +82,5 @@ visible during review. The release-specific snapshot for the first public MVP is
 
 For ownership rules, suspected upstream metadata issues, and the workaround
 policy, see [albu-spec Integration Audit](albu-spec-integration-audit.md).
+For VOX-43 input-adapter policy, see
+[External-data transforms](external-data-transforms.md).
