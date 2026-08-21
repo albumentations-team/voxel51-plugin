@@ -26,11 +26,18 @@ The UI includes transforms classified as:
 - `supported`
 - `supported_with_defaults`
 
-With the current lockfile this exposes `110` normal MVP choices. Transforms
-classified as `unsupported_target`, `requires_external_data`,
+With the current lockfile this exposes `113` normal MVP choices. Transforms
+classified as `unsupported_target`, unresolved `requires_external_data`,
 `blocked_media_target`, `unsupported_output`, `hidden`, or
 `requires_manual_schema` are not shown in normal executable choices; they remain
 visible in the capability report with concrete exclusion reasons.
+
+The reference-image transforms `FDA`, `HistogramMatching`, and
+`PixelDistributionAdaptation` are executable through the FiftyOne external-data
+adapter. They use the current execution scope as a reference pool and require at
+least two source samples. For each source sample, the plugin passes all other
+source samples as preloaded reference images and records the reference ids in
+per-output replay metadata.
 
 The original three names from VOX-10, `HorizontalFlip`,
 `RandomBrightnessContrast`, and `RandomCrop`, remain only as default stage

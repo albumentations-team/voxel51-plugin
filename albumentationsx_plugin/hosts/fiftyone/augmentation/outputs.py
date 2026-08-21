@@ -34,6 +34,7 @@ class AppliedOutput:
     labels: JSONDict
     replay: JSONDict
     annotation_metadata: JSONDict
+    external_input_metadata: JSONDict
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +59,8 @@ def apply_output(
     pipeline: FixedImagePipeline,
     config: PipelineConfig,
     output_index: int,
+    external_targets: Mapping[str, object] | None = None,
+    external_input_metadata: Mapping[str, object] | None = None,
 ) -> AppliedOutput:
     """Apply a configured pipeline to one source sample without writing files."""
 
@@ -68,7 +71,13 @@ def apply_output(
         loaded.data.shape,
         label_fields=config.target_fields,
     )
-    pipeline_result = pipeline.apply(loaded.data, targets=annotation_targets.values)
+    pipeline_result = pipeline.apply(
+        loaded.data,
+        targets={
+            **annotation_targets.values,
+            **dict(external_targets or {}),
+        },
+    )
     transformed_labels = normalize_json_mapping(
         transformed_annotation_payload(
             source_payload,
@@ -86,6 +95,7 @@ def apply_output(
         labels=transformed_labels,
         replay=pipeline_result.replay,
         annotation_metadata=annotation_result_metadata(transformed_labels),
+        external_input_metadata=normalize_json_mapping(external_input_metadata or {}),
     )
 
 
@@ -96,6 +106,8 @@ def prepare_output(
     config: PipelineConfig,
     run_dir: Path,
     output_index: int,
+    external_targets: Mapping[str, object] | None = None,
+    external_input_metadata: Mapping[str, object] | None = None,
 ) -> PreparedOutput:
     """Apply a pipeline, write its image, and prepare manifest/sample payloads."""
 
@@ -104,6 +116,8 @@ def prepare_output(
         pipeline=pipeline,
         config=config,
         output_index=output_index,
+        external_targets=external_targets,
+        external_input_metadata=external_input_metadata,
     )
     relative_path = build_output_image_relative_path(
         source.filepath,
@@ -130,6 +144,8 @@ def prepare_output(
     }
     if materialized.metadata:
         result_metadata["annotation_assets"] = materialized.metadata
+    if applied.external_input_metadata:
+        result_metadata["external_inputs"] = applied.external_input_metadata
     return PreparedOutput(
         result=AugmentationResult(
             source_sample_id=source.sample_id,
@@ -148,6 +164,7 @@ def prepare_output(
             annotation_metadata=applied.annotation_metadata,
             annotation_assets=materialized.metadata,
             annotation_asset_paths=materialized.relative_paths,
+            external_input_metadata=applied.external_input_metadata,
         ),
     )
 
@@ -175,6 +192,7 @@ def build_replay_record(
     annotation_metadata: Mapping[str, object] | None = None,
     annotation_assets: Mapping[str, object] | None = None,
     annotation_asset_paths: Sequence[str] = (),
+    external_input_metadata: Mapping[str, object] | None = None,
 ) -> JSONDict:
     """Return one manifest replay record for a materialized output."""
 
@@ -190,4 +208,6 @@ def build_replay_record(
         record["annotation_asset_paths"] = [str(path) for path in annotation_asset_paths]
     if annotation_assets:
         record["annotation_assets"] = normalize_json_mapping(annotation_assets)
+    if external_input_metadata:
+        record["external_inputs"] = normalize_json_mapping(external_input_metadata)
     return record

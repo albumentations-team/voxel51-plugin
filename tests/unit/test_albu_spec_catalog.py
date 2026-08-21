@@ -26,12 +26,12 @@ def test_albu_spec_catalog_snapshot_detects_version_drift() -> None:
         "albu_spec": importlib.metadata.version("albu-spec"),
     }
     assert snapshot["total_count"] == 134
-    assert snapshot["supported_count"] == 110
+    assert snapshot["supported_count"] == 113
     assert snapshot["status_counts"] == {
         "blocked_media_target": 7,
         "hidden": 1,
-        "requires_external_data": 7,
-        "supported": 69,
+        "requires_external_data": 4,
+        "supported": 72,
         "supported_with_defaults": 41,
         "unsupported_output": 2,
         "unsupported_target": 7,
@@ -60,8 +60,10 @@ def test_albu_spec_catalog_classifies_key_transform_capabilities() -> None:
     assert "fill" in random_crop.advanced_parameters
 
     assert histogram_matching is not None
-    assert histogram_matching.status == CapabilityStatus.REQUIRES_EXTERNAL_DATA
-    assert histogram_matching.reason_code == "requires_metadata_input"
+    assert histogram_matching.status == CapabilityStatus.SUPPORTED
+    assert histogram_matching.reason_code is None
+    assert [external_input.name for external_input in histogram_matching.external_inputs] == ["reference_images"]
+    assert histogram_matching.external_inputs[0].metadata_key == "hm_metadata"
 
     assert normalize is not None
     assert normalize.status == CapabilityStatus.UNSUPPORTED_OUTPUT
@@ -102,10 +104,12 @@ def test_capability_report_groups_supported_and_excluded_transforms() -> None:
     report = build_capability_report()
 
     assert "version key: albumentationsx-2.3.8__albu-spec-0.0.6" in report
-    assert "- supported: 69" in report
+    assert "- supported: 72" in report
     assert "- supported_with_defaults: 41" in report
     assert "- json_editable: 41" in report
     assert "- default_only: 0" in report
+    assert "- HistogramMatching: reference_images (metadata_sequence)" in report
+    assert "- TextImage: text_regions (metadata_sequence), font_file (file_path)" in report
     assert "- unsupported_output: Normalize, ToFloat" in report
     assert "- blocked_media_target: CenterCrop3D" in report
 

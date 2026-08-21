@@ -147,6 +147,8 @@ def execute_fixed_augmentation_preview(
                 pipeline=runtime.pipeline,
                 config=runtime.config,
                 output_index=0,
+                external_targets=runtime.external_inputs.targets_for_source(source.sample_id),
+                external_input_metadata=runtime.external_inputs.metadata_for_source(source.sample_id),
             )
         except PluginError as error:
             errors.append(_sample_error(source.sample_id, error.to_dict()))

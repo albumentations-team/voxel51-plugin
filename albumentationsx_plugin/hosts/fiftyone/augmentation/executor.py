@@ -121,6 +121,7 @@ def execute_fixed_augmentation(
     adapter = runtime.adapter
     source_inputs = runtime.source_inputs
     annotation_metadata = runtime.annotation_metadata
+    external_inputs = runtime.external_inputs
     dry_run = _bool_param(params, "dry_run", default=False)
     run_label = _optional_str_param(params, RUN_LABEL_FIELD_NAME)
     run_label_slug = slugify_run_label(run_label)
@@ -207,6 +208,8 @@ def execute_fixed_augmentation(
                         config=config,
                         run_dir=run_dir,
                         output_index=output_index,
+                        external_targets=external_inputs.targets_for_source(source.sample_id),
+                        external_input_metadata=external_inputs.metadata_for_source(source.sample_id),
                     )
                 except PluginError as error:
                     errors.append(_sample_error(source, output_index, error.to_dict()))
@@ -600,6 +603,8 @@ def _prepare_one_output(
     config: PipelineConfig,
     run_dir: Path,
     output_index: int,
+    external_targets: Mapping[str, object] | None = None,
+    external_input_metadata: Mapping[str, object] | None = None,
 ) -> PreparedOutput:
     return prepare_output(
         source=source,
@@ -607,6 +612,8 @@ def _prepare_one_output(
         config=config,
         run_dir=run_dir,
         output_index=output_index,
+        external_targets=external_targets,
+        external_input_metadata=external_input_metadata,
     )
 
 

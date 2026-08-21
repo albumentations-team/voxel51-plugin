@@ -11,6 +11,8 @@ from albumentationsx_plugin.core import (
     AugmentationInput,
     AugmentationResult,
     CapabilityStatus,
+    ExternalInputKind,
+    ExternalInputRequirement,
     FieldKind,
     FormFieldSchema,
     InvalidParameterError,
@@ -80,6 +82,16 @@ def test_capability_and_form_schema_round_trip_through_json() -> None:
         reason_code="advanced_defaults",
         message="Some optional parameters use defaults.",
         advanced_parameters=("pad_if_needed",),
+        external_inputs=(
+            ExternalInputRequirement(
+                name="reference_images",
+                kind=ExternalInputKind.METADATA_SEQUENCE,
+                parameter_name="metadata_key",
+                metadata_key="hm_metadata",
+                resolver="reference_image_pool",
+                description="Reference image pool.",
+            ),
+        ),
         metadata={"source": "albu-spec"},
     )
     field = FormFieldSchema(

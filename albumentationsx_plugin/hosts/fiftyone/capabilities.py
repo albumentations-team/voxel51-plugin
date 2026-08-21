@@ -60,6 +60,7 @@ class CapabilityBrowserRow:
     message: str
     advanced_parameter_status: str
     advanced_parameters: tuple[str, ...]
+    external_inputs: tuple[str, ...]
     parameter_count: int
     transform_type: str
     module: str
@@ -78,6 +79,7 @@ class CapabilityBrowserRow:
             message=capability.message or "",
             advanced_parameter_status=_advanced_parameter_status(capability),
             advanced_parameters=capability.advanced_parameters,
+            external_inputs=tuple(external_input.name for external_input in capability.external_inputs),
             parameter_count=len(parameter_names),
             transform_type=_metadata_string(capability.metadata, "transform_type"),
             module=_metadata_string(capability.metadata, "module"),
@@ -95,6 +97,7 @@ class CapabilityBrowserRow:
             "message": self.message,
             "advanced_parameter_status": self.advanced_parameter_status,
             "advanced_parameters": ", ".join(self.advanced_parameters),
+            "external_inputs": ", ".join(self.external_inputs),
             "parameter_count": self.parameter_count,
             "transform_type": self.transform_type,
             "module": self.module,

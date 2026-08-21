@@ -29,8 +29,9 @@ The catalog exposes every transform known to albu-spec with one status:
 - `supported_with_defaults`: safe to expose with simple fields while advanced
   parameters stay hidden or JSON-backed later.
 - `hidden`: valid metadata, intentionally not shown in normal UI choices.
-- `requires_external_data`: requires metadata/reference inputs not wired into
-  the MVP pipeline.
+- `requires_external_data`: requires metadata/reference inputs not yet wired
+  into the MVP pipeline. Entries with supported adapters may still carry
+  `ExternalInputRequirement` metadata while remaining normal executable choices.
 - `requires_manual_schema`: needs explicit schema handling before UI exposure.
 - `blocked_media_target`: not a 2D image transform.
 - `unsupported_target`: depends on catalog-wide annotation target handling that
@@ -55,7 +56,8 @@ uv run python scripts/report_transform_capabilities.py --format json
 ```
 
 The report includes the version key, total transform count, status counts,
-supported choices, and excluded transform names by status.
+supported choices, advanced parameter editability, external input requirements,
+and excluded transform names by status.
 
 ## Current Snapshot
 
@@ -63,12 +65,12 @@ The current lockfile produces:
 
 - version key: `albumentationsx-2.3.8__albu-spec-0.0.6`;
 - total transforms: `134`;
-- normal MVP choices: `110`;
+- normal MVP choices: `113`;
 - status counts:
   - `blocked_media_target`: `7`
   - `hidden`: `1`
-  - `requires_external_data`: `7`
-  - `supported`: `69`
+  - `requires_external_data`: `4`
+  - `supported`: `72`
   - `supported_with_defaults`: `41`
   - `unsupported_output`: `2`
   - `unsupported_target`: `7`
@@ -79,3 +81,5 @@ visible during review. The release-specific snapshot for the first public MVP is
 
 For ownership rules, suspected upstream metadata issues, and the workaround
 policy, see [albu-spec Integration Audit](albu-spec-integration-audit.md).
+For VOX-43 input-adapter policy, see
+[External-data transforms](external-data-transforms.md).

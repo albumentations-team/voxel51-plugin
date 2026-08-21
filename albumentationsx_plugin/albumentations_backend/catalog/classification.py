@@ -5,11 +5,98 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Final
 
-from albumentationsx_plugin.core import CapabilityStatus, TransformCapability
+from albumentationsx_plugin.core import (
+    CapabilityStatus,
+    ExternalInputKind,
+    ExternalInputRequirement,
+    TransformCapability,
+)
 
 IMAGE_TARGET: Final[str] = "image"
 TWO_DIMENSIONAL_TRANSFORM_TYPES: Final[frozenset[str]] = frozenset({"image_only", "dual"})
 EXTERNAL_DATA_PARAMETER_NAMES: Final[frozenset[str]] = frozenset({"metadata_key"})
+SUPPORTED_EXTERNAL_DATA_RESOLVERS: Final[frozenset[str]] = frozenset({"reference_image_pool"})
+EXTERNAL_DATA_TRANSFORM_REQUIREMENTS: Final[dict[str, tuple[ExternalInputRequirement, ...]]] = {
+    "CopyAndPaste": (
+        ExternalInputRequirement(
+            name="donor_objects",
+            kind=ExternalInputKind.METADATA_SEQUENCE,
+            parameter_name="metadata_key",
+            metadata_key="copy_paste_metadata",
+            resolver="copy_paste_donor_pool",
+            description="Object dictionaries to paste into the source image.",
+        ),
+    ),
+    "FDA": (
+        ExternalInputRequirement(
+            name="reference_images",
+            kind=ExternalInputKind.METADATA_SEQUENCE,
+            parameter_name="metadata_key",
+            metadata_key="fda_metadata",
+            resolver="reference_image_pool",
+            description="Preloaded reference images for Fourier domain adaptation.",
+        ),
+    ),
+    "HistogramMatching": (
+        ExternalInputRequirement(
+            name="reference_images",
+            kind=ExternalInputKind.METADATA_SEQUENCE,
+            parameter_name="metadata_key",
+            metadata_key="hm_metadata",
+            resolver="reference_image_pool",
+            description="Preloaded reference images for histogram matching.",
+        ),
+    ),
+    "Mosaic": (
+        ExternalInputRequirement(
+            name="mosaic_items",
+            kind=ExternalInputKind.METADATA_SEQUENCE,
+            parameter_name="metadata_key",
+            metadata_key="mosaic_metadata",
+            resolver="mosaic_sample_pool",
+            description="Additional image dictionaries used to assemble mosaic cells.",
+        ),
+    ),
+    "OverlayElements": (
+        ExternalInputRequirement(
+            name="overlay_elements",
+            kind=ExternalInputKind.METADATA_SEQUENCE,
+            parameter_name="metadata_key",
+            metadata_key="overlay_metadata",
+            resolver="overlay_element_pool",
+            description="Overlay element dictionaries with image and mask data.",
+        ),
+    ),
+    "PixelDistributionAdaptation": (
+        ExternalInputRequirement(
+            name="reference_images",
+            kind=ExternalInputKind.METADATA_SEQUENCE,
+            parameter_name="metadata_key",
+            metadata_key="pda_metadata",
+            resolver="reference_image_pool",
+            description="Preloaded reference images for pixel distribution adaptation.",
+        ),
+    ),
+    "TextImage": (
+        ExternalInputRequirement(
+            name="text_regions",
+            kind=ExternalInputKind.METADATA_SEQUENCE,
+            parameter_name="metadata_key",
+            metadata_key="textimage_metadata",
+            resolver="text_region_metadata",
+            description="Text and region metadata used to render text into the image.",
+        ),
+        ExternalInputRequirement(
+            name="font_file",
+            kind=ExternalInputKind.FILE_PATH,
+            parameter_name="font_path",
+            required=False,
+            resolver="font_file_path",
+            description="Optional font file path used for text rendering.",
+            metadata={"allowed_extensions": [".ttf", ".otf"]},
+        ),
+    ),
+}
 HIDDEN_TRANSFORM_NAMES: Final[frozenset[str]] = frozenset({"NoOp"})
 UNSUPPORTED_OUTPUT_TRANSFORM_NAMES: Final[frozenset[str]] = frozenset({"Normalize", "ToFloat"})
 ANNOTATION_REQUIRED_TRANSFORM_NAMES: Final[frozenset[str]] = frozenset(
@@ -48,6 +135,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
     transform_type = _metadata_str(metadata, "transform_type")
     parameter_names = tuple(str(parameter_name) for parameter_name in _parameters(metadata))
     base_metadata = _base_metadata(metadata, parameter_names=parameter_names)
+    external_inputs = _external_input_requirements(metadata)
 
     if IMAGE_TARGET not in targets or transform_type not in TWO_DIMENSIONAL_TRANSFORM_TYPES:
         return TransformCapability(
@@ -89,13 +177,14 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
             metadata=base_metadata,
         )
 
-    if any(parameter_name in EXTERNAL_DATA_PARAMETER_NAMES for parameter_name in parameter_names):
+    if external_inputs and not _has_supported_external_input_resolvers(external_inputs):
         return TransformCapability(
             name=name,
             status=CapabilityStatus.REQUIRES_EXTERNAL_DATA,
             targets=targets,
-            reason_code="requires_metadata_input",
-            message="Transform requires extra metadata or reference data not wired into the MVP pipeline.",
+            reason_code="requires_external_input_adapter",
+            message="Transform requires external input adapters before it can be executed safely.",
+            external_inputs=external_inputs,
             metadata=base_metadata,
         )
 
@@ -106,6 +195,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
             targets=targets,
             reason_code="missing_init_schema",
             message="Transform has no albu-spec InitSchema metadata for automatic form generation.",
+            external_inputs=external_inputs,
             metadata=base_metadata,
         )
 
@@ -118,6 +208,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
             reason_code="unsupported_required_parameters",
             message="Transform has required parameters that need a manual schema before UI exposure.",
             advanced_parameters=unsupported_required,
+            external_inputs=external_inputs,
             metadata=base_metadata,
         )
 
@@ -130,6 +221,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
             reason_code="advanced_parameters_json_editable",
             message="Transform uses typed controls where possible and JSON-backed controls for advanced optional parameters.",
             advanced_parameters=advanced_parameters,
+            external_inputs=external_inputs,
             metadata=base_metadata,
         )
 
@@ -137,6 +229,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
         name=name,
         status=CapabilityStatus.SUPPORTED,
         targets=targets,
+        external_inputs=external_inputs,
         metadata=base_metadata,
     )
 
@@ -157,6 +250,67 @@ def _base_metadata(metadata: Any, *, parameter_names: tuple[str, ...]) -> dict[s
         "docstring_short": _optional_metadata_str(metadata, "docstring_short"),
         "supported_bbox_types": [] if supported_bbox_types is None else [str(value) for value in supported_bbox_types],
     }
+
+
+def _external_input_requirements(metadata: Any) -> tuple[ExternalInputRequirement, ...]:
+    name = _metadata_str(metadata, "name")
+    requirements = EXTERNAL_DATA_TRANSFORM_REQUIREMENTS.get(name)
+    if requirements is not None:
+        return _requirements_with_metadata_key_defaults(metadata, requirements)
+
+    if any(parameter_name in EXTERNAL_DATA_PARAMETER_NAMES for parameter_name in _parameters(metadata)):
+        return (
+            ExternalInputRequirement(
+                name="metadata",
+                kind=ExternalInputKind.METADATA_SEQUENCE,
+                parameter_name="metadata_key",
+                metadata_key=_metadata_key_default(metadata, fallback="metadata"),
+                resolver="external_metadata",
+                description="External metadata consumed by the transform.",
+            ),
+        )
+
+    return ()
+
+
+def _requirements_with_metadata_key_defaults(
+    metadata: Any,
+    requirements: tuple[ExternalInputRequirement, ...],
+) -> tuple[ExternalInputRequirement, ...]:
+    metadata_key = _metadata_key_default(metadata, fallback=None)
+    if metadata_key is None:
+        return requirements
+
+    return tuple(
+        ExternalInputRequirement(
+            name=requirement.name,
+            kind=requirement.kind,
+            parameter_name=requirement.parameter_name,
+            metadata_key=metadata_key if requirement.parameter_name == "metadata_key" else requirement.metadata_key,
+            required=requirement.required,
+            resolver=requirement.resolver,
+            description=requirement.description,
+            metadata=requirement.metadata,
+        )
+        for requirement in requirements
+    )
+
+
+def _metadata_key_default(metadata: Any, *, fallback: str | None) -> str | None:
+    metadata_parameter = _parameters(metadata).get("metadata_key")
+    default = getattr(metadata_parameter, "default", None)
+    if isinstance(default, str) and default:
+        return default
+    return fallback
+
+
+def _has_supported_external_input_resolvers(requirements: tuple[ExternalInputRequirement, ...]) -> bool:
+    return all(
+        requirement.resolver in SUPPORTED_EXTERNAL_DATA_RESOLVERS
+        and requirement.kind is ExternalInputKind.METADATA_SEQUENCE
+        and requirement.metadata_key
+        for requirement in requirements
+    )
 
 
 def _advanced_parameters(metadata: Any) -> tuple[str, ...]:

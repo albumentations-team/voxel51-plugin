@@ -9,8 +9,10 @@ from typing import cast
 from albumentationsx_plugin._compat import StrEnum
 from albumentationsx_plugin.core.serialization import (
     JSONDict,
+    mapping_tuple,
     normalize_json_mapping,
     optional_str,
+    require_bool,
     require_mapping,
     require_str,
     string_tuple,
@@ -32,6 +34,69 @@ class CapabilityStatus(StrEnum):
     UNSUPPORTED_SCHEMA = "unsupported_schema"
 
 
+class ExternalInputKind(StrEnum):
+    """Shape of non-sample input data required by an Albumentations transform."""
+
+    METADATA_SEQUENCE = "metadata_sequence"
+    FILE_PATH = "file_path"
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalInputRequirement:
+    """External input contract for transforms that cannot run from one image alone."""
+
+    name: str
+    kind: ExternalInputKind
+    parameter_name: str | None = None
+    metadata_key: str | None = None
+    required: bool = True
+    resolver: str | None = None
+    description: str | None = None
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "name", require_str(self.name, "name"))
+        object.__setattr__(self, "kind", ExternalInputKind(self.kind))
+        object.__setattr__(self, "parameter_name", optional_str(self.parameter_name, "parameter_name"))
+        object.__setattr__(self, "metadata_key", optional_str(self.metadata_key, "metadata_key"))
+        object.__setattr__(self, "required", require_bool(self.required, "required"))
+        object.__setattr__(self, "resolver", optional_str(self.resolver, "resolver"))
+        object.__setattr__(self, "description", optional_str(self.description, "description"))
+        object.__setattr__(self, "metadata", normalize_json_mapping(self.metadata))
+
+    def to_dict(self) -> JSONDict:
+        """Serialize the external input requirement for reports and snapshots."""
+
+        return cast(
+            JSONDict,
+            {
+                "name": self.name,
+                "kind": self.kind.value,
+                "parameter_name": self.parameter_name,
+                "metadata_key": self.metadata_key,
+                "required": self.required,
+                "resolver": self.resolver,
+                "description": self.description,
+                "metadata": normalize_json_mapping(self.metadata),
+            },
+        )
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> ExternalInputRequirement:
+        """Create an external input requirement from a decoded JSON object."""
+
+        return cls(
+            name=require_str(value.get("name"), "name"),
+            kind=ExternalInputKind(require_str(value.get("kind"), "kind")),
+            parameter_name=optional_str(value.get("parameter_name"), "parameter_name"),
+            metadata_key=optional_str(value.get("metadata_key"), "metadata_key"),
+            required=require_bool(value.get("required", True), "required"),
+            resolver=optional_str(value.get("resolver"), "resolver"),
+            description=optional_str(value.get("description"), "description"),
+            metadata=normalize_json_mapping(require_mapping(value.get("metadata", {}), "metadata")),
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class TransformCapability:
     """Catalog entry describing whether and how a transform can be used.
@@ -46,6 +111,7 @@ class TransformCapability:
     reason_code: str | None = None
     message: str | None = None
     advanced_parameters: tuple[str, ...] = ()
+    external_inputs: tuple[ExternalInputRequirement, ...] = ()
     metadata: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -59,6 +125,7 @@ class TransformCapability:
             "advanced_parameters",
             string_tuple(self.advanced_parameters, "advanced_parameters"),
         )
+        object.__setattr__(self, "external_inputs", _external_input_tuple(self.external_inputs))
         object.__setattr__(self, "metadata", normalize_json_mapping(self.metadata))
 
     def to_dict(self) -> JSONDict:
@@ -73,6 +140,7 @@ class TransformCapability:
                 "reason_code": self.reason_code,
                 "message": self.message,
                 "advanced_parameters": list(self.advanced_parameters),
+                "external_inputs": [external_input.to_dict() for external_input in self.external_inputs],
                 "metadata": normalize_json_mapping(self.metadata),
             },
         )
@@ -88,5 +156,26 @@ class TransformCapability:
             reason_code=optional_str(value.get("reason_code"), "reason_code"),
             message=optional_str(value.get("message"), "message"),
             advanced_parameters=string_tuple(value.get("advanced_parameters"), "advanced_parameters"),
+            external_inputs=tuple(
+                ExternalInputRequirement.from_dict(external_input)
+                for external_input in mapping_tuple(value.get("external_inputs"), "external_inputs")
+            ),
             metadata=normalize_json_mapping(require_mapping(value.get("metadata", {}), "metadata")),
         )
+
+
+def _external_input_tuple(value: object) -> tuple[ExternalInputRequirement, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list | tuple):
+        raise TypeError("external_inputs must be a list of external input requirements")
+    requirements: list[ExternalInputRequirement] = []
+    for item in value:
+        if isinstance(item, ExternalInputRequirement):
+            requirements.append(item)
+            continue
+        if isinstance(item, Mapping):
+            requirements.append(ExternalInputRequirement.from_dict(item))
+            continue
+        raise TypeError("external_inputs must contain only external input requirements")
+    return tuple(requirements)

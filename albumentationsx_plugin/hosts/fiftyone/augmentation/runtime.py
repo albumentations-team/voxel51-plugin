@@ -24,6 +24,10 @@ from albumentationsx_plugin.hosts.fiftyone.annotations import (
     validate_annotation_pipeline_compatibility,
     validate_selected_annotation_fields,
 )
+from albumentationsx_plugin.hosts.fiftyone.augmentation.external_data import (
+    ExternalInputBundle,
+    build_external_input_bundle,
+)
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_ENTIRE_DATASET,
     selected_execution_scope,
@@ -41,6 +45,7 @@ class FixedAugmentationRuntime:
     adapter: FiftyOneSampleAdapter
     source_inputs: tuple[AugmentationInput, ...]
     annotation_metadata: JSONDict
+    external_inputs: ExternalInputBundle
 
 
 def build_fixed_augmentation_runtime(
@@ -78,6 +83,11 @@ def build_fixed_augmentation_runtime(
         output_tag=output_tag,
     )
     source_inputs = tuple(adapter.iter_inputs())
+    external_inputs = build_external_input_bundle(
+        config=config,
+        catalog_provider=catalog_provider,
+        source_inputs=source_inputs,
+    )
     runtime_target_requirements = annotation_target_requirements_from_inputs(source_inputs)
     validate_annotation_pipeline_compatibility(
         selection=annotation_selection,
@@ -85,6 +95,14 @@ def build_fixed_augmentation_runtime(
         catalog_provider=catalog_provider,
         runtime_target_requirements=runtime_target_requirements,
     )
+    if external_inputs.has_inputs:
+        config = replace(
+            config,
+            options={
+                **config.options,
+                "external_inputs": external_inputs.summary,
+            },
+        )
     pipeline = create_fixed_image_pipeline(config)
     annotation_metadata = normalize_json_mapping(
         annotation_run_metadata(
@@ -101,4 +119,5 @@ def build_fixed_augmentation_runtime(
         adapter=adapter,
         source_inputs=source_inputs,
         annotation_metadata=annotation_metadata,
+        external_inputs=external_inputs,
     )

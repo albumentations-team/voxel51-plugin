@@ -368,6 +368,7 @@ class DynamicAugmentFormBuilder:
         )
         executable_fields = _executable_ui_fields(
             selected_transform_name=selected_transform_name,
+            catalog_provider=self.catalog_provider,
             parameter_fields=parameter_fields,
             params=params,
             step_number=step_number,
@@ -503,16 +504,23 @@ def _default_transform_name_for_step(
 def _executable_ui_fields(
     *,
     selected_transform_name: str,
+    catalog_provider: TransformCatalogProvider,
     parameter_fields: tuple[FormFieldSchema, ...],
     params: Mapping[str, object],
     step_number: int,
     random_crop_defaults: RandomCropDefaults | None,
 ) -> tuple[FormFieldSchema, ...]:
     supported_parameter_names = FIXED_SLICE_PARAMETER_NAMES.get(selected_transform_name)
+    externally_resolved_parameter_names = _externally_resolved_parameter_names(
+        selected_transform_name,
+        catalog_provider=catalog_provider,
+    )
 
     fields: list[FormFieldSchema] = []
     for schema_field in parameter_fields:
         if not _is_ui_parameter(schema_field):
+            continue
+        if schema_field.name in externally_resolved_parameter_names:
             continue
         if (
             supported_parameter_names is not None
@@ -528,6 +536,21 @@ def _executable_ui_fields(
         compact_field = replace(ui_field, help_text=_compact_help_text(ui_field.help_text))
         fields.append(_with_current_default(compact_field, params=params, step_number=step_number))
     return tuple(fields)
+
+
+def _externally_resolved_parameter_names(
+    transform_name: str,
+    *,
+    catalog_provider: TransformCatalogProvider,
+) -> frozenset[str]:
+    capability = catalog_provider.get_transform_capability(transform_name)
+    if capability is None:
+        return frozenset()
+    return frozenset(
+        requirement.parameter_name
+        for requirement in capability.external_inputs
+        if requirement.parameter_name is not None
+    )
 
 
 def _pipeline_stage_control_fields(

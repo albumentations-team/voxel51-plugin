@@ -110,6 +110,7 @@ def build_fixed_pipeline_config(
         _step_transform_config(
             params,
             stage.step_number,
+            catalog_provider=catalog_provider,
             parameter_schema_provider=parameter_schema_provider,
         )
         for stage in stage_selections
@@ -167,6 +168,7 @@ def _step_transform_config(
     params: Mapping[str, object],
     step_number: int,
     *,
+    catalog_provider: TransformCatalogProvider,
     parameter_schema_provider: ParameterSchemaProvider,
 ) -> TransformConfig:
     transform_name = _str_param(
@@ -177,6 +179,7 @@ def _step_transform_config(
     parameter_schema = parameter_schema_provider.get_parameter_schema(transform_name)
     parameter_fields = _executable_parameter_fields(
         selected_transform_name=transform_name,
+        catalog_provider=catalog_provider,
         parameter_fields=parameter_schema,
     )
     transform = TransformConfig(
@@ -197,14 +200,35 @@ def _step_transform_config(
 def _executable_parameter_fields(
     *,
     selected_transform_name: str,
+    catalog_provider: TransformCatalogProvider,
     parameter_fields: tuple[FormFieldSchema, ...],
 ) -> tuple[FormFieldSchema, ...]:
     supported_parameter_names = _fixed_slice_parameter_names(selected_transform_name)
+    externally_resolved_parameter_names = _externally_resolved_parameter_names(
+        selected_transform_name,
+        catalog_provider=catalog_provider,
+    )
     return tuple(
         _executable_parameter_field(selected_transform_name=selected_transform_name, field=field)
         for field in parameter_fields
         if _is_executable_parameter(field)
+        if field.name not in externally_resolved_parameter_names
         if _is_selected_parameter(field, supported_parameter_names=supported_parameter_names)
+    )
+
+
+def _externally_resolved_parameter_names(
+    transform_name: str,
+    *,
+    catalog_provider: TransformCatalogProvider,
+) -> frozenset[str]:
+    capability = catalog_provider.get_transform_capability(transform_name)
+    if capability is None:
+        return frozenset()
+    return frozenset(
+        requirement.parameter_name
+        for requirement in capability.external_inputs
+        if requirement.parameter_name is not None
     )
 
 
