@@ -32,6 +32,8 @@ these files hold development workflow, review, and release notes.
   generation from albu-spec metadata.
 - [Dynamic FiftyOne forms](dynamic-fiftyone-forms.md): rendering catalog-backed
   transform schemas in the FiftyOne operator.
+- [Pipeline presets](pipeline-presets.md): named shared pipeline templates that
+  can be reused across datasets without storing run outputs or replay records.
 - [Pipeline factory](pipeline-factory.md): catalog-driven transform construction,
   optional target execution, and replay extraction.
 - [Run manifest](run-manifest.md): saved run metadata, relative output paths,

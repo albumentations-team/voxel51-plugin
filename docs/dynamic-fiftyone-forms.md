@@ -91,10 +91,10 @@ sorted by execution order, with slot number as the tie-breaker.
 
 VOX-27 groups the prompt into a general settings section followed by one
 visible section for each configured augmentation stage slot. General settings
-include the optional previous-run preset selector, execution scope, stage-slot
-count, output count, run label, dry-run flag, and preview-only flag. Only
-visible slots are rendered, so later-stage validation is not shown before those
-slots are added.
+include the optional named preset selector, optional previous-run preset
+selector, execution scope, stage-slot count, output count, run label, dry-run
+flag, preview-only flag, and named preset save fields. Only visible slots are
+rendered, so later-stage validation is not shown before those slots are added.
 
 VOX-29 adds `Preview only` to the general settings. Preview is intentionally
 bounded to selected samples: the operator renders up to three selected source
@@ -111,6 +111,16 @@ the new selection. Presets preserve saved stages up to the same ten-slot safety
 limit as the editor. Clear `Previous run` after loading if you want to keep
 editing the form without reapplying the saved pipeline. Replay records are not
 reused; the new run samples fresh random parameters.
+
+VOX-28 adds first-class named pipeline presets stored under the shared plugin
+storage root. A named preset can prefill the form across datasets because it
+stores only the validated pipeline config, output count, dependency versions,
+and user-facing metadata. It does not store source sample ids, output paths,
+custom run keys, or replay records. If both `Named preset` and `Previous run`
+are selected, the previous run is applied after the named preset and therefore
+takes precedence for overlapping pipeline values. Filling `Preset name` saves
+the resolved pipeline during a materialized augmentation run; `Save preset
+only` validates and saves the preset without running augmentation.
 
 Stage headings identify the stable slot. `Execution order` provides the
 pipeline order, so transform and parameter labels do not repeat `Step N`. The

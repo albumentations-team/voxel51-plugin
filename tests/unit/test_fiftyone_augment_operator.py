@@ -16,6 +16,7 @@ from albumentationsx_plugin.core import (
     MAX_PIPELINE_STEPS,
     RUN_EXECUTION_STATUS_COMPLETED,
     PipelineConfig,
+    PipelinePreset,
     RunManifest,
     TransformConfig,
     pipeline_stage_enabled_field_name,
@@ -35,6 +36,13 @@ from albumentationsx_plugin.hosts.fiftyone.form_params import stage_parameter_gr
 from albumentationsx_plugin.hosts.fiftyone.operators.augment import (
     OPERATOR_NAME,
     AugmentWithAlbumentationsX,
+)
+from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
+    PIPELINE_PRESET_KEY_FIELD_NAME,
+    PRESET_SAVED_EXECUTION_STATUS,
+    SAVE_PRESET_DESCRIPTION_FIELD_NAME,
+    SAVE_PRESET_NAME_FIELD_NAME,
+    SAVE_PRESET_ONLY_FIELD_NAME,
 )
 from albumentationsx_plugin.hosts.fiftyone.presets import (
     PREVIOUS_RUN_KEY_FIELD_NAME,
@@ -57,7 +65,7 @@ from albumentationsx_plugin.hosts.fiftyone.progress import (
     DELEGATED_EXECUTION_RECOMMENDED_SOURCE_COUNT,
     FiftyOneProgressReporter,
 )
-from albumentationsx_plugin.storage import FileRunStore
+from albumentationsx_plugin.storage import FilePipelinePresetStore, FileRunStore, build_preset_key
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ANNOTATION_FIELD_GROUP_NAME = "_annotation_fields"
@@ -135,6 +143,16 @@ def _preset_manifest(run_key: str = "albumentationsx-20260731T150000Z-preset") -
             ),
             outputs_per_sample=2,
         ),
+    )
+
+
+def _pipeline_preset(name: str = "Training defaults") -> PipelinePreset:
+    return PipelinePreset(
+        key=build_preset_key(name),
+        name=name,
+        plugin_version="0.1.0",
+        dependency_versions={"albumentationsx": "2.3.8", "albu-spec": "0.0.6", "fiftyone": "1.19.0"},
+        pipeline=_preset_manifest().pipeline,
     )
 
 
@@ -461,6 +479,37 @@ def test_augment_operator_prefills_form_from_previous_run_manifest(tmp_path) -> 
     assert input_properties["step_2_fill"]["default"] == "[1, 2, 3]"
     assert input_properties["step_2_fill_mask"]["default"] == "4"
     assert input_properties["step_2_p"]["default"] == 1.0
+
+
+@pytest.mark.unit
+def test_augment_operator_prefills_form_from_named_pipeline_preset(tmp_path) -> None:
+    operator = AugmentWithAlbumentationsX()
+    preset = _pipeline_preset()
+    FilePipelinePresetStore(storage_root=tmp_path).save_preset(preset)
+
+    context = SimpleNamespace(
+        dataset=SimpleNamespace(name="another-dataset"),
+        params={
+            PIPELINE_PRESET_KEY_FIELD_NAME: preset.key,
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+        },
+    )
+
+    input_json = operator.resolve_input(context).to_json()
+    input_properties = _form_properties(input_json)
+
+    assert input_properties[PIPELINE_PRESET_KEY_FIELD_NAME]["type"]["name"] == "Enum"
+    assert input_properties[PIPELINE_PRESET_KEY_FIELD_NAME]["default"] == preset.key
+    assert preset.key in input_properties[PIPELINE_PRESET_KEY_FIELD_NAME]["type"]["values"]
+    assert input_properties["pipeline_step_count"]["default"] == 2
+    assert input_properties["outputs_per_sample"]["default"] == 2
+    assert input_properties["transform"]["default"] == "RandomBrightnessContrast"
+    assert input_properties["brightness_range"]["default"] == [0.1, 0.2]
+    assert input_properties["contrast_range"]["default"] == [0.3, 0.4]
+    assert input_properties["p"]["default"] == 0.8
+    assert input_properties["step_2_transform"]["default"] == "RandomCrop"
+    assert input_properties["step_2_height"]["default"] == 12
+    assert input_properties["step_2_width"]["default"] == 10
 
 
 @pytest.mark.unit
@@ -1108,6 +1157,107 @@ def test_augment_operator_execute_reports_preview_without_selected_samples(monke
     first_error = errors[0]
     assert isinstance(first_error, dict)
     assert first_error["code"] == PREVIEW_REQUIRES_SELECTION_ERROR_CODE
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_saves_named_preset_without_selected_samples(monkeypatch, tmp_path) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(name="save-preset-dataset")
+        selected = ()
+        params = {
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            SAVE_PRESET_ONLY_FIELD_NAME: True,
+            SAVE_PRESET_NAME_FIELD_NAME: "Portable training preset",
+            SAVE_PRESET_DESCRIPTION_FIELD_NAME: "Cross-dataset baseline.",
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            "outputs_per_sample": 2,
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise AssertionError("save-only preset flow must not run augmentation")
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["execution_status"] == PRESET_SAVED_EXECUTION_STATUS
+    assert result["created_count"] == 0
+    assert result["error_count"] == 0
+    assert result["preset_key"] == "portable-training-preset"
+    assert result["preset_name"] == "Portable training preset"
+
+    preset = FilePipelinePresetStore(storage_root=tmp_path).load_preset("portable-training-preset")
+    assert preset.description == "Cross-dataset baseline."
+    assert preset.pipeline == PipelineConfig(
+        transforms=(TransformConfig(name="HorizontalFlip", params={"p": 1.0}),),
+        outputs_per_sample=2,
+        options={"source": "catalog_mvp_pipeline"},
+    )
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_saves_named_preset_and_runs_augmentation(monkeypatch, tmp_path) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(name="save-preset-and-run-dataset")
+        view = object()
+        selected = ("sample-1",)
+        triggered: list[str] = []
+        params = {
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            SAVE_PRESET_NAME_FIELD_NAME: "Reusable crop",
+            SAVE_PRESET_DESCRIPTION_FIELD_NAME: "Crop baseline for multiple datasets.",
+            "transform": "RandomCrop",
+            "height": 32,
+            "width": 24,
+            "p": 1.0,
+            "outputs_per_sample": 1,
+        }
+
+        @classmethod
+        def trigger(cls, name: str) -> None:
+            cls.triggered.append(name)
+
+    def fake_execute_fixed_augmentation(**kwargs):
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["view"] is Context.view
+        assert kwargs["selected_sample_ids"] == ("sample-1",)
+        assert kwargs["storage_root"] == str(tmp_path)
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-reusable-crop",
+            source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES,
+            processed_count=1,
+            created_count=1,
+            skipped_count=0,
+            error_count=0,
+            dry_run=False,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+            manifest_path="/tmp/manifest.json",
+            fiftyone_run_key="albumentationsx_20260731T120000Z_reusable_crop",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["run_key"] == "albumentationsx-20260731T120000Z-reusable-crop"
+    assert result["preset_key"] == "reusable-crop"
+    assert result["preset_name"] == "Reusable crop"
+    assert pathlib.Path(str(result["preset_path"])).parts[-2:] == ("presets", "reusable-crop.json")
+    assert Context.triggered == ["reload_dataset"]
+
+    preset = FilePipelinePresetStore(storage_root=tmp_path).load_preset("reusable-crop")
+    assert preset.description == "Crop baseline for multiple datasets."
+    assert preset.pipeline == PipelineConfig(
+        transforms=(TransformConfig(name="RandomCrop", params={"height": 32, "width": 24, "p": 1.0}),),
+        outputs_per_sample=1,
+        options={"source": "catalog_mvp_pipeline"},
+    )
 
 
 @pytest.mark.unit
