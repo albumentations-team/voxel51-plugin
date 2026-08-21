@@ -50,6 +50,9 @@ For manual App verification, create the dataset, launch the App, then run:
 After cleanup, generated samples/files should be gone, and the three source demo
 samples/files should remain.
 
+Use the focused [VOX-41 annotation acceptance](verification.md#vox-41-annotation-acceptance)
+checklist when validating broadened label support in the App.
+
 ## Delete
 
 Delete only the FiftyOne dataset:

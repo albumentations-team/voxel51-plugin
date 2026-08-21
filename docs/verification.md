@@ -68,3 +68,42 @@ in the PR description:
 - expected output samples or errors;
 - whether source data remained unchanged;
 - cleanup result, if cleanup behavior changed.
+
+## VOX-41 Annotation Acceptance
+
+Use this checklist before closing VOX-41 or GitHub issue #40. The automated
+tests verify conversion and geometry, but this manual pass confirms that the
+expanded label-family support is usable in the FiftyOne App.
+
+1. Create a fresh demo dataset:
+
+   ```bash
+   uv run python scripts/create_demo_dataset.py create --overwrite
+   uv run fiftyone app launch albumentationsx-demo
+   ```
+
+2. In the App, select at least one demo sample and run
+   **Augment with AlbumentationsX**.
+3. Keep annotation fields enabled for `Classification`, `Detections`,
+   `Keypoints`, `Polylines`, `Heatmap`, and `Segmentation`.
+4. Run a non-dry geometry-only pipeline, for example `HorizontalFlip` with
+   `p=1.0`.
+5. Confirm generated samples appear after the automatic App refresh.
+6. Confirm visual alignment:
+   - detections move with the image;
+   - detection instance masks stay attached to their boxes;
+   - keypoints and polyline vertices move with the image;
+   - heatmap values stay spatially aligned;
+   - segmentation masks preserve discrete regions.
+7. Run **View AlbumentationsX Run** for the new run key and confirm that the
+   summary includes selected annotation fields, runtime target requirements,
+   replay records, generated sample counts, and dropped annotation diagnostics.
+8. Run **Augment with AlbumentationsX** again with a selected `Heatmap` field
+   and a mixed geometry plus image-only color/intensity pipeline. Confirm the
+   operator rejects the run before creating outputs.
+9. Run **Delete AlbumentationsX Run** with confirmation checked. Confirm
+   generated samples and plugin-owned output files are removed, while source
+   samples, source images, and source annotation files remain unchanged.
+
+Record the dataset name, transform names, created run key, cleanup result, and
+any visual issues in the PR description or Linear comment.
