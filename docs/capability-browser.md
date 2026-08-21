@@ -25,9 +25,10 @@ The output includes both structured `transforms` rows and `transforms_json` for
 copying into issue reports or release notes. `json_editable` in the
 advanced-parameter status means optional complex parameters are available in the
 augmentation form as JSON-backed advanced fields.
-For `requires_external_data` transforms, `External inputs` lists the declared
-input requirement names that future VOX-43 adapters must resolve before the
-transform can become executable.
+`External inputs` lists declared input requirement names for any transform that
+needs extra data. Supported reference-image transforms already have a
+`reference_image_pool` adapter; `requires_external_data` rows still need future
+VOX-43-style adapters before they can become executable.
 
 ## Dependency Behavior
 

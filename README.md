@@ -64,9 +64,9 @@ the App responsive while progress is reported.
 
 ## Current capabilities
 
-- The form exposes 110 catalog-backed image transforms from the current locked
-  dependency set. The [capability report](docs/capability-report-v0.1.0.md)
-  records the complete transform-by-transform snapshot and exclusion reasons.
+- The form exposes 113 catalog-backed image transforms from the current locked
+  dependency set. [albu-spec Catalog](docs/albu-spec-catalog.md) records the
+  current transform-by-transform snapshot and exclusion reasons.
 - **Show AlbumentationsX Capabilities** exposes the same catalog in the App with
   search, status filtering, target filtering, dependency versions, supported
   targets, advanced-parameter status, and exclusion reasons.
@@ -94,14 +94,20 @@ the App responsive while progress is reported.
   memory.
   `Segmentation(mask_path=...)` outputs write plugin-owned mask PNGs that are
   listed in the run manifest for cleanup.
+- Reference-image transforms `FDA`, `HistogramMatching`, and
+  `PixelDistributionAdaptation` use the current execution scope as a reference
+  pool. For each source sample, the plugin passes the other source samples as
+  preloaded reference images and records the reference source ids in replay
+  metadata.
 - Every non-dry run stores its pipeline configuration and sampled replay
   metadata. Generated samples and files can be inspected and cleaned up by run.
 
 ## Current limits
 
 - The plugin currently processes image samples. Video, 3D media, distributed
-  execution, non-image outputs, transforms that need external
-  reference data, and unsafe output types are excluded from the normal selector.
+  execution, non-image outputs, unresolved donor-object/mosaic/overlay/text
+  external-data transforms, and unsafe output types are excluded from the normal
+  selector.
 - FiftyOne `>=1.19,<2` does not expose a stable public cancellation flag to
   operators, so cancellation detection is best-effort; abrupt process
   termination can still stop before a final `cancelled` checkpoint is written.

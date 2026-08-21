@@ -11,8 +11,8 @@ Current validated snapshot:
 - albu-spec: `0.0.6`
 - version key: `albumentationsx-2.3.8__albu-spec-0.0.6`
 - total transforms: `134`
-- normal executable choices: `110`
-- `supported`: `69`
+- normal executable choices: `113`
+- `supported`: `72`
 - `supported_with_defaults`: `41`
 
 ## Integration Contract
@@ -83,7 +83,7 @@ boundary.
 
 ### Parameter Schema Coverage
 
-The current catalog exposes `110` normal choices. Of those, `41` are
+The current catalog exposes `113` normal choices. Of those, `41` are
 `supported_with_defaults` because optional complex parameters are exposed as
 advanced JSON fallback fields until albu-spec can provide richer machine-readable
 shapes for first-class controls.
@@ -155,6 +155,19 @@ Affected transforms in the current report:
 - `PixelDistributionAdaptation`
 - `TextImage`
 
+Currently executable through the plugin's `reference_image_pool` adapter:
+
+- `FDA`
+- `HistogramMatching`
+- `PixelDistributionAdaptation`
+
+Still excluded as unresolved external-data families:
+
+- `CopyAndPaste`
+- `Mosaic`
+- `OverlayElements`
+- `TextImage`
+
 Expected upstream direction:
 
 - expose whether a transform requires extra sample data, reference images,
@@ -162,11 +175,13 @@ Expected upstream direction:
 - expose which parameter or target supplies that data;
 - distinguish optional advanced data hooks from required execution inputs.
 
-Local decision: keep these transforms excluded until the plugin has explicit
-host UI and storage flows for reference data. VOX-43 records the current local
-contract as `ExternalInputRequirement` entries on each affected
+Local decision: keep unresolved external-data families excluded until the plugin
+has explicit host UI/storage flows for their metadata shape. VOX-43 records the
+current local contract as `ExternalInputRequirement` entries on each affected
 `TransformCapability`; see [External-data transforms](external-data-transforms.md).
-Name-based classification should remain documented and narrow.
+The reference-image family is executable through a documented adapter that uses
+the current execution scope as the reference pool. Name-based classification
+should remain documented and narrow.
 
 #### ASPEC-3: Output safety is not machine-readable
 

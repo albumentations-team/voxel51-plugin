@@ -76,6 +76,36 @@ def test_horizontal_flip_pipeline_transforms_heatmap_image_sequence_target() -> 
 
 
 @pytest.mark.unit
+def test_reference_image_pipeline_uses_external_metadata_targets() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "transform": "HistogramMatching",
+            "blend_ratio": [1.0, 1.0],
+            "metadata_key": "ignored_user_value",
+            "p": 1.0,
+        }
+    )
+
+    assert config.transforms == (
+        TransformConfig(name="HistogramMatching", params={"blend_ratio": [1.0, 1.0], "p": 1.0}),
+    )
+
+    pipeline = create_fixed_image_pipeline(config)
+    source = _rgb_array(width=8, height=6)
+    reference = np.full_like(source, 220)
+
+    result = pipeline.apply(source, targets={"hm_metadata": [reference]})
+
+    assert result.image.shape == source.shape
+    assert result.replay["applied"] is True
+    transforms = result.replay["transforms"]
+    assert isinstance(transforms, list)
+    first_transform = transforms[0]
+    assert isinstance(first_transform, dict)
+    assert first_transform["__class_fullname__"] == "HistogramMatching"
+
+
+@pytest.mark.unit
 def test_fixed_pipeline_builds_ordered_transform_chain() -> None:
     config = build_fixed_pipeline_config(
         {

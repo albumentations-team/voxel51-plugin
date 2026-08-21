@@ -15,6 +15,7 @@ from albumentationsx_plugin.core import (
 IMAGE_TARGET: Final[str] = "image"
 TWO_DIMENSIONAL_TRANSFORM_TYPES: Final[frozenset[str]] = frozenset({"image_only", "dual"})
 EXTERNAL_DATA_PARAMETER_NAMES: Final[frozenset[str]] = frozenset({"metadata_key"})
+SUPPORTED_EXTERNAL_DATA_RESOLVERS: Final[frozenset[str]] = frozenset({"reference_image_pool"})
 EXTERNAL_DATA_TRANSFORM_REQUIREMENTS: Final[dict[str, tuple[ExternalInputRequirement, ...]]] = {
     "CopyAndPaste": (
         ExternalInputRequirement(
@@ -176,7 +177,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
             metadata=base_metadata,
         )
 
-    if external_inputs:
+    if external_inputs and not _has_supported_external_input_resolvers(external_inputs):
         return TransformCapability(
             name=name,
             status=CapabilityStatus.REQUIRES_EXTERNAL_DATA,
@@ -194,6 +195,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
             targets=targets,
             reason_code="missing_init_schema",
             message="Transform has no albu-spec InitSchema metadata for automatic form generation.",
+            external_inputs=external_inputs,
             metadata=base_metadata,
         )
 
@@ -206,6 +208,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
             reason_code="unsupported_required_parameters",
             message="Transform has required parameters that need a manual schema before UI exposure.",
             advanced_parameters=unsupported_required,
+            external_inputs=external_inputs,
             metadata=base_metadata,
         )
 
@@ -218,6 +221,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
             reason_code="advanced_parameters_json_editable",
             message="Transform uses typed controls where possible and JSON-backed controls for advanced optional parameters.",
             advanced_parameters=advanced_parameters,
+            external_inputs=external_inputs,
             metadata=base_metadata,
         )
 
@@ -225,6 +229,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
         name=name,
         status=CapabilityStatus.SUPPORTED,
         targets=targets,
+        external_inputs=external_inputs,
         metadata=base_metadata,
     )
 
@@ -297,6 +302,15 @@ def _metadata_key_default(metadata: Any, *, fallback: str | None) -> str | None:
     if isinstance(default, str) and default:
         return default
     return fallback
+
+
+def _has_supported_external_input_resolvers(requirements: tuple[ExternalInputRequirement, ...]) -> bool:
+    return all(
+        requirement.resolver in SUPPORTED_EXTERNAL_DATA_RESOLVERS
+        and requirement.kind is ExternalInputKind.METADATA_SEQUENCE
+        and requirement.metadata_key
+        for requirement in requirements
+    )
 
 
 def _advanced_parameters(metadata: Any) -> tuple[str, ...]:

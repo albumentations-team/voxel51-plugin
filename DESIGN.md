@@ -27,7 +27,7 @@ The current implementation supports the following workflow.
 6. Inspect the new samples with **View AlbumentationsX Run**.
 7. Remove generated samples and files with **Delete AlbumentationsX Run** after confirmation.
 
-The form is generated from the `albu-spec` catalog. With the locked `albumentationsx 2.3.8` and `albu-spec 0.0.6` dependencies, the catalog finds 134 transforms. The normal selector exposes 110 transforms classified as `supported` or `supported_with_defaults`; the capability report records each excluded transform and its reason.
+The form is generated from the `albu-spec` catalog. With the locked `albumentationsx 2.3.8` and `albu-spec 0.0.6` dependencies, the catalog finds 134 transforms. The normal selector exposes 113 transforms classified as `supported` or `supported_with_defaults`; the capability report records each excluded transform and its reason. The executable set includes the reference-image transforms `FDA`, `HistogramMatching`, and `PixelDistributionAdaptation`; they use the current execution scope as a deterministic reference pool and save per-output reference source ids in replay metadata.
 
 The executable path handles these FiftyOne label types:
 
@@ -66,10 +66,10 @@ The MVP is deliberately narrower than the full AlbumentationsX catalog.
   controls.
 - Preview is selected-samples only and shows one result per selected source
   sample, capped at three preview results.
-- The normal selector excludes transforms that require external reference data, use unsupported media or targets, or produce unsafe image outputs.
+- The normal selector excludes unresolved external-data transforms, unsupported media or target transforms, and transforms that produce unsafe image outputs.
 - Custom embedded documents and unsupported FiftyOne label classes are excluded from annotation-aware execution.
 - `supported_with_defaults` transforms expose simple typed controls plus optional advanced JSON fields for complex parameters that do not yet have first-class schema controls.
-- A catalog status proves that the plugin can render and construct a transform under the current dependency set. It does not yet provide a visual regression test for every one of the 110 transform choices.
+- A catalog status proves that the plugin can render and construct a transform under the current dependency set. It does not yet provide a visual regression test for every one of the 113 transform choices.
 - Heatmap support is limited to geometry-only target synchronization. Mixed
   pipelines that would transform a selected heatmap and also apply image-only
   color/intensity stages are rejected until per-target replay can keep heatmap
@@ -157,7 +157,7 @@ Work is ordered by release risk and user impact. Each item has an observable com
 
 | Work | Why now | Completion condition |
 |---|---|---|
-| Exercise every normal catalog choice | The selector exposes 110 transforms, but the existing tests do not execute a representative image through every choice. | A deterministic smoke suite constructs and runs each catalog-supported transform with defaults or a documented fixture, then reports failures by transform name and dependency versions. |
+| Exercise every normal catalog choice | The selector exposes 113 transforms, but the existing tests do not execute a representative image through every choice. | A deterministic smoke suite constructs and runs each catalog-supported transform with defaults or a documented fixture, then reports failures by transform name and dependency versions. |
 | Complete manual App acceptance | Automated tests cannot confirm that the operator is discoverable and that generated labels look correct in the App. | The release candidate follows the [manual App checklist](docs/release-v0.1.0.md#manual-fiftyone-app-gate) on the demo dataset, including previous-run prefill and cleanup. The PR records the commands and observations. |
 | Publish one coherent tagged release | The existing `0.1.1` tag predates release metadata validation and the source metadata still says `0.1.0`. Existing tags must remain immutable. | Choose the next version, align `pyproject.toml` and `fiftyone.yml`, pass `scripts/verify_release_tag.py <tag>`, merge required CI checks, and create a new GitHub release from that exact commit. |
 

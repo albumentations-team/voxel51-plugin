@@ -4,25 +4,36 @@ VOX-43 tracks AlbumentationsX transforms that cannot run from a single source
 image plus ordinary annotation targets. These transforms need reference images,
 donor objects, overlay assets, text metadata, fonts, or other external inputs.
 
-The plugin keeps these transforms out of normal executable choices until each
-transform family has an explicit input adapter, validation, provenance, cleanup
+The plugin keeps unresolved transform families out of normal executable choices
+until each family has an explicit input adapter, validation, provenance, cleanup
 safety checks, and focused tests.
 
 ## Current Status
 
-The catalog still classifies these transforms as `requires_external_data`:
+These reference-image transforms are executable through the FiftyOne adapter:
 
-- `CopyAndPaste`
 - `FDA`
 - `HistogramMatching`
+- `PixelDistributionAdaptation`
+
+They use the current execution scope as a deterministic reference pool. Each
+source sample receives all other source samples as preloaded reference images
+under the transform's `metadata_key`; per-output replay metadata records the
+reference source ids. The run is rejected before any files are written when the
+scope contains fewer than two source samples.
+
+The catalog still classifies these unresolved transforms as
+`requires_external_data`:
+
+- `CopyAndPaste`
 - `Mosaic`
 - `OverlayElements`
-- `PixelDistributionAdaptation`
 - `TextImage`
 
 VOX-43 adds a host-neutral `ExternalInputRequirement` contract to
-`TransformCapability`. Capability entries can now describe the external inputs
-they need without making the transform executable.
+`TransformCapability`. Capability entries can describe the external inputs they
+need whether the transform is already executable or still blocked behind a
+future adapter.
 
 ## Requirement Inventory
 
@@ -44,8 +55,8 @@ path and must validate that path before execution.
 
 ## Execution Policy
 
-Do not move a transform from `requires_external_data` to a normal executable
-status until all of these are true:
+Do not move another transform from `requires_external_data` to a normal
+executable status until all of these are true:
 
 - the App can resolve the required inputs from explicit user choices;
 - the resolver validates dataset schema, path containment or extension policy,
@@ -55,6 +66,8 @@ status until all of these are true:
 - focused execution tests cover at least one happy path and one missing-input
   failure for the transform family.
 
-The first practical execution slice should target one reference-image family,
-such as `HistogramMatching`, before broadening to donor-object or mosaic-style
-transforms.
+The first execution slice supports the shared reference-image family:
+`FDA`, `HistogramMatching`, and `PixelDistributionAdaptation`. Next slices
+should handle donor-object, mosaic, overlay, and text/font data separately
+because their metadata shapes and cleanup risks differ from simple reference
+image pools.

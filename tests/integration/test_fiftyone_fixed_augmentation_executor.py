@@ -20,6 +20,7 @@ from albumentationsx_plugin.core import (
     InvalidParameterError,
     MediaIOError,
     RunManifest,
+    TransformConfig,
 )
 from albumentationsx_plugin.hosts.fiftyone.annotations import (
     SELECTED_LABEL_FIELDS_PARAM_NAME,
@@ -282,6 +283,95 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
         assert final_progress.created_outputs == 2
         assert final_progress.skipped_sources == 0
         assert final_progress.errors == 0
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_resolves_reference_image_external_inputs(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    storage_root = tmp_path / "plugin-storage"
+    try:
+        dataset = fo.Dataset(dataset_name)
+        first_path = _write_source_image(tmp_path, "domain-a", width=8, height=6)
+        second_path = write_rgb_image(np.full((6, 8, 3), 220, dtype=np.uint8), tmp_path, "sources/domain-b.png")
+        first_id = dataset.add_sample(_sample(first_path, width=8, height=6, tag="domain-a"))
+        second_id = dataset.add_sample(_sample(second_path, width=8, height=6, tag="domain-b"))
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(first_id, second_id),
+            params={
+                "transform": "HistogramMatching",
+                "blend_ratio": [1.0, 1.0],
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+            },
+            storage_root=storage_root,
+        )
+
+        assert result.processed_count == 2
+        assert result.created_count == 2
+        assert result.error_count == 0
+        created = _output_samples(dataset)
+        assert len(created) == 2
+        assert {sample.get_field(SOURCE_SAMPLE_ID_FIELD) for sample in created} == {first_id, second_id}
+
+        manifest = FileRunStore(dataset.name, storage_root=storage_root).load_manifest(result.run_key)
+        assert manifest.pipeline.transforms == (
+            TransformConfig(name="HistogramMatching", params={"blend_ratio": [1.0, 1.0], "p": 1.0}),
+        )
+        external_summary = cast(dict[str, Any], manifest.pipeline.options["external_inputs"])
+        assert external_summary["resolvers"] == ["reference_image_pool"]
+        assert external_summary["reference_image_pool"] == {
+            "policy": "all_other_sources_in_execution_scope",
+            "source_count": 2,
+        }
+
+        references_by_source = {}
+        for record in manifest.replay_records:
+            external_inputs = cast(dict[str, Any], record["external_inputs"])
+            assert external_inputs["policy"] == "all_other_sources_in_execution_scope"
+            requirement = cast(list[dict[str, Any]], external_inputs["requirements"])[0]
+            assert requirement["transform_name"] == "HistogramMatching"
+            assert requirement["metadata_key"] == "hm_metadata"
+            references_by_source[record["source_sample_id"]] = requirement["reference_source_sample_ids"]
+
+        assert references_by_source == {
+            first_id: [second_id],
+            second_id: [first_id],
+        }
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_rejects_reference_image_transform_with_single_source(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        sample_id = dataset.add_sample(_sample(_write_source_image(tmp_path, "lonely", width=8, height=6)))
+
+        with pytest.raises(InvalidParameterError) as error:
+            execute_fixed_augmentation(
+                dataset=dataset,
+                selected_sample_ids=(sample_id,),
+                params={
+                    "transform": "HistogramMatching",
+                    "p": 1.0,
+                    "outputs_per_sample": 1,
+                    "dry_run": False,
+                },
+                storage_root=tmp_path / "plugin-storage",
+            )
+
+        assert error.value.context["reason_code"] == "insufficient_reference_image_pool"
+        assert error.value.context["source_count"] == 1
+        assert error.value.context["required_min_source_count"] == 2
+        assert error.value.context["transform_names"] == ["HistogramMatching"]
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)

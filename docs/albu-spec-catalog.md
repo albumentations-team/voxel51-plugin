@@ -29,10 +29,9 @@ The catalog exposes every transform known to albu-spec with one status:
 - `supported_with_defaults`: safe to expose with simple fields while advanced
   parameters stay hidden or JSON-backed later.
 - `hidden`: valid metadata, intentionally not shown in normal UI choices.
-- `requires_external_data`: requires metadata/reference inputs not wired into
-  the MVP pipeline. These entries carry `ExternalInputRequirement` metadata so
-  future adapters can render and validate explicit inputs before changing the
-  executable status.
+- `requires_external_data`: requires metadata/reference inputs not yet wired
+  into the MVP pipeline. Entries with supported adapters may still carry
+  `ExternalInputRequirement` metadata while remaining normal executable choices.
 - `requires_manual_schema`: needs explicit schema handling before UI exposure.
 - `blocked_media_target`: not a 2D image transform.
 - `unsupported_target`: depends on catalog-wide annotation target handling that
@@ -66,12 +65,12 @@ The current lockfile produces:
 
 - version key: `albumentationsx-2.3.8__albu-spec-0.0.6`;
 - total transforms: `134`;
-- normal MVP choices: `110`;
+- normal MVP choices: `113`;
 - status counts:
   - `blocked_media_target`: `7`
   - `hidden`: `1`
-  - `requires_external_data`: `7`
-  - `supported`: `69`
+  - `requires_external_data`: `4`
+  - `supported`: `72`
   - `supported_with_defaults`: `41`
   - `unsupported_output`: `2`
   - `unsupported_target`: `7`
