@@ -84,8 +84,9 @@ boundary.
 ### Parameter Schema Coverage
 
 The current catalog exposes `110` normal choices. Of those, `41` are
-`supported_with_defaults` because optional complex parameters are hidden from
-the normal UI and left to Albumentations defaults.
+`supported_with_defaults` because optional complex parameters are exposed as
+advanced JSON fallback fields until albu-spec can provide richer machine-readable
+shapes for first-class controls.
 
 The audit found:
 
@@ -135,8 +136,9 @@ Expected upstream direction:
 - represent repeated literal tuples as list/tuple item enum metadata;
 - keep a machine-readable shape separate from display text.
 
-Local decision: keep JSON fallback hidden for optional complex parameters. Do
-not add ad hoc string parsers for these type hints in the plugin.
+Local decision: expose optional complex parameters as JSON fallback fields, but
+do not add ad hoc string parsers for these type hints in the plugin. First-class
+typed controls should come from richer albu-spec metadata.
 
 #### ASPEC-2: External runtime data requirements are inferred locally
 
@@ -250,9 +252,9 @@ parameters cannot be rendered as first-class UI controls because their
 ## Impact
 
 Downstream UI generators must either hide these parameters, fall back to raw
-JSON, or implement fragile string parsers. The FiftyOne plugin currently hides
-optional JSON fallback parameters for normal App flows, which keeps execution
-safe but prevents users from editing many useful advanced parameters.
+JSON, or implement fragile string parsers. The FiftyOne plugin uses raw JSON
+fallback fields for optional complex parameters in normal App flows, which keeps
+the plugin maintainable but is less ergonomic than first-class typed controls.
 
 ## Request
 

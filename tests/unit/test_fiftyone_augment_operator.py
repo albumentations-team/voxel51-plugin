@@ -127,6 +127,8 @@ def _preset_manifest(run_key: str = "albumentationsx-20260731T150000Z-preset") -
                     params={
                         "height": 12,
                         "width": 10,
+                        "fill": [1, 2, 3],
+                        "fill_mask": 4,
                         "p": 1.0,
                     },
                 ),
@@ -456,6 +458,8 @@ def test_augment_operator_prefills_form_from_previous_run_manifest(tmp_path) -> 
     assert input_properties["step_2_transform"]["default"] == "RandomCrop"
     assert input_properties["step_2_height"]["default"] == 12
     assert input_properties["step_2_width"]["default"] == 10
+    assert input_properties["step_2_fill"]["default"] == "[1, 2, 3]"
+    assert input_properties["step_2_fill_mask"]["default"] == "4"
     assert input_properties["step_2_p"]["default"] == 1.0
 
 
@@ -510,6 +514,8 @@ def test_augment_operator_prefill_overrides_stale_submitted_form_values(tmp_path
     assert input_properties["step_2_transform"]["default"] == "RandomCrop"
     assert input_properties["step_2_height"]["default"] == 12
     assert input_properties["step_2_width"]["default"] == 10
+    assert input_properties["step_2_fill"]["default"] == "[1, 2, 3]"
+    assert input_properties["step_2_fill_mask"]["default"] == "4"
 
 
 @pytest.mark.unit
@@ -587,6 +593,11 @@ def test_augment_operator_resolves_random_crop_without_initial_required_errors()
     assert input_properties["width"]["required"] is False
     assert input_properties["width"]["default"] == 32
     assert input_properties["p"]["default"] == 1.0
+    assert input_properties["_pipeline_stage_advanced_1"]["view"]["label"] == "Advanced parameters"
+    assert input_properties["fill"]["type"]["name"] == "String"
+    assert input_properties["fill"]["default"] == "0.0"
+    assert input_properties["fill_mask"]["type"]["name"] == "String"
+    assert input_properties["fill_mask"]["default"] == "0.0"
     assert "pad_if_needed" not in input_properties
     assert "pad_position" not in input_properties
     assert "border_mode" not in input_properties
@@ -772,11 +783,14 @@ def test_augment_operator_renders_compact_readable_transform_parameters() -> Non
 
 
 @pytest.mark.unit
-def test_augment_operator_hides_supported_with_defaults_advanced_parameters() -> None:
+def test_augment_operator_renders_supported_with_defaults_advanced_json_parameters() -> None:
     operator = AugmentWithAlbumentationsX()
 
     class Context:
-        params = {"transform": "CoarseDropout"}
+        params = {
+            "transform": "CoarseDropout",
+            "fill": "[10, 20, 30]",
+        }
 
     input_json = operator.resolve_input(Context()).to_json()
     input_properties = _form_properties(input_json)
@@ -786,8 +800,15 @@ def test_augment_operator_hides_supported_with_defaults_advanced_parameters() ->
     assert input_properties["hole_height_range"]["type"]["name"] == "Tuple"
     assert input_properties["hole_width_range"]["type"]["name"] == "Tuple"
     assert input_properties["p"]["default"] == 1.0
-    assert "fill" not in input_properties
-    assert "fill_mask" not in input_properties
+    assert input_properties["_pipeline_stage_advanced_1"]["view"]["label"] == "Advanced parameters"
+    assert input_properties["_pipeline_stage_advanced_1"]["view"]["description"] == (
+        "Optional JSON-backed parameters. Leave empty to use AlbumentationsX defaults."
+    )
+    assert input_properties["fill"]["type"]["name"] == "String"
+    assert input_properties["fill"]["default"] == "[10, 20, 30]"
+    assert input_properties["fill"]["view"]["label"] == "Fill"
+    assert input_properties["fill_mask"]["type"]["name"] == "String"
+    assert input_properties["fill_mask"]["default"] == ""
 
 
 @pytest.mark.unit

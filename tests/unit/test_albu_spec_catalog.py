@@ -56,7 +56,7 @@ def test_albu_spec_catalog_classifies_key_transform_capabilities() -> None:
 
     assert random_crop is not None
     assert random_crop.status == CapabilityStatus.SUPPORTED_WITH_DEFAULTS
-    assert random_crop.reason_code == "advanced_parameters_hidden"
+    assert random_crop.reason_code == "advanced_parameters_json_editable"
     assert "fill" in random_crop.advanced_parameters
 
     assert histogram_matching is not None
@@ -104,6 +104,8 @@ def test_capability_report_groups_supported_and_excluded_transforms() -> None:
     assert "version key: albumentationsx-2.3.8__albu-spec-0.0.6" in report
     assert "- supported: 69" in report
     assert "- supported_with_defaults: 41" in report
+    assert "- json_editable: 41" in report
+    assert "- default_only: 0" in report
     assert "- unsupported_output: Normalize, ToFloat" in report
     assert "- blocked_media_target: CenterCrop3D" in report
 

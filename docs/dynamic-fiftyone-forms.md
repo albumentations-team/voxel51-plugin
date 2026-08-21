@@ -34,9 +34,10 @@ read-only. The executable form shortens albu-spec help, and the renderer places
 it in captions, uses switches for booleans, and gives enum choices readable
 labels while preserving their raw values. Numeric bounds remain attached to the
 field for validation instead of being repeated as prose. The generic renderer
-can render optional complex fields as JSON strings, but the executable
-augmentation form hides optional JSON fallback parameters for
-`supported_with_defaults` transforms and relies on documented defaults.
+renders optional complex fields as JSON strings. The executable augmentation
+form groups optional JSON fallback parameters under `Advanced parameters` for
+`supported_with_defaults` transforms, while required complex fields remain
+blocked until they have safe schema support.
 
 ## Execution Scope
 

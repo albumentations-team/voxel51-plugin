@@ -127,8 +127,8 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
             name=name,
             status=CapabilityStatus.SUPPORTED_WITH_DEFAULTS,
             targets=targets,
-            reason_code="advanced_parameters_hidden",
-            message="Transform can be exposed with defaults while advanced parameters remain hidden or JSON-backed.",
+            reason_code="advanced_parameters_json_editable",
+            message="Transform uses typed controls where possible and JSON-backed controls for advanced optional parameters.",
             advanced_parameters=advanced_parameters,
             metadata=base_metadata,
         )

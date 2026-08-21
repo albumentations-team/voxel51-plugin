@@ -114,8 +114,8 @@ the App responsive while progress is reported.
   selected heatmap would be transformed by a geometric stage, the plugin blocks
   mixed image-only color/intensity stages until per-target replay can keep
   heatmap values untouched by those effects.
-- Some `supported_with_defaults` transforms use documented defaults until their
-  advanced controls are available in the form.
+- `supported_with_defaults` transforms expose simple typed controls plus an
+  advanced JSON section for optional complex parameters.
 - `Previous run` restores pipeline configuration; it does not reproduce each
   earlier sample's random parameters.
 

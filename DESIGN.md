@@ -68,7 +68,7 @@ The MVP is deliberately narrower than the full AlbumentationsX catalog.
   sample, capped at three preview results.
 - The normal selector excludes transforms that require external reference data, use unsupported media or targets, or produce unsafe image outputs.
 - Custom embedded documents and unsupported FiftyOne label classes are excluded from annotation-aware execution.
-- `supported_with_defaults` transforms keep some advanced optional parameters at their library defaults until the form has safe controls for them.
+- `supported_with_defaults` transforms expose simple typed controls plus optional advanced JSON fields for complex parameters that do not yet have first-class schema controls.
 - A catalog status proves that the plugin can render and construct a transform under the current dependency set. It does not yet provide a visual regression test for every one of the 110 transform choices.
 - Heatmap support is limited to geometry-only target synchronization. Mixed
   pipelines that would transform a selected heatmap and also apply image-only

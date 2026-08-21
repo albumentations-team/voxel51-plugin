@@ -252,7 +252,7 @@ def _advanced_parameter_status(capability: TransformCapability) -> str:
     if not capability.advanced_parameters:
         return "none"
     if capability.status is CapabilityStatus.SUPPORTED_WITH_DEFAULTS:
-        return "default_only"
+        return "json_editable"
     return "advanced_parameters_present"
 
 

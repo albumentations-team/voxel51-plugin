@@ -216,6 +216,50 @@ def test_fixed_pipeline_builds_catalog_backed_transform_configs() -> None:
 
 
 @pytest.mark.unit
+def test_fixed_pipeline_parses_advanced_json_fallback_parameters_before_config() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "transform": "RandomCrop",
+            "height": 4,
+            "width": 5,
+            "fill": "[1, 2, 3]",
+            "fill_mask": "",
+        }
+    )
+
+    assert config.transforms == (
+        TransformConfig(
+            name="RandomCrop",
+            params={
+                "height": 4,
+                "width": 5,
+                "fill": [1, 2, 3],
+                "p": 1.0,
+            },
+        ),
+    )
+
+
+@pytest.mark.unit
+def test_fixed_pipeline_rejects_invalid_advanced_json_fallback_parameters() -> None:
+    with pytest.raises(InvalidParameterError) as error:
+        build_fixed_pipeline_config(
+            {
+                "transform": "RandomCrop",
+                "height": 4,
+                "width": 5,
+                "fill": "[1,",
+            }
+        )
+
+    assert error.value.context["transform_name"] == "RandomCrop"
+    assert error.value.context["parameter_name"] == "fill"
+    assert error.value.context["reason_code"] == "invalid_json_parameter"
+    assert error.value.context["expected"] == "tuple[float, ...] | float"
+    assert error.value.context["received_value"] == "[1,"
+
+
+@pytest.mark.unit
 def test_fixed_pipeline_builds_more_than_three_stage_transform_chain() -> None:
     config = build_fixed_pipeline_config(
         {
