@@ -35,6 +35,11 @@ class FilePipelinePresetStore:
         safe_key = _safe_preset_key(preset_key)
         return self.preset_dir / f"{safe_key}{PRESET_FILE_SUFFIX}"
 
+    def preset_exists(self, preset_key: str) -> bool:
+        """Return whether a preset JSON file exists for the normalized key."""
+
+        return self.preset_path(preset_key).is_file()
+
     def save_preset(self, preset: PipelinePreset) -> None:
         """Atomically write a preset JSON file."""
 
@@ -110,6 +115,42 @@ class FilePipelinePresetStore:
         """Delete a preset JSON file if it exists."""
 
         self.preset_path(preset_key).unlink(missing_ok=True)
+
+    def rename_preset(
+        self,
+        preset_key: str,
+        renamed_preset: PipelinePreset,
+        *,
+        overwrite: bool = False,
+    ) -> None:
+        """Save a renamed preset and remove the old file after the target exists."""
+
+        source_path = self.preset_path(preset_key)
+        if not source_path.is_file():
+            raise _preset_error(source_path, "Pipeline preset does not exist.", reason="missing_preset")
+
+        target_path = self.preset_path(renamed_preset.key)
+        if source_path != target_path and target_path.exists() and not overwrite:
+            raise _preset_error(
+                target_path,
+                "Pipeline preset already exists.",
+                reason="preset_already_exists",
+                preset_key=renamed_preset.key,
+            )
+
+        self.save_preset(renamed_preset)
+        if source_path == target_path:
+            return
+
+        try:
+            source_path.unlink()
+        except OSError as error:
+            raise _preset_error(
+                source_path,
+                "Original pipeline preset could not be deleted after rename.",
+                reason="preset_delete_failed",
+                exception_type=type(error).__name__,
+            ) from error
 
 
 def _safe_preset_key(value: str) -> str:

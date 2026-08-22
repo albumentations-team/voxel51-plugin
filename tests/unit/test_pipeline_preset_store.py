@@ -59,3 +59,46 @@ def test_pipeline_preset_store_rejects_key_mismatch(tmp_path) -> None:
         store.load_preset("expected")
 
     assert error.value.context["reason"] == "preset_key_mismatch"
+
+
+@pytest.mark.unit
+def test_pipeline_preset_store_renames_without_overwriting_existing_preset(tmp_path) -> None:
+    store = FilePipelinePresetStore(storage_root=tmp_path)
+    source = PipelinePreset(
+        key=build_preset_key("Training defaults"),
+        name="Training defaults",
+        plugin_version="0.1.0",
+        dependency_versions={"fiftyone": "1.19.0"},
+        pipeline=PipelineConfig(transforms=(TransformConfig(name="HorizontalFlip", params={"p": 1.0}),)),
+        created_at="2026-08-01T00:00:00Z",
+    )
+    collision = PipelinePreset(
+        key=build_preset_key("Validation defaults"),
+        name="Validation defaults",
+        plugin_version="0.1.0",
+        dependency_versions={"fiftyone": "1.19.0"},
+        pipeline=PipelineConfig(transforms=(TransformConfig(name="VerticalFlip", params={"p": 1.0}),)),
+    )
+    renamed = PipelinePreset(
+        key=collision.key,
+        name="Validation defaults",
+        plugin_version=source.plugin_version,
+        dependency_versions=source.dependency_versions,
+        pipeline=source.pipeline,
+        created_at=source.created_at,
+        updated_at="2026-08-02T00:00:00Z",
+    )
+    store.save_preset(source)
+    store.save_preset(collision)
+
+    with pytest.raises(MediaIOError) as error:
+        store.rename_preset(source.key, renamed)
+
+    assert error.value.context["reason"] == "preset_already_exists"
+    assert store.load_preset(source.key) == source
+    assert store.load_preset(collision.key) == collision
+
+    store.rename_preset(source.key, renamed, overwrite=True)
+
+    assert not store.preset_exists(source.key)
+    assert store.load_preset(renamed.key) == renamed
