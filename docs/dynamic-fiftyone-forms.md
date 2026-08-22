@@ -122,6 +122,10 @@ takes precedence for overlapping pipeline values. Filling `Preset name` saves
 the resolved pipeline during a materialized augmentation run; `Save preset
 only` validates and saves the preset without running augmentation.
 
+VOX-48 keeps preset lifecycle management out of the augmentation form. The
+separate `Manage AlbumentationsX Presets` operator handles inspect, export,
+import, rename, and delete actions against the same shared preset storage.
+
 Stage headings identify the stable slot. `Execution order` provides the
 pipeline order, so transform and parameter labels do not repeat `Step N`. The
 form also removes default values and constraint lists from help text: the

@@ -69,15 +69,33 @@ albu-spec changes make the pipeline invalid.
 
 ## Current Scope
 
-The MVP provides shared storage, form loading, preset save/update, and unit
+VOX-28 provides shared storage, form loading, preset save/update, and unit
 coverage for loading a preset into the form and saving one from operator
-params. Import/export/rename/delete management UI can build on the same
-versioned contract without changing run manifests.
+params.
+
+VOX-48 adds **Manage AlbumentationsX Presets**, a dedicated FiftyOne operator
+for preset lifecycle actions:
+
+- `Inspect presets`: list stored presets and show selected preset JSON.
+- `Export preset`: return one preset as formatted JSON.
+- `Import preset`: parse JSON, require schema version compatibility, require
+  the key to match the normalized preset name, validate the pipeline against the
+  current executable catalog, and save only after passing validation.
+- `Rename preset`: write the renamed preset first, preserve the reusable
+  pipeline and `created_at` timestamp, update `updated_at`, then remove the old
+  preset file.
+- `Delete preset`: remove only the selected preset JSON file after explicit
+  confirmation.
+
+Import and rename reject accidental collisions unless `Overwrite existing
+preset` is enabled. Preset deletion is deliberately separate from
+`Delete AlbumentationsX Run`: it never removes run manifests, generated
+samples, generated files, FiftyOne custom runs, source samples, or source files.
 
 ## Verification
 
 Focused checks:
 
 ```bash
-uv run pytest tests/unit/test_core_contracts.py tests/unit/test_pipeline_preset_store.py tests/unit/test_fiftyone_augment_operator.py
+uv run pytest tests/unit/test_core_contracts.py tests/unit/test_pipeline_preset_store.py tests/unit/test_fiftyone_augment_operator.py tests/unit/test_fiftyone_manage_presets_operator.py
 ```

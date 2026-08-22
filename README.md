@@ -32,6 +32,7 @@ FiftyOne registers these operators:
 ```text
 @albumentations/albumentationsx/augment_with_albumentationsx
 @albumentations/albumentationsx/show_albumentationsx_capabilities
+@albumentations/albumentationsx/manage_albumentationsx_presets
 @albumentations/albumentationsx/view_albumentationsx_run
 @albumentations/albumentationsx/delete_albumentationsx_run
 ```
@@ -46,8 +47,9 @@ FiftyOne registers these operators:
    samples in memory, then disable it and run the same configuration to create
    outputs. Optionally choose a named preset or save the current pipeline as a
    reusable preset.
-4. Inspect the resulting samples tagged by the run key. Use **View
-   AlbumentationsX Run** to inspect the saved pipeline and **Delete
+4. Inspect the resulting samples tagged by the run key. Use **Manage
+   AlbumentationsX Presets** for shared preset import/export/rename/delete,
+   **View AlbumentationsX Run** to inspect the saved pipeline, and **Delete
    AlbumentationsX Run** to remove only that run's generated outputs.
 
 `Execution scope` controls whether the operator processes selected samples, the
@@ -107,6 +109,10 @@ the App responsive while progress is reported.
 - Named pipeline presets can be saved from the augmentation form and loaded
   across datasets. They persist only the reusable pipeline config and dependency
   versions, not sample IDs, output paths, or replay records.
+- **Manage AlbumentationsX Presets** can inspect, export, import, rename, and
+  delete named presets. Import validates the preset schema and pipeline against
+  the current executable catalog before saving. Deleting a preset removes only
+  the preset JSON file, not runs, generated samples, output files, or sources.
 
 ## Current limits
 
@@ -195,7 +201,9 @@ manifest so they can be inspected and deleted by run.
 Then run `View AlbumentationsX Run` to inspect persisted counts, generated
 sample availability, versions, transform config, per-output replay records, and
 stale/missing manifest state. The viewer can also open the generated samples
-that still exist in the active dataset. Run
+that still exist in the active dataset. Run `Manage AlbumentationsX Presets` to
+inspect shared presets, export one as JSON, import validated preset JSON, rename
+presets, or delete only a preset JSON file. Run
 `Delete AlbumentationsX Run` with confirmation checked to remove generated
 samples/files and the FiftyOne custom run; source samples and source files
 remain unchanged. Cleaned runs remain inspectable through the retained manifest

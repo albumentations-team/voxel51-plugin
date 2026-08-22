@@ -81,7 +81,10 @@ First-class named pipeline presets are stored separately from dataset run
 manifests under the shared plugin storage root. They persist reusable pipeline
 configuration and dependency metadata only. They do not participate in cleanup
 allowlists and never contain generated sample IDs, output paths, or replay
-records. Details live in [Pipeline presets](pipeline-presets.md).
+records. `Manage AlbumentationsX Presets` can delete a preset JSON file, but
+that action does not mutate run manifests, FiftyOne custom runs, generated
+samples, generated files, or sources. Details live in
+[Pipeline presets](pipeline-presets.md).
 
 ## Run Summary
 
