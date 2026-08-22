@@ -10,7 +10,7 @@ This document records the current product boundary, the decisions that protect u
 
 The plugin helps a FiftyOne user inspect an AlbumentationsX augmentation on their own labelled images before they commit to a training run. The user selects image samples, configures an ordered pipeline in the FiftyOne App, and receives new samples. The plugin retains the source samples, source media, and supported labels unchanged.
 
-Each saved run records the pipeline, package versions, source and output sample IDs, generated relative file paths, sampled replay metadata, counters, and structured errors. A user can inspect a saved run, use its pipeline as a template for a new run, or delete only that run's generated outputs.
+Each saved run records the pipeline, package versions, source and output sample IDs, generated relative file paths, sampled replay metadata, counters, and structured errors. A user can inspect a saved run, use its pipeline as a template for a new run, save the pipeline as a named shared preset, or delete only that run's generated outputs.
 
 ## Current MVP
 
@@ -21,11 +21,14 @@ The current implementation supports the following workflow.
 2. Open **Augment with AlbumentationsX**.
 3. Configure up to ten transform stage slots, enable the stages to execute,
    and order them.
-4. Optionally preview up to three selected samples without creating files,
-   samples, manifests, or custom runs.
-5. Create one to three outputs per source sample.
-6. Inspect the new samples with **View AlbumentationsX Run**.
-7. Remove generated samples and files with **Delete AlbumentationsX Run** after confirmation.
+4. Optionally load a shared named preset or a previous run's saved pipeline as
+   a template.
+5. Optionally preview up to three selected samples without creating files,
+   samples, manifests, custom runs, or presets.
+6. Create one to three outputs per source sample, optionally saving the
+   resolved pipeline as a named shared preset.
+7. Inspect the new samples with **View AlbumentationsX Run**.
+8. Remove generated samples and files with **Delete AlbumentationsX Run** after confirmation.
 
 The form is generated from the `albu-spec` catalog. With the locked `albumentationsx 2.3.8` and `albu-spec 0.0.6` dependencies, the catalog finds 134 transforms. The normal selector exposes 113 transforms classified as `supported` or `supported_with_defaults`; the capability report records each excluded transform and its reason. The executable set includes the reference-image transforms `FDA`, `HistogramMatching`, and `PixelDistributionAdaptation`; they use the current execution scope as a deterministic reference pool and save per-output reference source ids in replay metadata.
 
@@ -46,6 +49,11 @@ The executable path handles these FiftyOne label types:
   source masks write plugin-owned output mask PNGs.
 
 Selecting a previous run loads its pipeline configuration as a template. A new run samples new random values; it does not replay the prior outputs exactly.
+
+Selecting a named preset loads a shared pipeline configuration from plugin
+storage and can be reused across datasets. Named presets store pipeline data and
+dependency metadata only, not source IDs, generated output paths, or replay
+records.
 
 Preview mode uses the same pipeline factory and label conversion path as
 materialized execution, but returns in-memory source/augmented images, replay
@@ -165,7 +173,7 @@ Work is ordered by release risk and user impact. Each item has an observable com
 
 | Work | Why now | Completion condition |
 |---|---|---|
-| Add a first-class preset library | Previous runs provide templates inside one dataset, but they are not named, portable presets. | Users can save, rename, import, and export validated pipeline presets without storing per-sample replay data. Tests prove that a preset loads into the form and produces a valid fresh run. |
+| Add preset management actions | Named presets can be saved and loaded, but import/export/rename/delete management remains manual. | Users can rename, import, export, and delete validated pipeline presets from the App without storing per-sample replay data. Tests prove each action preserves the versioned preset contract. |
 
 ### P1 — extend label support safely
 

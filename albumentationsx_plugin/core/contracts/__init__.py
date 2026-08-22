@@ -24,6 +24,7 @@ from albumentationsx_plugin.core.contracts.fixed_slice import (
 )
 from albumentationsx_plugin.core.contracts.forms import FieldKind, FormFieldSchema
 from albumentationsx_plugin.core.contracts.pipeline import PipelineConfig, TransformConfig
+from albumentationsx_plugin.core.contracts.presets import PIPELINE_PRESET_SCHEMA_VERSION, PipelinePreset
 from albumentationsx_plugin.core.contracts.runs import (
     RUN_CLEANED_AT_METADATA_KEY,
     RUN_CLEANUP_STATUS_CLEANED,
@@ -58,7 +59,9 @@ __all__ = [
     "PIPELINE_STEP_COUNT_FIELD_NAME",
     "PIPELINE_STAGE_ENABLED_FIELD_NAME",
     "PIPELINE_STAGE_ORDER_FIELD_NAME",
+    "PIPELINE_PRESET_SCHEMA_VERSION",
     "PipelineConfig",
+    "PipelinePreset",
     "RUN_CLEANED_AT_METADATA_KEY",
     "RUN_CLEANUP_STATUS_CLEANED",
     "RUN_CLEANUP_STATUS_METADATA_KEY",

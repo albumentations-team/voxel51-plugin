@@ -24,6 +24,13 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     source_view_from_context,
 )
 from albumentationsx_plugin.hosts.fiftyone.form_params import flatten_stage_parameter_groups
+from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
+    SAVE_PRESET_ONLY_FIELD_NAME,
+    params_with_pipeline_preset,
+    pipeline_preset_save_requested,
+    save_pipeline_preset_from_params,
+    selected_pipeline_preset_key,
+)
 from albumentationsx_plugin.hosts.fiftyone.presets import (
     params_with_previous_run_preset,
     selected_previous_run_key,
@@ -101,6 +108,9 @@ class AugmentWithAlbumentationsX(foo.Operator):
         outputs.str("fiftyone_run_key", label="FiftyOne run key")
         outputs.list("errors", types.Object(), label="Errors")
         outputs.int("preview_count", label="Preview results")
+        outputs.str("preset_key", label="Preset key")
+        outputs.str("preset_name", label="Preset name")
+        outputs.str("preset_path", label="Preset path")
         if _preview_only_from_ctx(ctx):
             _render_preview_output_fields(outputs)
         return types.Property(outputs)
@@ -121,6 +131,14 @@ class AugmentWithAlbumentationsX(foo.Operator):
 
     def execute(self, ctx: Any) -> JSONDict:
         params = _ctx_params(ctx)
+        storage_root = storage_root_from_params(params)
+        if _save_preset_only_param(params):
+            try:
+                preset_params = params_with_pipeline_preset(params, storage_root=storage_root)
+                preset_params = params_with_previous_run_preset(ctx.dataset, preset_params, storage_root=storage_root)
+                return save_pipeline_preset_from_params(preset_params, storage_root=storage_root).to_dict()
+            except Exception as error:
+                return _pipeline_preset_error_result(params, error)
         selected_sample_ids = selected_sample_ids_from_context(ctx)
         preview_only = _preview_only_param(params)
         try:
@@ -131,9 +149,12 @@ class AugmentWithAlbumentationsX(foo.Operator):
             return _preview_requires_selected_samples_result(params)
         if source_scope == EXECUTION_SCOPE_SELECTED_SAMPLES and not selected_sample_ids:
             return _no_selected_samples_result(params, source_scope=source_scope)
-        storage_root = storage_root_from_params(params)
         try:
-            execution_params = params_with_previous_run_preset(ctx.dataset, params, storage_root=storage_root)
+            execution_params = params_with_pipeline_preset(params, storage_root=storage_root)
+        except Exception as error:
+            return _pipeline_preset_error_result(params, error, source_scope=source_scope)
+        try:
+            execution_params = params_with_previous_run_preset(ctx.dataset, execution_params, storage_root=storage_root)
         except Exception as error:
             return _previous_run_preset_error_result(params, error, source_scope=source_scope)
         execution_params[EXECUTION_SCOPE_FIELD_NAME] = source_scope
@@ -153,6 +174,12 @@ class AugmentWithAlbumentationsX(foo.Operator):
                     raise
                 return _missing_dependency_result(error, source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES)
             return result.to_dict()
+        saved_preset = None
+        if pipeline_preset_save_requested(execution_params) and not _dry_run_param(execution_params):
+            try:
+                saved_preset = save_pipeline_preset_from_params(execution_params, storage_root=storage_root)
+            except Exception as error:
+                return _pipeline_preset_error_result(params, error, source_scope=source_scope)
         try:
             result = _execute_fixed_augmentation(
                 dataset=ctx.dataset,
@@ -168,7 +195,10 @@ class AugmentWithAlbumentationsX(foo.Operator):
                 raise
             return _missing_dependency_result(error, source_scope=source_scope)
         _trigger_dataset_reload(ctx, result)
-        return result.to_dict()
+        output = result.to_dict()
+        if saved_preset is not None:
+            output.update(_pipeline_preset_output_fields(saved_preset))
+        return output
 
 
 def _build_dynamic_augment_form(ctx: Any):
@@ -400,6 +430,46 @@ def _previous_run_preset_error_result(params: object, error: Exception, *, sourc
     }
 
 
+def _pipeline_preset_error_result(params: object, error: Exception, *, source_scope: str = "") -> JSONDict:
+    return {
+        "run_key": "",
+        "source_scope": source_scope,
+        "processed_count": 0,
+        "created_count": 0,
+        "skipped_count": 0,
+        "error_count": 1,
+        "dry_run": _dry_run_param(params),
+        "execution_status": "",
+        "output_tag": "",
+        "output_dir": "",
+        "manifest_path": "",
+        "fiftyone_run_key": "",
+        "preset_key": "",
+        "preset_name": "",
+        "preset_path": "",
+        "errors": [
+            {
+                "code": "pipeline_preset_unavailable",
+                "message": "Pipeline preset could not be loaded or saved; check the preset name and settings.",
+                "context": {
+                    "pipeline_preset_key": selected_pipeline_preset_key(params) if isinstance(params, dict) else "",
+                    "source_scope": source_scope,
+                    "error_type": type(error).__name__,
+                },
+            }
+        ],
+    }
+
+
+def _pipeline_preset_output_fields(save_result: Any) -> JSONDict:
+    preset_result = save_result.to_dict()
+    return {
+        "preset_key": preset_result["preset_key"],
+        "preset_name": preset_result["preset_name"],
+        "preset_path": preset_result["preset_path"],
+    }
+
+
 def _has_image_dataset_context(ctx: Any | None) -> bool:
     dataset = getattr(ctx, "dataset", None) if ctx is not None else None
     if dataset is None:
@@ -414,6 +484,10 @@ def _dry_run_param(params: object) -> bool:
 
 def _preview_only_param(params: object) -> bool:
     return isinstance(params, dict) and params.get(PREVIEW_ONLY_FIELD_NAME) is True
+
+
+def _save_preset_only_param(params: object) -> bool:
+    return isinstance(params, dict) and params.get(SAVE_PRESET_ONLY_FIELD_NAME) is True
 
 
 def _preview_only_from_ctx(ctx: Any | None) -> bool:

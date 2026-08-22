@@ -5,8 +5,11 @@ from datetime import datetime, timezone
 import pytest
 
 from albumentationsx_plugin.storage.paths import (
+    MAX_PRESET_KEY_LENGTH,
     MAX_RUN_LABEL_SLUG_LENGTH,
     build_dataset_run_dir,
+    build_preset_dir,
+    build_preset_key,
     build_run_key,
     default_storage_root,
     slugify_run_label,
@@ -57,6 +60,25 @@ def test_slugify_run_label_sanitizes_unsafe_characters_and_bounds_length() -> No
 @pytest.mark.unit
 def test_default_storage_root_lives_under_fiftyone_home(tmp_path) -> None:
     assert default_storage_root(home=tmp_path) == tmp_path / ".fiftyone" / "albumentationsx-plugin"
+
+
+@pytest.mark.unit
+def test_build_preset_key_sanitizes_user_facing_name_and_bounds_length() -> None:
+    long_name = "Training / Crop Defaults!!! " + ("VeryLong " * 20)
+    preset_key = build_preset_key(long_name)
+
+    assert preset_key.startswith("training-crop-defaults-verylong")
+    assert len(preset_key) <= MAX_PRESET_KEY_LENGTH
+    assert build_preset_key("!!!") == "preset"
+
+
+@pytest.mark.unit
+def test_build_preset_dir_is_shared_under_storage_root(tmp_path) -> None:
+    preset_dir = build_preset_dir(storage_root=tmp_path)
+    run_dir = build_dataset_run_dir("dataset", "run", storage_root=tmp_path)
+
+    assert preset_dir == tmp_path / "presets"
+    assert preset_dir != run_dir.parent
 
 
 @pytest.mark.unit

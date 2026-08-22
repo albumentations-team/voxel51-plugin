@@ -12,6 +12,7 @@ from typing import Final
 
 PLUGIN_STORAGE_DIRNAME: Final[str] = "albumentationsx-plugin"
 MAX_RUN_LABEL_SLUG_LENGTH: Final[int] = 48
+MAX_PRESET_KEY_LENGTH: Final[int] = 96
 _HASH_SUFFIX_LENGTH: Final[int] = 10
 
 _UNSAFE_COMPONENT = re.compile(r"[^A-Za-z0-9._-]+")
@@ -45,6 +46,13 @@ def slugify_run_label(value: str | None) -> str:
     return normalized[:MAX_RUN_LABEL_SLUG_LENGTH].strip("-")
 
 
+def build_preset_key(name: str) -> str:
+    """Return a stable path-safe key for a user-facing preset name."""
+
+    normalized = _UNSAFE_RUN_LABEL.sub("-", name.casefold().strip()).strip("-")
+    return (normalized or "preset")[:MAX_PRESET_KEY_LENGTH].strip("-") or "preset"
+
+
 def default_storage_root(*, home: str | PathLike[str] | None = None) -> Path:
     """Return the base directory for plugin-owned output files."""
 
@@ -63,6 +71,13 @@ def build_dataset_run_dir(
     root = default_storage_root() if storage_root is None else Path(storage_root).expanduser()
     dataset_component = _safe_component(dataset_name, default="dataset", include_hash=True)
     return root / dataset_component / _safe_component(run_key, default="run")
+
+
+def build_preset_dir(*, storage_root: str | PathLike[str] | None = None) -> Path:
+    """Return the plugin-owned shared preset directory."""
+
+    root = default_storage_root() if storage_root is None else Path(storage_root).expanduser()
+    return root / "presets"
 
 
 def _safe_component(value: str, *, default: str, include_hash: bool = False) -> str:

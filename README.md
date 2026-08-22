@@ -44,7 +44,8 @@ FiftyOne registers these operators:
 3. Choose the execution scope, ordered pipeline stages, and transform
    parameters. Optionally enable `Preview only` to inspect up to three selected
    samples in memory, then disable it and run the same configuration to create
-   outputs.
+   outputs. Optionally choose a named preset or save the current pipeline as a
+   reusable preset.
 4. Inspect the resulting samples tagged by the run key. Use **View
    AlbumentationsX Run** to inspect the saved pipeline and **Delete
    AlbumentationsX Run** to remove only that run's generated outputs.
@@ -61,6 +62,8 @@ the App responsive while progress is reported.
 > [!NOTE]
 > Selecting `Previous run` loads its saved pipeline as a reusable template and
 > samples fresh randomness. Clear that field before editing the loaded pipeline.
+> `Named preset` loads a shared pipeline template that can be reused across
+> datasets in the same plugin storage root.
 
 ## Current capabilities
 
@@ -101,6 +104,9 @@ the App responsive while progress is reported.
   metadata.
 - Every non-dry run stores its pipeline configuration and sampled replay
   metadata. Generated samples and files can be inspected and cleaned up by run.
+- Named pipeline presets can be saved from the augmentation form and loaded
+  across datasets. They persist only the reusable pipeline config and dependency
+  versions, not sample IDs, output paths, or replay records.
 
 ## Current limits
 
@@ -124,6 +130,8 @@ the App responsive while progress is reported.
   advanced JSON section for optional complex parameters.
 - `Previous run` restores pipeline configuration; it does not reproduce each
   earlier sample's random parameters.
+- `Named preset` restores reusable pipeline configuration across datasets; it
+  does not store source samples, generated outputs, or sampled replay values.
 
 ## Develop locally
 
@@ -160,13 +168,16 @@ FiftyOne internal sample IDs are database-generated.
 
 In the App, run `Augment with AlbumentationsX`, choose `Execution scope`
 (`Selected samples`, `Current view`, or `Entire dataset`), set `Pipeline stages`,
-optionally choose `Previous run` to prefill the form from a saved run in this
-dataset, optionally set `Run label` and `Outputs per sample`, and choose a
-catalog-backed transform for each visible stage slot. Each stage slot can be
-skipped with `Enabled` or moved by changing `Execution order`. Select one to
-three source samples and enable `Preview only` to render source/augmented image
-previews, sampled replay parameters, and transformed label JSON without writing
-files, creating samples, or registering a run. `Dry run` validates the
+optionally choose `Named preset` to prefill the form from a shared pipeline
+template, optionally choose `Previous run` to prefill the form from a saved run
+in this dataset, optionally set `Run label` and `Outputs per sample`, and choose
+a catalog-backed transform for each visible stage slot. Each stage slot can be
+skipped with `Enabled` or moved by changing `Execution order`. Fill `Preset
+name` to save the current pipeline as a reusable named preset; enable `Save
+preset only` to save it without running augmentation. Select one to three source
+samples and enable `Preview only` to render source/augmented image previews,
+sampled replay parameters, and transformed label JSON without writing files,
+creating samples, or registering a run. `Dry run` validates the
 configuration and reports the resolved source scope without writing files or
 creating samples. Run small selections immediately. For larger views or full
 datasets, choose delegated execution in FiftyOne's execution dialog so the App

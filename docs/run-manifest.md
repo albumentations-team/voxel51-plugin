@@ -77,6 +77,12 @@ values; clear `Previous run` after loading if you want to keep editing from that
 state. Per-output replay records remain inspection metadata; they are not used
 for exact replay on new samples.
 
+First-class named pipeline presets are stored separately from dataset run
+manifests under the shared plugin storage root. They persist reusable pipeline
+configuration and dependency metadata only. They do not participate in cleanup
+allowlists and never contain generated sample IDs, output paths, or replay
+records. Details live in [Pipeline presets](pipeline-presets.md).
+
 ## Run Summary
 
 VOX-16 adds the read-only `view_albumentationsx_run` operator. It lists run keys
