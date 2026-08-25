@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import pathlib
 from typing import Any
 
@@ -10,6 +11,7 @@ import albumentationsx_plugin.hosts.fiftyone.operators.delete_run as delete_run_
 from albumentationsx_plugin.hosts.fiftyone.operators.delete_run import (
     CONFIRM_FIELD_NAME,
     OPERATOR_NAME,
+    RUN_KEY_FIELD_NAME,
     STORAGE_ROOT_PARAM_NAME,
     DeleteAlbumentationsXRun,
 )
@@ -73,6 +75,45 @@ def test_delete_run_operator_resolves_run_selector_confirmation_and_output(monke
     assert output_properties["deleted_sample_count"]["type"]["name"] == "Number"
     assert output_properties["custom_run_deleted"]["type"]["name"] == "Boolean"
     assert output_properties["errors_json"]["type"]["name"] == "String"
+
+
+@pytest.mark.unit
+def test_delete_run_operator_falls_back_from_stale_param_run_key(monkeypatch) -> None:
+    operator = DeleteAlbumentationsXRun()
+
+    class Context:
+        dataset = object()
+        params = {RUN_KEY_FIELD_NAME: "albumentationsx-20260731T150000Z-deleted"}
+
+    monkeypatch.setattr(
+        delete_run_operator_module,
+        "list_deletable_run_keys",
+        lambda dataset, **kwargs: ("albumentationsx-20260731T150000Z-current",),
+    )
+
+    input_json = operator.resolve_input(Context()).to_json()
+    run_key_property = input_json["type"]["properties"][RUN_KEY_FIELD_NAME]
+
+    assert run_key_property["type"]["name"] == "Enum"
+    assert run_key_property["default"] == "albumentationsx-20260731T150000Z-current"
+
+
+@pytest.mark.unit
+def test_delete_run_operator_resolves_empty_selector_without_confirmation(monkeypatch) -> None:
+    operator = DeleteAlbumentationsXRun()
+
+    class Context:
+        dataset = object()
+        params = {}
+
+    monkeypatch.setattr(delete_run_operator_module, "list_deletable_run_keys", lambda dataset, **kwargs: ())
+
+    input_json = operator.resolve_input(Context()).to_json()
+    input_properties = input_json["type"]["properties"]
+
+    assert input_properties[RUN_KEY_FIELD_NAME]["type"]["name"] == "String"
+    assert "No deletable AlbumentationsX runs" in input_properties[RUN_KEY_FIELD_NAME]["view"]["description"]
+    assert CONFIRM_FIELD_NAME not in input_properties
 
 
 @pytest.mark.unit
@@ -163,6 +204,40 @@ def test_delete_run_operator_execute_delegates_to_cleanup_service(monkeypatch) -
         "errors_json": "[]",
     }
     assert Context.triggered == ["reload_dataset"]
+
+
+@pytest.mark.unit
+def test_delete_run_operator_execute_ignores_reload_trigger_errors(monkeypatch, caplog) -> None:
+    operator = DeleteAlbumentationsXRun()
+
+    class Context:
+        dataset = object()
+        params = {
+            RUN_KEY_FIELD_NAME: "albumentationsx-20260731T150000Z-run",
+            CONFIRM_FIELD_NAME: True,
+        }
+
+        @classmethod
+        def trigger(cls, event_name: str) -> None:
+            raise RuntimeError(f"{event_name} failed")
+
+    def fake_cleanup_run(dataset: object, run_key: str, **kwargs) -> RunCleanupResult:
+        return RunCleanupResult(
+            run_key=run_key,
+            status="ok",
+            message="deleted",
+            deleted_sample_count=1,
+            deleted_file_count=1,
+            confirmed=True,
+        )
+
+    monkeypatch.setattr(delete_run_operator_module, "cleanup_run", fake_cleanup_run)
+    caplog.set_level(logging.DEBUG, logger=delete_run_operator_module.__name__)
+
+    result = operator.execute(Context())
+
+    assert result["status"] == "ok"
+    assert "Error while triggering FiftyOne dataset reload" in caplog.text
 
 
 @pytest.mark.unit

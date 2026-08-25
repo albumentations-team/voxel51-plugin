@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from os import PathLike
 from typing import Any
@@ -19,6 +20,7 @@ RUN_KEY_FIELD_NAME = "run_key"
 OUTPUT_KEY_FIELD_NAME = "output_key"
 OPEN_GENERATED_SAMPLES_FIELD_NAME = "open_generated_samples"
 STORAGE_ROOT_PARAM_NAME = "_storage_root"
+_LOGGER = logging.getLogger(__name__)
 
 
 class ViewAlbumentationsXRun(foo.Operator):
@@ -154,7 +156,9 @@ def _ctx_params(ctx: Any | None) -> Mapping[str, object]:
 
 def _selected_run_key(raw_value: object, run_keys: tuple[str, ...]) -> str:
     if isinstance(raw_value, str) and raw_value.strip():
-        return raw_value
+        value = raw_value.strip()
+        if not run_keys or value in run_keys:
+            return value
     return run_keys[0] if run_keys else ""
 
 
@@ -204,7 +208,7 @@ def _trigger_generated_samples_view(ctx: Any, sample_ids: tuple[str, ...]) -> No
             show_samples(list(sample_ids))
             return
         except Exception:
-            pass
+            _LOGGER.debug("Error while opening generated samples through ctx.ops.show_samples", exc_info=True)
 
     trigger = getattr(ctx, "trigger", None)
     if not callable(trigger):
@@ -217,8 +221,10 @@ def _trigger_generated_samples_view(ctx: Any, sample_ids: tuple[str, ...]) -> No
         try:
             trigger("show_samples", params)
         except Exception:
+            _LOGGER.debug("Error while triggering generated sample view", exc_info=True)
             return
     except Exception:
+        _LOGGER.debug("Error while triggering generated sample view", exc_info=True)
         return
 
 

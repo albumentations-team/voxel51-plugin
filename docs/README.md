@@ -42,6 +42,8 @@ these files hold development workflow, review, and release notes.
   inspection and stale manifest handling.
 - [Run cleanup operator](run-cleanup-operator.md): confirmed cleanup for
   generated samples, manifest-listed files, and custom runs.
+- [FiftyOne operator debugging](fiftyone-operator-debugging.md): form,
+  execution, selector, and UI refresh diagnostics for App operators.
 - [Release v0.1.0](release-v0.1.0.md): historic first-release scope,
   verification checklist, known limitations, and tag flow.
 - [Release artifacts](release-artifacts.md): checksummed GitHub Release

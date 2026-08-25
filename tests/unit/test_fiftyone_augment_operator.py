@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib
+import json
+import logging
 import pathlib
 import sys
 from collections.abc import Iterable, Iterator
@@ -15,6 +17,7 @@ import albumentationsx_plugin.hosts.fiftyone.operators.augment as augment_operat
 from albumentationsx_plugin.core import (
     MAX_PIPELINE_STEPS,
     RUN_EXECUTION_STATUS_COMPLETED,
+    HostAdapterError,
     PipelineConfig,
     PipelinePreset,
     RunManifest,
@@ -291,6 +294,9 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert output_json["type"]["properties"]["created_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["error_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["execution_status"]["type"]["name"] == "String"
+    assert output_json["type"]["properties"]["errors_json"]["view"]["name"] == "CodeView"
+    assert output_json["type"]["properties"]["pipeline_config_json"]["view"]["name"] == "CodeView"
+    assert output_json["type"]["properties"]["operator_params_json"]["view"]["name"] == "CodeView"
     assert output_json["type"]["properties"][PREVIEW_ONLY_FIELD_NAME]["type"]["name"] == "Boolean"
     assert output_json["type"]["properties"]["preview_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["manifest_path"]["type"]["name"] == "String"
@@ -416,6 +422,49 @@ def test_augment_operator_renders_annotation_field_toggles() -> None:
     assert input_properties[heatmap_param]["default"] is True
     assert "geometry-only synchronization" in input_properties[heatmap_param]["view"]["caption"]
     assert "mixed color/intensity stages are blocked" in input_properties[heatmap_param]["view"]["caption"]
+
+
+@pytest.mark.unit
+def test_augment_operator_warns_about_incompatible_selected_annotations() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = _FieldSchemaDataset({"heatmap": _field(fo.Heatmap)})
+        params = {
+            "pipeline_step_count": 2,
+            "transform": "HorizontalFlip",
+            "step_2_transform": "RandomBrightnessContrast",
+        }
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    warning = input_properties["_annotation_compatibility_warning"]
+
+    assert warning["view"]["name"] == "Warning"
+    assert warning["view"]["label"] == "Annotation compatibility"
+    assert (
+        "`heatmap` cannot be transformed safely with `RandomBrightnessContrast` at stage 2."
+        in warning["view"]["description"]
+    )
+
+
+@pytest.mark.unit
+def test_augment_operator_preserves_nested_annotation_field_toggle_values() -> None:
+    operator = AugmentWithAlbumentationsX()
+    heatmap_param = annotation_field_param_name("heatmap")
+
+    class Context:
+        dataset = _FieldSchemaDataset({"heatmap": _field(fo.Heatmap)})
+        params = {
+            ANNOTATION_FIELD_GROUP_NAME: {heatmap_param: False},
+            "pipeline_step_count": 2,
+            "transform": "HorizontalFlip",
+            "step_2_transform": "RandomBrightnessContrast",
+        }
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+
+    assert input_properties[heatmap_param]["default"] is False
+    assert "_annotation_compatibility_warning" not in input_properties
 
 
 @pytest.mark.unit
@@ -925,6 +974,22 @@ def test_augment_operator_disables_samples_grid_placement_without_dataset_contex
 
 
 @pytest.mark.unit
+def test_augment_operator_disables_samples_grid_placement_for_non_image_dataset() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(media_type="video")
+        selected = ("sample-1",)
+
+    placement_json = operator.resolve_placement(Context()).to_json()
+    view_json = placement_json["view"]
+
+    assert isinstance(view_json, dict)
+    assert view_json["disabled"] is True
+    assert view_json["title"] == "Open an image dataset before running augmentation."
+
+
+@pytest.mark.unit
 def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> None:
     operator = AugmentWithAlbumentationsX()
 
@@ -982,6 +1047,79 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
         "errors": [],
     }
     assert Context.triggered == ["reload_dataset"]
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_flattens_nested_annotation_fields(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+    heatmap_param = annotation_field_param_name("heatmap")
+
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ("sample-1",)
+        params = {
+            ANNOTATION_FIELD_GROUP_NAME: {heatmap_param: False},
+            "transform": "HorizontalFlip",
+        }
+
+    def fake_execute_fixed_augmentation(**kwargs):
+        assert ANNOTATION_FIELD_GROUP_NAME not in kwargs["params"]
+        assert kwargs["params"][heatmap_param] is False
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-test",
+            source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES,
+            processed_count=1,
+            created_count=0,
+            skipped_count=0,
+            error_count=0,
+            dry_run=True,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["processed_count"] == 1
+    assert result["error_count"] == 0
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_ignores_reload_trigger_errors(monkeypatch, caplog) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ("sample-1",)
+        params = {"transform": "HorizontalFlip"}
+
+        @classmethod
+        def trigger(cls, operator_name: str) -> None:
+            raise RuntimeError(f"{operator_name} failed")
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-test",
+            source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES,
+            processed_count=1,
+            created_count=1,
+            skipped_count=0,
+            error_count=0,
+            dry_run=False,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+    caplog.set_level(logging.DEBUG, logger=augment_operator_module.__name__)
+
+    result = operator.execute(Context())
+
+    assert result["created_count"] == 1
+    assert "Error while triggering FiftyOne dataset reload" in caplog.text
 
 
 @pytest.mark.unit
@@ -1458,3 +1596,55 @@ def test_augment_operator_execute_reports_missing_runtime_dependency(monkeypatch
         "missing_module": "albumentations",
         "package": "albumentationsx",
     }
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_reports_plugin_error_with_diagnostics(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(name="diagnostics-dataset")
+        view = object()
+        selected = ("sample-1",)
+        params = {
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise HostAdapterError(
+            host="fiftyone",
+            message="Selected annotation field cannot be transformed safely by the requested pipeline.",
+            context={
+                "reason": "annotation_target_incompatible",
+                "field_name": "segmentation",
+                "target": "mask",
+                "transform_name": "HorizontalFlip",
+                "stage_number": 1,
+            },
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["error_count"] == 1
+    assert result["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
+    assert result["created_count"] == 0
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = errors[0]
+    assert isinstance(first_error, dict)
+    assert first_error["code"] == "host_adapter_error"
+    error_context = first_error["context"]
+    assert isinstance(error_context, dict)
+    assert error_context["reason"] == "annotation_target_incompatible"
+
+    errors_json = json.loads(str(result["errors_json"]))
+    pipeline_config_json = json.loads(str(result["pipeline_config_json"]))
+    operator_params_json = json.loads(str(result["operator_params_json"]))
+
+    assert errors_json[0]["context"]["field_name"] == "segmentation"
+    assert pipeline_config_json["transforms"] == [{"name": "HorizontalFlip", "params": {"p": 1.0}}]
+    assert operator_params_json["transform"] == "HorizontalFlip"

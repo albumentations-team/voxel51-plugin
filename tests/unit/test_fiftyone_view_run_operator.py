@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import pathlib
 from typing import Any
 
@@ -135,6 +136,31 @@ def test_view_run_operator_resolves_empty_selector_without_dataset_runs(monkeypa
 
     assert run_key_property["type"]["name"] == "String"
     assert "No persisted AlbumentationsX runs" in run_key_property["view"]["description"]
+
+
+@pytest.mark.unit
+def test_view_run_operator_falls_back_from_stale_param_run_key(monkeypatch) -> None:
+    operator = ViewAlbumentationsXRun()
+
+    class Context:
+        dataset = object()
+        params = {RUN_KEY_FIELD_NAME: "albumentationsx-20260731T150000Z-deleted"}
+
+    def fake_list_available_run_keys(dataset: object, **kwargs) -> tuple[str, ...]:
+        return ("albumentationsx-20260731T150000Z-current",)
+
+    def fake_build_run_summary(dataset: object, run_key: str, **kwargs) -> RunSummary:
+        assert run_key == "albumentationsx-20260731T150000Z-current"
+        return RunSummary(run_key=run_key, status="ok", message="loaded")
+
+    monkeypatch.setattr(view_run_operator_module, "list_available_run_keys", fake_list_available_run_keys)
+    monkeypatch.setattr(view_run_operator_module, "build_run_summary", fake_build_run_summary)
+
+    input_json = operator.resolve_input(Context()).to_json()
+    run_key_property = input_json["type"]["properties"][RUN_KEY_FIELD_NAME]
+
+    assert run_key_property["type"]["name"] == "Enum"
+    assert run_key_property["default"] == "albumentationsx-20260731T150000Z-current"
 
 
 @pytest.mark.unit
@@ -331,3 +357,52 @@ def test_view_run_operator_can_trigger_generated_sample_view(monkeypatch) -> Non
 
     assert result["available_generated_sample_ids_json"] == '["created-1"]'
     assert Context.triggered == [("show_samples", {"samples": ["created-1"], "use_extended_selection": False})]
+
+
+@pytest.mark.unit
+def test_view_run_operator_logs_generated_sample_view_trigger_errors(monkeypatch, caplog) -> None:
+    operator = ViewAlbumentationsXRun()
+
+    class Ops:
+        @staticmethod
+        def show_samples(sample_ids: list[str]) -> None:
+            raise RuntimeError(f"cannot show {sample_ids}")
+
+    class Context:
+        dataset = object()
+        ops = Ops()
+        params = {
+            RUN_KEY_FIELD_NAME: "albumentationsx-20260731T150000Z-run",
+            OPEN_GENERATED_SAMPLES_FIELD_NAME: True,
+        }
+
+        @classmethod
+        def trigger(cls, operator_name: str, params: dict[str, object]) -> None:
+            raise RuntimeError(f"{operator_name} failed with {params}")
+
+    def fake_build_run_summary(dataset: object, run_key: str, **kwargs) -> RunSummary:
+        return RunSummary(
+            run_key=run_key,
+            status="ok",
+            message="loaded",
+            generated_outputs=(
+                RunOutputSummary(
+                    key="0|source-1|0|images/output.png",
+                    position=0,
+                    label="#1 source=source-1 output_index=0 status=available path=images/output.png",
+                    status="available",
+                    generated_sample_id="created-1",
+                    generated_sample_available=True,
+                    output_file_available=True,
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(view_run_operator_module, "build_run_summary", fake_build_run_summary)
+    caplog.set_level(logging.DEBUG, logger=view_run_operator_module.__name__)
+
+    result = operator.execute(Context())
+
+    assert result["available_generated_sample_ids_json"] == '["created-1"]'
+    assert "Error while opening generated samples through ctx.ops.show_samples" in caplog.text
+    assert "Error while triggering generated sample view" in caplog.text

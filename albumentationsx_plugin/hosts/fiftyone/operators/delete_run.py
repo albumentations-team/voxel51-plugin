@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from os import PathLike
 from typing import Any
@@ -19,6 +20,7 @@ OPERATOR_LABEL = "Delete AlbumentationsX Run"
 RUN_KEY_FIELD_NAME = "run_key"
 CONFIRM_FIELD_NAME = "confirm_delete"
 STORAGE_ROOT_PARAM_NAME = "_storage_root"
+_LOGGER = logging.getLogger(__name__)
 
 
 class DeleteAlbumentationsXRun(foo.Operator):
@@ -63,13 +65,14 @@ class DeleteAlbumentationsXRun(foo.Operator):
                 label="Run key",
                 description="No deletable AlbumentationsX runs were found for this dataset.",
             )
-        inputs.bool(
-            CONFIRM_FIELD_NAME,
-            label="Confirm deletion",
-            default=False,
-            required=True,
-            description="Delete generated samples, manifest-listed output files, and the FiftyOne custom run.",
-        )
+        if run_keys:
+            inputs.bool(
+                CONFIRM_FIELD_NAME,
+                label="Confirm deletion",
+                default=False,
+                required=True,
+                description="Delete generated samples, manifest-listed output files, and the FiftyOne custom run.",
+            )
 
         return types.Property(
             inputs,
@@ -127,7 +130,9 @@ def _ctx_params(ctx: Any | None) -> Mapping[str, object]:
 
 def _selected_run_key(raw_value: object, run_keys: tuple[str, ...]) -> str:
     if isinstance(raw_value, str) and raw_value.strip():
-        return raw_value
+        value = raw_value.strip()
+        if not run_keys or value in run_keys:
+            return value
     return run_keys[0] if run_keys else ""
 
 
@@ -156,7 +161,8 @@ def _trigger_dataset_reload(ctx: Any, result: Any) -> None:
         return
     try:
         trigger("reload_dataset")
-    except ValueError:
+    except Exception:
+        _LOGGER.debug("Error while triggering FiftyOne dataset reload", exc_info=True)
         return
 
 

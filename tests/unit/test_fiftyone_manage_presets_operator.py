@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import pathlib
 from typing import Any
 
@@ -21,6 +22,7 @@ from albumentationsx_plugin.hosts.fiftyone.operators.manage_presets import (
     OVERWRITE_FIELD_NAME,
     PRESET_JSON_FIELD_NAME,
     PRESET_KEY_FIELD_NAME,
+    PRESET_STORAGE_WARNING_FIELD_NAME,
     STORAGE_ROOT_PARAM_NAME,
     ManageAlbumentationsXPresets,
 )
@@ -100,6 +102,36 @@ def test_manage_presets_operator_resolves_import_form(tmp_path) -> None:
     assert input_properties["preset_json"]["type"]["name"] == "String"
     assert input_properties["overwrite"]["type"]["name"] == "Boolean"
     assert "preset_key" not in input_properties
+
+
+@pytest.mark.unit
+def test_manage_presets_operator_resolves_form_when_preset_storage_cannot_be_listed(
+    tmp_path,
+    monkeypatch,
+    caplog,
+) -> None:
+    operator = ManageAlbumentationsXPresets()
+
+    class Context:
+        params = {
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            ACTION_FIELD_NAME: ACTION_EXPORT,
+        }
+
+    def broken_list_presets(self: FilePipelinePresetStore) -> tuple[PipelinePreset, ...]:
+        raise RuntimeError("preset directory is not readable")
+
+    monkeypatch.setattr(FilePipelinePresetStore, "list_presets", broken_list_presets)
+    caplog.set_level(logging.DEBUG, logger="albumentationsx_plugin.hosts.fiftyone.operators.manage_presets")
+
+    input_json = operator.resolve_input(Context()).to_json()
+    input_properties = input_json["type"]["properties"]
+
+    assert input_properties[PRESET_STORAGE_WARNING_FIELD_NAME]["view"]["label"] == "Preset storage"
+    assert "RuntimeError" in input_properties[PRESET_STORAGE_WARNING_FIELD_NAME]["view"]["description"]
+    assert input_properties[PRESET_KEY_FIELD_NAME]["type"]["name"] == "String"
+    assert "No named AlbumentationsX presets" in input_properties[PRESET_KEY_FIELD_NAME]["view"]["description"]
+    assert "Error while listing pipeline presets" in caplog.text
 
 
 @pytest.mark.unit
