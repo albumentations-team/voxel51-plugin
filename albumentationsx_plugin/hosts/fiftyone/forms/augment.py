@@ -23,9 +23,12 @@ from albumentationsx_plugin.core import (
     CapabilityStatus,
     FieldKind,
     FormFieldSchema,
+    JSONDict,
     JSONValue,
     ParameterSchemaProvider,
+    PipelineConfig,
     TransformCatalogProvider,
+    TransformConfig,
     UnsupportedTransformError,
     pipeline_stage_enabled_field_name,
     pipeline_stage_order_field_name,
@@ -38,7 +41,9 @@ from albumentationsx_plugin.hosts.fiftyone.annotations import (
     AnnotationField,
     annotation_field_param_name,
     annotation_field_selection_is_explicit,
+    annotation_pipeline_compatibility_conflicts,
     safe_list_supported_annotation_fields,
+    selected_annotation_fields_from_params,
 )
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_CHOICES,
@@ -48,7 +53,8 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     selected_sample_ids_from_context,
 )
 from albumentationsx_plugin.hosts.fiftyone.form_params import (
-    flatten_stage_parameter_groups,
+    ANNOTATION_FIELD_GROUP_NAME,
+    flatten_fiftyone_form_groups,
     stage_parameter_group_name,
 )
 from albumentationsx_plugin.hosts.fiftyone.forms.defaults import RandomCropDefaults, build_random_crop_defaults
@@ -90,7 +96,7 @@ PIPELINE_STAGE_ORDER_LABEL: Final[str] = "Execution order"
 RANDOM_CROP_TRANSFORM_NAME: Final[str] = "RandomCrop"
 GENERAL_SECTION_FIELD_NAME: Final[str] = "_general_settings"
 ANNOTATION_SECTION_FIELD_NAME: Final[str] = "_annotation_settings"
-ANNOTATION_FIELD_GROUP_NAME: Final[str] = "_annotation_fields"
+ANNOTATION_COMPATIBILITY_WARNING_FIELD_NAME: Final[str] = "_annotation_compatibility_warning"
 STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
 ADVANCED_STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage_advanced"
 PREVIOUS_RUN_WARNING_FIELD_NAME: Final[str] = "_previous_run_warning"
@@ -139,6 +145,17 @@ class DynamicAugmentFormBuilder:
         selected_step_count = _selected_step_count(params.get(PIPELINE_STEP_COUNT_FIELD_NAME))
         random_crop_defaults = build_random_crop_defaults(ctx)
         annotation_fields = safe_list_supported_annotation_fields(dataset)
+        compatibility_pipeline = _compatibility_pipeline(
+            params,
+            supported_transform_names=supported_transform_names,
+            selected_step_count=selected_step_count,
+        )
+        annotation_compatibility_conflicts = _annotation_compatibility_conflicts(
+            params,
+            dataset=dataset,
+            pipeline=compatibility_pipeline,
+            catalog_provider=self.catalog_provider,
+        )
 
         inputs = types.Object()
         self._render_general_settings(
@@ -153,7 +170,12 @@ class DynamicAugmentFormBuilder:
             selected_preset_run_key=selected_preset_run_key,
             preset_warning=preset_warning,
         )
-        self._render_annotation_fields(inputs, params, annotation_fields=annotation_fields)
+        self._render_annotation_fields(
+            inputs,
+            params,
+            annotation_fields=annotation_fields,
+            compatibility_conflicts=annotation_compatibility_conflicts,
+        )
         for step_number in range(1, selected_step_count + 1):
             self._render_stage_header(inputs, step_number)
             selected_transform_name = _selected_transform_name(
@@ -378,6 +400,7 @@ class DynamicAugmentFormBuilder:
         params: Mapping[str, object],
         *,
         annotation_fields: tuple[AnnotationField, ...],
+        compatibility_conflicts: tuple[object, ...],
     ) -> None:
         if not annotation_fields:
             return
@@ -388,6 +411,14 @@ class DynamicAugmentFormBuilder:
                 label="Annotations",
             ),
         )
+        if compatibility_conflicts:
+            inputs.view(
+                ANNOTATION_COMPATIBILITY_WARNING_FIELD_NAME,
+                types.Warning(
+                    label="Annotation compatibility",
+                    description=_annotation_compatibility_warning(compatibility_conflicts),
+                ),
+            )
         group = inputs.grid(
             ANNOTATION_FIELD_GROUP_NAME,
             orientation="2d",
@@ -489,7 +520,7 @@ def build_dynamic_augment_form(ctx: Any | None) -> types.Object:
 
 def _ctx_params(ctx: Any | None) -> Mapping[str, object]:
     params = getattr(ctx, "params", {}) if ctx is not None else {}
-    return flatten_stage_parameter_groups(params) if isinstance(params, Mapping) else {}
+    return flatten_fiftyone_form_groups(params) if isinstance(params, Mapping) else {}
 
 
 def _selected_step_count(raw_value: object) -> int:
@@ -502,6 +533,74 @@ def _selected_outputs_per_sample(raw_value: object) -> int:
     if isinstance(raw_value, int) and not isinstance(raw_value, bool) and 1 <= raw_value <= MAX_OUTPUTS_PER_SAMPLE:
         return raw_value
     return 1
+
+
+def _compatibility_pipeline(
+    params: Mapping[str, object],
+    *,
+    supported_transform_names: tuple[str, ...],
+    selected_step_count: int,
+) -> PipelineConfig:
+    stages: list[tuple[int, int, TransformConfig]] = []
+    for step_number in range(1, selected_step_count + 1):
+        if not _selected_bool(params.get(pipeline_stage_enabled_field_name(step_number)), default=True):
+            continue
+        selected_transform_name = _selected_transform_name(
+            params.get(pipeline_step_field_name(step_number, TRANSFORM_FIELD_NAME)),
+            supported_transform_names=supported_transform_names,
+            step_number=step_number,
+        )
+        execution_order = _selected_int(
+            params.get(pipeline_stage_order_field_name(step_number)),
+            default=step_number,
+            min_value=1,
+            max_value=MAX_PIPELINE_STEPS,
+        )
+        stages.append((execution_order, step_number, TransformConfig(name=selected_transform_name, params={})))
+
+    return PipelineConfig(
+        transforms=tuple(transform for _order, _step_number, transform in sorted(stages)),
+        outputs_per_sample=_selected_outputs_per_sample(params.get(OUTPUTS_PER_SAMPLE_FIELD_NAME)),
+        use_replay=True,
+        options={"source": "catalog_mvp_pipeline"},
+    )
+
+
+def _annotation_compatibility_conflicts(
+    params: Mapping[str, object],
+    *,
+    dataset: Any | None,
+    pipeline: PipelineConfig,
+    catalog_provider: TransformCatalogProvider,
+) -> tuple[JSONDict, ...]:
+    if dataset is None or not pipeline.transforms:
+        return ()
+    try:
+        selection = selected_annotation_fields_from_params(params, dataset)
+    except Exception:
+        return ()
+    return annotation_pipeline_compatibility_conflicts(
+        selection=selection,
+        pipeline=pipeline,
+        catalog_provider=catalog_provider,
+    )
+
+
+def _annotation_compatibility_warning(conflicts: tuple[object, ...]) -> str:
+    first = conflicts[0] if conflicts else {}
+    if not isinstance(first, Mapping):
+        return "Selected annotation fields are not compatible with the active augmentation pipeline."
+
+    field_name = str(first.get("field_name", "selected field"))
+    transform_name = str(first.get("transform_name", "selected transform"))
+    stage_number = first.get("stage_number")
+    stage_label = f" at stage {stage_number}" if stage_number is not None else ""
+    extra = f" {len(conflicts)} conflicts were found." if len(conflicts) > 1 else ""
+    return (
+        f"`{field_name}` cannot be transformed safely with `{transform_name}`{stage_label}. "
+        f"Disable `{field_name}` in Annotations or remove/replace `{transform_name}` before running augmentation."
+        f"{extra}"
+    )
 
 
 def _selected_execution_scope(params: Mapping[str, object], *, selected_sample_ids: tuple[str, ...]) -> str:

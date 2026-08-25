@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 import fiftyone.operators as foo
 import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
-from albumentationsx_plugin.core import JSONDict
+from albumentationsx_plugin.core import JSONDict, PluginError
 from albumentationsx_plugin.hosts.fiftyone.cancellation import FiftyOneCancellationChecker
 from albumentationsx_plugin.hosts.fiftyone.dependencies import (
     is_known_runtime_dependency,
@@ -23,7 +25,7 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     source_selected_sample_ids,
     source_view_from_context,
 )
-from albumentationsx_plugin.hosts.fiftyone.form_params import flatten_stage_parameter_groups
+from albumentationsx_plugin.hosts.fiftyone.form_params import flatten_fiftyone_form_groups
 from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
     SAVE_PRESET_ONLY_FIELD_NAME,
     params_with_pipeline_preset,
@@ -54,6 +56,7 @@ from albumentationsx_plugin.hosts.fiftyone.progress import FiftyOneProgressRepor
 OPERATOR_NAME = "augment_with_albumentationsx"
 OPERATOR_LABEL = "Augment with AlbumentationsX"
 NO_SELECTION_ERROR_CODE = "no_selected_samples"
+_LOGGER = logging.getLogger(__name__)
 
 
 class AugmentWithAlbumentationsX(foo.Operator):
@@ -107,6 +110,9 @@ class AugmentWithAlbumentationsX(foo.Operator):
         outputs.str("manifest_path", label="Manifest path")
         outputs.str("fiftyone_run_key", label="FiftyOne run key")
         outputs.list("errors", types.Object(), label="Errors")
+        _render_json_output_field(outputs, "errors_json", label="Errors JSON")
+        _render_json_output_field(outputs, "pipeline_config_json", label="Pipeline config")
+        _render_json_output_field(outputs, "operator_params_json", label="Operator params")
         outputs.int("preview_count", label="Preview results")
         outputs.str("preset_key", label="Preset key")
         outputs.str("preset_name", label="Preset name")
@@ -117,8 +123,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
-        selected_sample_ids = selected_sample_ids_from_context(ctx)
-        disabled = not selected_sample_ids and not _has_image_dataset_context(ctx)
+        disabled = not _has_image_dataset_context(ctx)
         return types.Placement(
             types.Places.SAMPLES_GRID_ACTIONS,
             types.Button(
@@ -173,6 +178,8 @@ class AugmentWithAlbumentationsX(foo.Operator):
                 if not _is_missing_runtime_dependency(error):
                     raise
                 return _missing_dependency_result(error, source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES)
+            except PluginError as error:
+                return _plugin_error_result(preview_params, error, source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES)
             return result.to_dict()
         saved_preset = None
         if pipeline_preset_save_requested(execution_params) and not _dry_run_param(execution_params):
@@ -194,6 +201,8 @@ class AugmentWithAlbumentationsX(foo.Operator):
             if not _is_missing_runtime_dependency(error):
                 raise
             return _missing_dependency_result(error, source_scope=source_scope)
+        except PluginError as error:
+            return _plugin_error_result(execution_params, error, source_scope=source_scope)
         _trigger_dataset_reload(ctx, result)
         output = result.to_dict()
         if saved_preset is not None:
@@ -221,7 +230,7 @@ def _execute_fixed_augmentation_preview(**kwargs: Any):
 
 def _ctx_params(ctx: Any | None) -> dict[str, object]:
     params = getattr(ctx, "params", {}) if ctx is not None else {}
-    return flatten_stage_parameter_groups(params) if isinstance(params, Mapping) else {}
+    return flatten_fiftyone_form_groups(params) if isinstance(params, Mapping) else {}
 
 
 def _render_preview_output_fields(outputs: types.Object) -> None:
@@ -277,6 +286,10 @@ def _render_preview_output_fields(outputs: types.Object) -> None:
 
 
 def _render_preview_json_field(outputs: types.Object, name: str, *, label: str) -> None:
+    _render_json_output_field(outputs, name, label=label)
+
+
+def _render_json_output_field(outputs: types.Object, name: str, *, label: str) -> None:
     outputs.str(
         name,
         label=label,
@@ -295,170 +308,182 @@ def _missing_dependency_inputs(error: ModuleNotFoundError):
 
 
 def _missing_dependency_result(error: ModuleNotFoundError, *, source_scope: str = "") -> JSONDict:
-    return {
-        "run_key": "",
-        "source_scope": source_scope,
-        "processed_count": 0,
-        "created_count": 0,
-        "skipped_count": 0,
-        "error_count": 1,
-        "dry_run": False,
-        "execution_status": "",
-        "output_tag": "",
-        "output_dir": "",
-        "manifest_path": "",
-        "fiftyone_run_key": "",
-        "errors": [
-            {
-                "code": "missing_runtime_dependency",
-                "message": _missing_dependency_message(error),
-                "context": {
-                    "missing_module": error.name or "",
-                    "package": _dependency_package_name(error),
-                },
-            }
-        ],
-    }
+    errors: list[JSONDict] = [
+        {
+            "code": "missing_runtime_dependency",
+            "message": _missing_dependency_message(error),
+            "context": {
+                "missing_module": error.name or "",
+                "package": _dependency_package_name(error),
+            },
+        }
+    ]
+    return _error_result({}, errors=errors, source_scope=source_scope, dry_run=False)
 
 
 def _no_selected_samples_result(params: object, *, source_scope: str) -> JSONDict:
-    return {
-        "run_key": "",
-        "source_scope": source_scope,
-        "processed_count": 0,
-        "created_count": 0,
-        "skipped_count": 0,
-        "error_count": 1,
-        "dry_run": _dry_run_param(params),
-        "execution_status": "",
-        "output_tag": "",
-        "output_dir": "",
-        "manifest_path": "",
-        "fiftyone_run_key": "",
-        "errors": [
-            {
-                "code": NO_SELECTION_ERROR_CODE,
-                "message": "Selected samples scope requires one or more selected samples.",
-                "context": {
-                    "reason": "empty_selection",
-                    "source_scope": source_scope,
-                },
-            }
-        ],
-    }
+    errors: list[JSONDict] = [
+        {
+            "code": NO_SELECTION_ERROR_CODE,
+            "message": "Selected samples scope requires one or more selected samples.",
+            "context": {
+                "reason": "empty_selection",
+                "source_scope": source_scope,
+            },
+        }
+    ]
+    return _error_result(params, errors=errors, source_scope=source_scope)
 
 
 def _preview_requires_selected_samples_result(params: object) -> JSONDict:
-    return {
-        "run_key": "",
-        "source_scope": EXECUTION_SCOPE_SELECTED_SAMPLES,
-        "processed_count": 0,
-        "created_count": 0,
-        "skipped_count": 0,
-        "error_count": 1,
-        "dry_run": _dry_run_param(params),
-        "execution_status": "",
-        PREVIEW_ONLY_FIELD_NAME: True,
-        "output_tag": "",
-        "output_dir": "",
-        "manifest_path": "",
-        "fiftyone_run_key": "",
-        "errors": [
-            {
-                "code": PREVIEW_REQUIRES_SELECTION_ERROR_CODE,
-                "message": "Preview requires one or more selected source samples.",
-                "context": {
-                    "reason": "empty_selection",
-                    "max_preview_samples": MAX_PREVIEW_SAMPLES,
-                },
-            }
-        ],
-        "preview_count": 0,
-        "preview_note": "Select one to three source samples before running preview.",
-    }
+    errors: list[JSONDict] = [
+        {
+            "code": PREVIEW_REQUIRES_SELECTION_ERROR_CODE,
+            "message": "Preview requires one or more selected source samples.",
+            "context": {
+                "reason": "empty_selection",
+                "max_preview_samples": MAX_PREVIEW_SAMPLES,
+            },
+        }
+    ]
+    return _error_result(
+        params,
+        errors=errors,
+        source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES,
+        preview_only=True,
+        extra={
+            "preview_count": 0,
+            "preview_note": "Select one to three source samples before running preview.",
+        },
+    )
 
 
 def _invalid_execution_scope_result(params: object, error: Exception) -> JSONDict:
-    return {
-        "run_key": "",
-        "source_scope": "",
-        "processed_count": 0,
-        "created_count": 0,
-        "skipped_count": 0,
-        "error_count": 1,
-        "dry_run": _dry_run_param(params),
-        "execution_status": "",
-        "output_tag": "",
-        "output_dir": "",
-        "manifest_path": "",
-        "fiftyone_run_key": "",
-        "errors": [
-            {
-                "code": "invalid_execution_scope",
-                "message": "Choose a valid execution scope before running augmentation.",
-                "context": {"error_type": type(error).__name__},
-            }
-        ],
-    }
+    errors: list[JSONDict] = [
+        {
+            "code": "invalid_execution_scope",
+            "message": "Choose a valid execution scope before running augmentation.",
+            "context": {"error_type": type(error).__name__},
+        }
+    ]
+    return _error_result(params, errors=errors)
 
 
 def _previous_run_preset_error_result(params: object, error: Exception, *, source_scope: str = "") -> JSONDict:
-    return {
-        "run_key": "",
-        "source_scope": source_scope,
-        "processed_count": 0,
-        "created_count": 0,
-        "skipped_count": 0,
-        "error_count": 1,
-        "dry_run": _dry_run_param(params),
-        "execution_status": "",
-        "output_tag": "",
-        "output_dir": "",
-        "manifest_path": "",
-        "fiftyone_run_key": "",
-        "errors": [
-            {
-                "code": "previous_run_preset_unavailable",
-                "message": "Previous run settings could not be loaded; choose another run key or clear the field.",
-                "context": {
-                    "previous_run_key": selected_previous_run_key(params) if isinstance(params, dict) else "",
-                    "source_scope": source_scope,
-                    "error_type": type(error).__name__,
-                },
-            }
-        ],
-    }
+    errors: list[JSONDict] = [
+        {
+            "code": "previous_run_preset_unavailable",
+            "message": "Previous run settings could not be loaded; choose another run key or clear the field.",
+            "context": {
+                "previous_run_key": selected_previous_run_key(params) if isinstance(params, dict) else "",
+                "source_scope": source_scope,
+                "error_type": type(error).__name__,
+            },
+        }
+    ]
+    return _error_result(params, errors=errors, source_scope=source_scope)
 
 
 def _pipeline_preset_error_result(params: object, error: Exception, *, source_scope: str = "") -> JSONDict:
-    return {
+    errors: list[JSONDict] = [
+        {
+            "code": "pipeline_preset_unavailable",
+            "message": "Pipeline preset could not be loaded or saved; check the preset name and settings.",
+            "context": {
+                "pipeline_preset_key": selected_pipeline_preset_key(params) if isinstance(params, dict) else "",
+                "source_scope": source_scope,
+                "error_type": type(error).__name__,
+            },
+        }
+    ]
+    return _error_result(
+        params,
+        errors=errors,
+        source_scope=source_scope,
+        extra={
+            "preset_key": "",
+            "preset_name": "",
+            "preset_path": "",
+        },
+    )
+
+
+def _plugin_error_result(params: object, error: PluginError, *, source_scope: str = "") -> JSONDict:
+    errors = [error.to_dict()]
+    return _error_result(params, errors=errors, source_scope=source_scope)
+
+
+def _error_result(
+    params: object,
+    *,
+    errors: list[JSONDict],
+    source_scope: str = "",
+    dry_run: bool | None = None,
+    preview_only: bool | None = None,
+    extra: Mapping[str, object] | None = None,
+) -> JSONDict:
+    payload: dict[str, object] = {
         "run_key": "",
         "source_scope": source_scope,
         "processed_count": 0,
         "created_count": 0,
         "skipped_count": 0,
-        "error_count": 1,
-        "dry_run": _dry_run_param(params),
+        "error_count": len(errors),
+        "dry_run": _dry_run_param(params) if dry_run is None else dry_run,
         "execution_status": "",
+        PREVIEW_ONLY_FIELD_NAME: _preview_only_param(params) if preview_only is None else preview_only,
         "output_tag": "",
         "output_dir": "",
         "manifest_path": "",
         "fiftyone_run_key": "",
-        "preset_key": "",
-        "preset_name": "",
-        "preset_path": "",
-        "errors": [
-            {
-                "code": "pipeline_preset_unavailable",
-                "message": "Pipeline preset could not be loaded or saved; check the preset name and settings.",
-                "context": {
-                    "pipeline_preset_key": selected_pipeline_preset_key(params) if isinstance(params, dict) else "",
-                    "source_scope": source_scope,
-                    "error_type": type(error).__name__,
-                },
-            }
-        ],
+        "errors": errors,
+        "preview_count": 0,
+        **_diagnostic_fields(params, errors),
     }
+    if extra is not None:
+        payload.update(extra)
+    return cast(
+        JSONDict,
+        payload,
+    )
+
+
+def _diagnostic_fields(params: object, errors: list[JSONDict]) -> JSONDict:
+    return {
+        "errors_json": _json_dump(errors),
+        "pipeline_config_json": _pipeline_config_json(params),
+        "operator_params_json": _json_dump(_params_dict(params)),
+    }
+
+
+def _pipeline_config_json(params: object) -> str:
+    if not isinstance(params, Mapping):
+        return ""
+    try:
+        config = _build_fixed_pipeline_config(params)
+    except Exception as error:
+        return _json_dump(
+            {
+                "status": "unavailable",
+                "error_type": type(error).__name__,
+                "message": str(error),
+            }
+        )
+    return _json_dump(config.to_dict())
+
+
+def _build_fixed_pipeline_config(params: Mapping[str, object]):
+    from albumentationsx_plugin.albumentations_backend.fixed import build_fixed_pipeline_config
+
+    return build_fixed_pipeline_config(params)
+
+
+def _params_dict(params: object) -> dict[str, object]:
+    return dict(params) if isinstance(params, Mapping) else {}
+
+
+def _json_dump(value: object) -> str:
+    return json.dumps(value, indent=2, sort_keys=True, default=str)
 
 
 def _pipeline_preset_output_fields(save_result: Any) -> JSONDict:
@@ -503,7 +528,8 @@ def _trigger_dataset_reload(ctx: Any, result: Any) -> None:
         return
     try:
         trigger("reload_dataset")
-    except ValueError:
+    except Exception:
+        _LOGGER.debug("Error while triggering FiftyOne dataset reload", exc_info=True)
         return
 
 

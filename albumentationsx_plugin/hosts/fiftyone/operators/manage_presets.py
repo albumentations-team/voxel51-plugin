@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any
 
@@ -36,6 +37,8 @@ from albumentationsx_plugin.storage import FilePipelinePresetStore
 
 OPERATOR_NAME = "manage_albumentationsx_presets"
 OPERATOR_LABEL = "Manage AlbumentationsX Presets"
+PRESET_STORAGE_WARNING_FIELD_NAME = "_preset_storage_warning"
+_LOGGER = logging.getLogger(__name__)
 
 
 class ManageAlbumentationsXPresets(foo.Operator):
@@ -59,9 +62,15 @@ class ManageAlbumentationsXPresets(foo.Operator):
         params = _ctx_params(ctx)
         action = selected_management_action(params.get(ACTION_FIELD_NAME))
         store = FilePipelinePresetStore(storage_root=storage_root_from_params(params))
-        presets = store.list_presets()
+        presets, storage_warning = _safe_list_presets(store)
 
         inputs = types.Object()
+        if storage_warning:
+            inputs.message(
+                PRESET_STORAGE_WARNING_FIELD_NAME,
+                label="Preset storage",
+                description=storage_warning,
+            )
         inputs.enum(
             ACTION_FIELD_NAME,
             list(PRESET_MANAGEMENT_ACTIONS),
@@ -230,6 +239,14 @@ def _submit_label(action: str) -> str:
     }.get(action, "Run")
 
 
+def _safe_list_presets(store: FilePipelinePresetStore) -> tuple[tuple[PipelinePreset, ...], str]:
+    try:
+        return store.list_presets(), ""
+    except Exception as error:
+        _LOGGER.debug("Error while listing pipeline presets", exc_info=True)
+        return (), f"Preset storage could not be listed: {type(error).__name__}: {error}"
+
+
 def _ctx_params(ctx: Any | None) -> Mapping[str, object]:
     params = getattr(ctx, "params", {}) if ctx is not None else {}
     return params if isinstance(params, Mapping) else {}
@@ -250,5 +267,6 @@ __all__ = [
     "OVERWRITE_FIELD_NAME",
     "PRESET_JSON_FIELD_NAME",
     "PRESET_KEY_FIELD_NAME",
+    "PRESET_STORAGE_WARNING_FIELD_NAME",
     "STORAGE_ROOT_PARAM_NAME",
 ]

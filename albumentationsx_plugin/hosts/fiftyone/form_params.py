@@ -8,6 +8,7 @@ from typing import Final
 from albumentationsx_plugin.core import MAX_PIPELINE_STEPS
 
 STAGE_PARAMETER_GROUP_PREFIX: Final[str] = "_stage_parameters"
+ANNOTATION_FIELD_GROUP_NAME: Final[str] = "_annotation_fields"
 
 
 def stage_parameter_group_name(step_number: int) -> str:
@@ -26,4 +27,14 @@ def flatten_stage_parameter_groups(params: Mapping[str, object]) -> dict[str, ob
         group = flattened.pop(stage_parameter_group_name(step_number), None)
         if isinstance(group, Mapping):
             flattened.update(group)
+    return flattened
+
+
+def flatten_fiftyone_form_groups(params: Mapping[str, object]) -> dict[str, object]:
+    """Return form params with host-specific nested groups flattened."""
+
+    flattened = flatten_stage_parameter_groups(params)
+    annotation_group = flattened.pop(ANNOTATION_FIELD_GROUP_NAME, None)
+    if isinstance(annotation_group, Mapping):
+        flattened.update(annotation_group)
     return flattened
