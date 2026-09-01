@@ -45,6 +45,12 @@ from albumentationsx_plugin.hosts.fiftyone.annotations import (
     safe_list_supported_annotation_fields,
     selected_annotation_fields_from_params,
 )
+from albumentationsx_plugin.hosts.fiftyone.augment_validation import (
+    AugmentValidationIssue,
+    augment_validation_warning,
+    validate_augment_template_sources,
+    validate_effective_augment_params,
+)
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_CHOICES,
     EXECUTION_SCOPE_FIELD_NAME,
@@ -99,6 +105,7 @@ ANNOTATION_SECTION_FIELD_NAME: Final[str] = "_annotation_settings"
 ANNOTATION_COMPATIBILITY_WARNING_FIELD_NAME: Final[str] = "_annotation_compatibility_warning"
 STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
 ADVANCED_STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage_advanced"
+AUGMENT_VALIDATION_WARNING_FIELD_NAME: Final[str] = "_augment_validation_warning"
 PREVIOUS_RUN_WARNING_FIELD_NAME: Final[str] = "_previous_run_warning"
 PIPELINE_PRESET_WARNING_FIELD_NAME: Final[str] = "_pipeline_preset_warning"
 EXECUTION_MODE_GUIDANCE_FIELD_NAME: Final[str] = "_execution_mode_guidance"
@@ -127,18 +134,24 @@ class DynamicAugmentFormBuilder:
         selected_named_preset_key = selected_pipeline_preset_key(raw_params)
         preset_run_keys = list_previous_run_preset_keys(dataset, storage_root=storage_root)
         selected_preset_run_key = selected_previous_run_key(raw_params)
+        template_source_issues = validate_augment_template_sources(raw_params)
         pipeline_preset_warning = ""
         preset_warning = ""
-        try:
-            params = params_with_pipeline_preset(raw_params, storage_root=storage_root)
-        except Exception:
+        params = dict(raw_params)
+        if not template_source_issues:
+            try:
+                params = params_with_pipeline_preset(raw_params, storage_root=storage_root)
+            except Exception:
+                params = dict(raw_params)
+                pipeline_preset_warning = "Named preset could not be loaded; current form values are unchanged."
+            try:
+                params = params_with_previous_run_preset(dataset, params, storage_root=storage_root)
+            except Exception:
+                params = dict(params)
+                preset_warning = "Previous run settings could not be loaded; current form values are unchanged."
+        else:
             params = raw_params
-            pipeline_preset_warning = "Named preset could not be loaded; current form values are unchanged."
-        try:
-            params = params_with_previous_run_preset(dataset, params, storage_root=storage_root)
-        except Exception:
-            params = dict(params)
-            preset_warning = "Previous run settings could not be loaded; current form values are unchanged."
+        validation_issues = (*template_source_issues, *validate_effective_augment_params(params))
         supported_transform_names = self._executable_transform_names()
         selected_sample_ids = selected_sample_ids_from_context(ctx)
         selected_scope = _selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
@@ -169,6 +182,7 @@ class DynamicAugmentFormBuilder:
             preset_run_keys=preset_run_keys,
             selected_preset_run_key=selected_preset_run_key,
             preset_warning=preset_warning,
+            validation_issues=validation_issues,
         )
         self._render_annotation_fields(
             inputs,
@@ -218,6 +232,7 @@ class DynamicAugmentFormBuilder:
         preset_run_keys: tuple[str, ...],
         selected_preset_run_key: str,
         preset_warning: str,
+        validation_issues: tuple[AugmentValidationIssue, ...],
     ) -> None:
         inputs.view(
             GENERAL_SECTION_FIELD_NAME,
@@ -238,6 +253,14 @@ class DynamicAugmentFormBuilder:
         )
         self._render_execution_scope_selector(inputs, selected_scope=selected_scope)
         self._render_execution_mode_guidance(inputs)
+        if validation_issues:
+            inputs.view(
+                AUGMENT_VALIDATION_WARNING_FIELD_NAME,
+                types.Warning(
+                    label="Configuration validation",
+                    description=augment_validation_warning(validation_issues),
+                ),
+            )
         if pipeline_preset_warning:
             inputs.view(
                 PIPELINE_PRESET_WARNING_FIELD_NAME,

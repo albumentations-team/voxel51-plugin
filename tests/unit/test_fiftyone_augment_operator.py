@@ -7,7 +7,7 @@ import pathlib
 import sys
 from collections.abc import Iterable, Iterator
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import fiftyone as fo
 import pytest
@@ -27,6 +27,11 @@ from albumentationsx_plugin.core import (
     pipeline_step_field_name,
 )
 from albumentationsx_plugin.hosts.fiftyone.annotations import annotation_field_param_name
+from albumentationsx_plugin.hosts.fiftyone.augment_validation import (
+    DUPLICATE_STAGE_ORDER_CODE,
+    INVALID_EXECUTION_MODE_CODE,
+    PRESET_SOURCE_CONFLICT_CODE,
+)
 from albumentationsx_plugin.hosts.fiftyone.augmentation import FixedAugmentationExecutionResult
 from albumentationsx_plugin.hosts.fiftyone.cancellation import FiftyOneCancellationChecker
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
@@ -559,6 +564,56 @@ def test_augment_operator_prefills_form_from_named_pipeline_preset(tmp_path) -> 
     assert input_properties["step_2_transform"]["default"] == "RandomCrop"
     assert input_properties["step_2_height"]["default"] == 12
     assert input_properties["step_2_width"]["default"] == 10
+
+
+@pytest.mark.unit
+def test_augment_operator_warns_when_named_preset_and_previous_run_are_both_selected(tmp_path) -> None:
+    operator = AugmentWithAlbumentationsX()
+    preset = _pipeline_preset()
+    FilePipelinePresetStore(storage_root=tmp_path).save_preset(preset)
+    dataset_name = "conflicting-template-dataset"
+    manifest = _preset_manifest()
+    FileRunStore(dataset_name, storage_root=tmp_path).save_manifest(manifest)
+
+    context = SimpleNamespace(
+        dataset=SimpleNamespace(name=dataset_name),
+        params={
+            PIPELINE_PRESET_KEY_FIELD_NAME: preset.key,
+            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            "transform": "HorizontalFlip",
+        },
+    )
+
+    input_properties = _form_properties(operator.resolve_input(context).to_json())
+    warning = input_properties["_augment_validation_warning"]
+
+    assert warning["view"]["name"] == "Warning"
+    assert warning["view"]["label"] == "Configuration validation"
+    assert "Choose either a named preset or a previous run" in warning["view"]["description"]
+    assert input_properties[PIPELINE_PRESET_KEY_FIELD_NAME]["default"] == preset.key
+    assert input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["default"] == manifest.run_key
+    assert input_properties["transform"]["default"] == "HorizontalFlip"
+
+
+@pytest.mark.unit
+def test_augment_operator_warns_about_duplicate_enabled_stage_orders() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        params = {
+            "pipeline_step_count": 3,
+            "transform": "HorizontalFlip",
+            "step_2_transform": "RandomBrightnessContrast",
+            "step_2_pipeline_stage_order": 1,
+            "step_3_transform": "RandomCrop",
+        }
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    warning = input_properties["_augment_validation_warning"]
+
+    assert warning["view"]["label"] == "Configuration validation"
+    assert "Each enabled pipeline stage must have a unique execution order" in warning["view"]["description"]
 
 
 @pytest.mark.unit
@@ -1211,7 +1266,7 @@ def test_augment_operator_execute_delegates_preview_for_selected_samples(monkeyp
         params = {
             "transform": "HorizontalFlip",
             PREVIEW_ONLY_FIELD_NAME: True,
-            "dry_run": True,
+            "dry_run": False,
             EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW,
         }
         triggered: list[str] = []
@@ -1264,6 +1319,103 @@ def test_augment_operator_execute_delegates_preview_for_selected_samples(monkeyp
     assert result[PREVIEW_ONLY_FIELD_NAME] is True
     assert result["preview_count"] == 3
     assert Context.triggered == []
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_rejects_named_preset_and_previous_run_conflict(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    operator = AugmentWithAlbumentationsX()
+    preset = _pipeline_preset()
+    FilePipelinePresetStore(storage_root=tmp_path).save_preset(preset)
+    dataset_name = "execute-conflicting-template-dataset"
+    manifest = _preset_manifest()
+    FileRunStore(dataset_name, storage_root=tmp_path).save_manifest(manifest)
+
+    class Context:
+        dataset = SimpleNamespace(name=dataset_name)
+        selected = ("sample-1",)
+        params = {
+            PIPELINE_PRESET_KEY_FIELD_NAME: preset.key,
+            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            "transform": "HorizontalFlip",
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise AssertionError("backend should not run for invalid template source selection")
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["error_count"] == 1
+    assert result["created_count"] == 0
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = cast(dict[str, Any], errors[0])
+    assert first_error["code"] == PRESET_SOURCE_CONFLICT_CODE
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_rejects_duplicate_enabled_stage_orders(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        selected = ("sample-1",)
+        params = {
+            "pipeline_step_count": 2,
+            "transform": "HorizontalFlip",
+            "step_2_transform": "RandomBrightnessContrast",
+            "step_2_pipeline_stage_order": 1,
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise AssertionError("backend should not run for duplicate pipeline stage orders")
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["error_count"] == 1
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = cast(dict[str, Any], errors[0])
+    assert first_error["code"] == DUPLICATE_STAGE_ORDER_CODE
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_rejects_preview_dry_run_combination(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ("sample-1",)
+        params = {
+            "transform": "HorizontalFlip",
+            PREVIEW_ONLY_FIELD_NAME: True,
+            "dry_run": True,
+        }
+
+    def fake_execute_fixed_augmentation_preview(**_kwargs):
+        raise AssertionError("preview backend should not run for invalid execution modes")
+
+    monkeypatch.setattr(
+        augment_operator_module,
+        "_execute_fixed_augmentation_preview",
+        fake_execute_fixed_augmentation_preview,
+    )
+
+    result = operator.execute(Context())
+
+    assert result["error_count"] == 1
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = cast(dict[str, Any], errors[0])
+    assert first_error["code"] == INVALID_EXECUTION_MODE_CODE
 
 
 @pytest.mark.unit
@@ -1334,6 +1486,34 @@ def test_augment_operator_execute_saves_named_preset_without_selected_samples(mo
         outputs_per_sample=2,
         options={"source": "catalog_mvp_pipeline"},
     )
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_rejects_save_preset_only_without_name(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(name="save-preset-missing-name-dataset")
+        selected = ()
+        params = {
+            SAVE_PRESET_ONLY_FIELD_NAME: True,
+            "transform": "HorizontalFlip",
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise AssertionError("backend should not run for invalid save-preset-only params")
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["error_count"] == 1
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = cast(dict[str, Any], errors[0])
+    error_context = cast(dict[str, Any], first_error["context"])
+    assert first_error["code"] == INVALID_EXECUTION_MODE_CODE
+    assert error_context["reason"] == "save_preset_only_requires_preset_name"
 
 
 @pytest.mark.unit
