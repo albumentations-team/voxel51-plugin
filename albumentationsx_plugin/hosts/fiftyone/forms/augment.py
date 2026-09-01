@@ -97,6 +97,7 @@ RANDOM_CROP_TRANSFORM_NAME: Final[str] = "RandomCrop"
 GENERAL_SECTION_FIELD_NAME: Final[str] = "_general_settings"
 ANNOTATION_SECTION_FIELD_NAME: Final[str] = "_annotation_settings"
 ANNOTATION_COMPATIBILITY_WARNING_FIELD_NAME: Final[str] = "_annotation_compatibility_warning"
+ANNOTATION_COMPATIBILITY_WARNING_LIMIT: Final[int] = 3
 STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
 ADVANCED_STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage_advanced"
 PREVIOUS_RUN_WARNING_FIELD_NAME: Final[str] = "_previous_run_warning"
@@ -587,20 +588,47 @@ def _annotation_compatibility_conflicts(
 
 
 def _annotation_compatibility_warning(conflicts: tuple[object, ...]) -> str:
-    first = conflicts[0] if conflicts else {}
-    if not isinstance(first, Mapping):
+    summaries = tuple(
+        _annotation_compatibility_conflict_summary(conflict) for conflict in conflicts if isinstance(conflict, Mapping)
+    )
+    if not summaries:
         return "Selected annotation fields are not compatible with the active augmentation pipeline."
 
-    field_name = str(first.get("field_name", "selected field"))
-    transform_name = str(first.get("transform_name", "selected transform"))
-    stage_number = first.get("stage_number")
-    stage_label = f" at stage {stage_number}" if stage_number is not None else ""
-    extra = f" {len(conflicts)} conflicts were found." if len(conflicts) > 1 else ""
+    visible_summaries = summaries[:ANNOTATION_COMPATIBILITY_WARNING_LIMIT]
+    details = "\n".join(f"- {summary}" for summary in visible_summaries)
+    omitted_count = len(summaries) - len(visible_summaries)
+    omitted = f"\n- {omitted_count} more conflict(s) hidden." if omitted_count > 0 else ""
     return (
-        f"`{field_name}` cannot be transformed safely with `{transform_name}`{stage_label}. "
-        f"Disable `{field_name}` in Annotations or remove/replace `{transform_name}` before running augmentation."
-        f"{extra}"
+        "Selected annotation fields are not compatible with the active augmentation pipeline:\n"
+        f"{details}{omitted}\n"
+        "Disable the listed annotation fields or remove/replace the incompatible stage before running augmentation."
     )
+
+
+def _annotation_compatibility_conflict_summary(conflict: Mapping[str, object]) -> str:
+    field_name = _mapping_string(conflict, "field_name", default="selected field")
+    label_type = _mapping_string(conflict, "label_type", default="unknown")
+    target = _mapping_string(conflict, "target", default="unknown")
+    transform_name = _mapping_string(conflict, "transform_name", default="selected transform")
+    stage_number = conflict.get("stage_number")
+    stage_label = f" at stage {stage_number}" if stage_number is not None else ""
+    message = _mapping_string(conflict, "message", default="")
+    reason = _mapping_string(conflict, "reason", default="")
+
+    summary = (
+        f"`{field_name}` ({label_type}) requires target `{target}`, "
+        f"but `{transform_name}`{stage_label} cannot transform it safely."
+    )
+    if message:
+        return f"{summary} {message}"
+    if reason:
+        return f"{summary} Reason: {reason}."
+    return summary
+
+
+def _mapping_string(value: Mapping[str, object], key: str, *, default: str) -> str:
+    raw_value = value.get(key)
+    return raw_value if isinstance(raw_value, str) and raw_value else default
 
 
 def _selected_execution_scope(params: Mapping[str, object], *, selected_sample_ids: tuple[str, ...]) -> str:
