@@ -167,6 +167,9 @@ uv run python scripts/create_demo_dataset.py create --overwrite
 uv run fiftyone app launch albumentationsx-demo
 ```
 
+For a click-by-click starter flow, use
+[First-run onboarding](docs/first-run-onboarding.md).
+
 The workflow generates three tiny PNG images under `sample_data/generated/` and
 creates a persistent FiftyOne dataset named `albumentationsx-demo`. The dataset
 uses stable `demo_id` values plus `Classification`, `Detections`, `Keypoints`,

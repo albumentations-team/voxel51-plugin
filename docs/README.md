@@ -11,6 +11,8 @@ these files hold development workflow, review, and release notes.
 - [Gitflow](gitflow.md): branch model and merge flow for MVP work.
 - [Architecture](architecture.md): layered code boundaries and extension points.
 - [Demo dataset](demo-dataset.md): deterministic local dataset workflow.
+- [First-run onboarding](first-run-onboarding.md): guided starter path from
+  demo dataset creation to preview, augmentation, run inspection, and cleanup.
 - [Fixed transform slice](fixed-transform-slice.md): executable
   catalog-backed transform choices and output behavior.
 - [Annotation-aware execution](annotation-aware-execution.md): supported
