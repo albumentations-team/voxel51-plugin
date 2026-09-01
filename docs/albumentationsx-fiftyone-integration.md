@@ -102,10 +102,14 @@ In the App:
 1. Select one or more source samples.
 2. Open `Augment with AlbumentationsX` from the actions menu.
 3. Set `Execution scope` to `Selected samples`.
-4. Set `Pipeline stages` to `1`.
-5. Choose `HorizontalFlip`.
-6. Keep `Outputs per sample` at `1`.
-7. Run the operator.
+4. Enable `Preview only` for the first pass.
+5. Set `Pipeline stages` to `1`.
+6. Choose `HorizontalFlip`.
+7. Keep `p` at `1.0`.
+8. Keep `Outputs per sample` at `1`.
+9. Run the operator and inspect the preview output.
+10. Disable `Preview only`, optionally set a readable `Run label`, and run the
+    same configuration again.
 
 The plugin creates new output samples tagged with `albumentationsx-output` and
 a run-specific tag. Source samples and source image files remain unchanged.
@@ -139,6 +143,11 @@ General settings include:
   preset.
 - `Save preset only`: validate and save a preset without running augmentation.
 - `Pipeline stages`: choose how many stage slots are visible.
+
+`Named preset` and `Previous run` are mutually exclusive template sources. If
+both are selected, the form shows a validation message and blocks execution
+until one source is cleared. This avoids silently applying one saved pipeline
+over another.
 
 Each stage has its own transform selector, `Enabled` switch, `Execution order`,
 and catalog-backed parameter fields. Disabled stages are ignored without
@@ -358,10 +367,9 @@ usually names the field, label type, transform, stage, target, and reason.
 
 ### Preset Or Previous Run Does Not Match The Form
 
-`Named preset` and `Previous run` are both template sources. If both are
-selected in the current App form, the previous run is applied after the named
-preset. Clear the source you do not want before editing or executing the
-pipeline.
+`Named preset` and `Previous run` are both template sources. They cannot be used
+at the same time. Clear one source, reload the form, and then edit or execute
+the resolved pipeline.
 
 ## How This Differs From The Older Voxel51 Page
 
@@ -375,6 +383,30 @@ pipeline.
 | Dataset-bound saved transform pipelines. | Shared named presets live in plugin storage and can be reused across datasets. |
 | Quickstart dataset plus optional model inference examples. | Repository-owned deterministic demo data avoids external downloads for local checks. |
 | Claim broad support for all target label classes. | Supported labels are explicit and safety-checked before execution. |
+
+## Parity And Follow-Up Roadmap
+
+The current plugin is already stricter and more reproducible than the older
+page's flow in several important ways: it uses explicit run keys instead of
+"last run" state, keeps manifest-listed outputs available for audit, validates
+annotation compatibility before writing data, exposes a catalog capability
+browser, and separates reusable named presets from dataset-specific runs.
+
+There are also old-page conveniences that should return as explicit follow-up
+features rather than implicit behavior:
+
+- Temporary augmentation sessions with a promote-or-discard workflow should be
+  added separately from persistent runs.
+- A first-class run library should make previous runs easier to browse than a
+  raw run-key dropdown.
+- A recommended preset gallery should help users start from safe pipelines
+  without knowing AlbumentationsX transform names up front.
+- Portable preset or run bundles should replace copy/paste workflows for
+  sharing reusable augmentation recipes.
+- Side-by-side previews with annotation overlays should make visual validation
+  stronger than JSON/image preview output alone.
+- Optional examples using the FiftyOne zoo or external model integrations can
+  be added after the deterministic demo flow remains stable.
 
 ## Visual Asset Checklist
 
