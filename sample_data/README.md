@@ -7,3 +7,10 @@ That directory is ignored by Git. Recreate it with:
 ```bash
 uv run python scripts/create_demo_dataset.py create --overwrite
 ```
+
+Create all local demo suites, including annotation, mask, and validation
+fixtures, with:
+
+```bash
+uv run python scripts/create_demo_dataset.py create --suite all --overwrite
+```

@@ -79,7 +79,11 @@ The MVP is deliberately narrower than the full AlbumentationsX catalog.
 - The normal selector excludes unresolved external-data transforms, unsupported media or target transforms, and transforms that produce unsafe image outputs.
 - Custom embedded documents and unsupported FiftyOne label classes are excluded from annotation-aware execution.
 - `supported_with_defaults` transforms expose simple typed controls plus optional advanced JSON fields for complex parameters that do not yet have first-class schema controls.
-- A catalog status proves that the plugin can render and construct a transform under the current dependency set. It does not yet provide a visual regression test for every one of the 113 transform choices.
+- A catalog status proves that the plugin can render and construct a transform
+  under the current dependency set. The supported-transform smoke helper also
+  executes every normal selector choice once against deterministic synthetic
+  inputs. It does not yet provide a visual regression test for every one of the
+  113 transform choices.
 - Heatmap support is limited to geometry-only target synchronization. Mixed
   pipelines that would transform a selected heatmap and also apply image-only
   color/intensity stages are rejected until per-target replay can keep heatmap
@@ -157,7 +161,7 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 | Non-persistent preview | Selected samples can be previewed in memory with source/augmented images, replay metadata, and transformed label JSON before creating persistent outputs. |
 | Preset lifecycle | Named shared presets can be saved from the augmentation form and managed with a dedicated App operator for inspect, export, import, rename, and delete actions. |
 | Safe cancellation semantics | Controlled cancellation/interruption marks materialized runs as `cancelled`, retains manifest-listed partial outputs, and keeps cleanup allowlist guarantees. |
-| Local verification | The repository has unit, integration, and smoke tests, a deterministic demo dataset, and a documented local verification gate. |
+| Local verification | The repository has unit, integration, and smoke tests, deterministic demo datasets, headless operator user-scenario coverage, a supported-transform smoke helper, and a documented local verification gate. |
 | Publication automation | The publication-readiness pull request adds lockfile, full pre-commit, and test checks across Ubuntu, macOS, and Windows; Python 3.10–3.14 are required. |
 
 ## Remaining plan
@@ -168,7 +172,7 @@ Work is ordered by release risk and user impact. Each item has an observable com
 
 | Work | Why now | Completion condition |
 |---|---|---|
-| Exercise every normal catalog choice | The selector exposes 113 transforms, but the existing tests do not execute a representative image through every choice. | A deterministic smoke suite constructs and runs each catalog-supported transform with defaults or a documented fixture, then reports failures by transform name and dependency versions. |
+| Add visual regression coverage for transform families | The selector exposes 113 transforms and the smoke helper executes each choice, but it does not compare every visual output for semantic correctness. | Representative transform families have synthetic visual assertions or snapshot-style checks with documented fixture data and dependency versions. |
 | Complete manual App acceptance | Automated tests cannot confirm that the operator is discoverable and that generated labels look correct in the App. | The release candidate follows the [manual App checklist](docs/release-v0.1.0.md#manual-fiftyone-app-gate) on the demo dataset, including previous-run prefill and cleanup. The PR records the commands and observations. |
 | Publish one coherent tagged release | The existing `0.1.1` tag predates release metadata validation and the source metadata still says `0.1.0`. Existing tags must remain immutable. | Choose the next version, align `pyproject.toml` and `fiftyone.yml`, pass `scripts/verify_release_tag.py <tag>`, merge required CI checks, and create a new GitHub release from that exact commit. |
 

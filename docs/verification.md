@@ -31,9 +31,11 @@ uv run pytest -m geometry
 uv run pytest -m smoke
 ```
 
-The smoke group covers local FiftyOne plugin discovery and the headless MVP demo
-path: create demo data, augment one sample, inspect the run summary, clean up the
-run, and verify source samples/files remain.
+The smoke group covers local FiftyOne plugin discovery and headless user
+scenarios over deterministic demo data: preview selected samples, materialize
+outputs, inspect run summaries, reuse named presets and previous runs, process
+current-view and whole-dataset scopes, clean up generated outputs, verify App
+reload triggers, and confirm source samples/files remain unchanged.
 
 ## Release candidate checks
 
@@ -42,9 +44,11 @@ capability report, then build the release artifacts:
 
 ```bash
 uv run python scripts/report_transform_capabilities.py
+uv run python scripts/smoke_supported_transforms.py
 uv run python scripts/verify_release_tag.py <release-tag>
 uv build
 uv run python scripts/report_transform_capabilities.py --output dist/capability-report-<release-tag>.md
+uv run python scripts/smoke_supported_transforms.py --output dist/transform-smoke-<release-tag>.md
 uv run python scripts/build_release_artifacts.py --tag <release-tag>
 ```
 
@@ -68,6 +72,19 @@ in the PR description:
 - expected output samples or errors;
 - whether source data remained unchanged;
 - cleanup result, if cleanup behavior changed.
+
+## Headless User Scenario Smoke
+
+Run this focused smoke group when a change touches operator behavior, presets,
+run storage, cleanup, execution scope, preview output, or error UX:
+
+```bash
+uv run pytest tests/smoke/test_demo_operator_user_scenarios.py
+```
+
+These tests instantiate the same operator classes used by the FiftyOne App with
+synthetic operator contexts. They do not replace manual visual checks, but they
+catch regressions in the end-to-end parameter flow before opening the App.
 
 ## VOX-41 Annotation Acceptance
 
@@ -107,3 +124,46 @@ expanded label-family support is usable in the FiftyOne App.
 
 Record the dataset name, transform names, created run key, cleanup result, and
 any visual issues in the PR description or Linear comment.
+
+## Demo Validation Dataset Suite
+
+Use the validation suite when a change touches annotation-field validation,
+media IO errors, crop parameter checks, or operator error UX.
+
+1. Create the focused validation fixtures:
+
+   ```bash
+   uv run python scripts/create_demo_dataset.py create --suite validation --overwrite
+   uv run fiftyone app launch albumentationsx-demo-validation
+   ```
+
+2. Filter by `validation_case` or matching tags in the App.
+3. Confirm incompatible selected annotations fail before outputs are created.
+4. Confirm media/file failures expose the relevant filepath or config context.
+5. Delete the validation dataset and generated files:
+
+   ```bash
+   uv run python scripts/create_demo_dataset.py delete --suite validation --delete-files
+   ```
+
+Create all demo suites with `--suite all` when doing broader release checks.
+
+## Supported Transform Smoke
+
+Run this check before a public release or after dependency updates that affect
+AlbumentationsX or `albu-spec`:
+
+```bash
+uv run python scripts/smoke_supported_transforms.py
+```
+
+The helper executes every transform exposed by the normal selector once against
+a deterministic RGB image. It also provides deterministic reference-image
+fixtures for the currently supported external-reference transforms. A clean run
+must report `failed: 0` and `skipped: 0`.
+
+Use `--transform` for a focused check while debugging one transform:
+
+```bash
+uv run python scripts/smoke_supported_transforms.py --transform RandomResizedCrop
+```

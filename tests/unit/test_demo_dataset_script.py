@@ -3,9 +3,16 @@ from __future__ import annotations
 import pytest
 
 from scripts.create_demo_dataset import (
+    ANNOTATION_DEMO_SAMPLES,
+    DEMO_DATASET_SPECS,
     DEMO_SAMPLES,
+    DETECTION_MASK_STORAGE_FILE,
+    HEATMAP_STORAGE_FILE,
     MARKER_FILENAME,
+    MASK_DEMO_SAMPLES,
     PNG_SIGNATURE,
+    SEGMENTATION_STORAGE_FILE,
+    VALIDATION_DEMO_SAMPLES,
     DemoDatasetError,
     delete_generated_files,
     write_demo_images,
@@ -25,6 +32,42 @@ def test_write_demo_images_creates_deterministic_png_files(tmp_path) -> None:
     assert first_payloads == second_payloads
     assert all(payload.startswith(PNG_SIGNATURE) for payload in first_payloads)
     assert (tmp_path / MARKER_FILENAME).exists()
+
+
+@pytest.mark.unit
+def test_demo_dataset_suites_preserve_basic_and_cover_validation_cases() -> None:
+    assert DEMO_DATASET_SPECS["basic"].samples == DEMO_SAMPLES
+    assert any(spec.segmentation_storage == SEGMENTATION_STORAGE_FILE for spec in MASK_DEMO_SAMPLES)
+    assert any(spec.detection_mask_storage == DETECTION_MASK_STORAGE_FILE for spec in MASK_DEMO_SAMPLES)
+    assert any(spec.heatmap_storage == HEATMAP_STORAGE_FILE for spec in MASK_DEMO_SAMPLES)
+    assert any(spec.detection_count == 2 and spec.keypoint_count == 2 for spec in ANNOTATION_DEMO_SAMPLES)
+    assert any(spec.empty_supported_labels for spec in ANNOTATION_DEMO_SAMPLES)
+    assert any(spec.boundary_geometry for spec in ANNOTATION_DEMO_SAMPLES)
+
+    validation_cases = {spec.validation_case for spec in VALIDATION_DEMO_SAMPLES}
+
+    assert {
+        "heatmap_with_image_only_transform",
+        "missing_source_image",
+        "missing_segmentation_mask_file",
+        "invalid_segmentation_mask_shape",
+        "missing_heatmap_map_file",
+        "unsupported_label_field",
+        "crop_larger_than_image",
+    } <= validation_cases
+
+
+@pytest.mark.unit
+def test_write_demo_images_creates_mask_assets_and_skips_missing_images(tmp_path) -> None:
+    mask_paths = write_demo_images(tmp_path / "masks-suite", MASK_DEMO_SAMPLES)
+    validation_paths = write_demo_images(tmp_path / "validation-suite", VALIDATION_DEMO_SAMPLES)
+
+    assert len(mask_paths) == len(MASK_DEMO_SAMPLES)
+    assert (tmp_path / "masks-suite" / "masks" / "masks-002-file-backed-segmentation-segmentation.png").exists()
+    assert (tmp_path / "masks-suite" / "masks" / "masks-003-file-backed-detection-and-heatmap-detection.png").exists()
+    assert (tmp_path / "masks-suite" / "heatmaps" / "masks-003-file-backed-detection-and-heatmap-heatmap.png").exists()
+    assert len(validation_paths) == len(VALIDATION_DEMO_SAMPLES) - 1
+    assert not (tmp_path / "validation-suite" / "images" / "validation-002-missing-source-image.png").exists()
 
 
 @pytest.mark.unit
