@@ -172,6 +172,8 @@ creates a persistent FiftyOne dataset named `albumentationsx-demo`. The dataset
 uses stable `demo_id` values plus `Classification`, `Detections`, `Keypoints`,
 `Polylines`, `Heatmap`, and `Segmentation` labels for repeatable checks;
 FiftyOne internal sample IDs are database-generated.
+Additional local suites for annotation, mask, and validation checks are
+available via `--suite`; see [Demo dataset](docs/demo-dataset.md).
 
 In the App, run `Augment with AlbumentationsX`, choose `Execution scope`
 (`Selected samples`, `Current view`, or `Entire dataset`), set `Pipeline stages`,
@@ -229,6 +231,10 @@ uv run pyrefly check
 Targeted checks and the manual App release checklist are in
 [Verification](docs/verification.md). Implementation and architecture notes are
 listed in [Project documentation](docs/README.md).
+Run `uv run pytest -m smoke` for headless plugin discovery and operator user
+scenarios over the deterministic demo datasets.
+For release/full-smoke validation of every supported transform choice, run
+`uv run python scripts/smoke_supported_transforms.py`.
 
 ## License
 
