@@ -65,7 +65,8 @@ the App responsive while progress is reported.
 > Selecting `Previous run` loads its saved pipeline as a reusable template and
 > samples fresh randomness. Clear that field before editing the loaded pipeline.
 > `Named preset` loads a shared pipeline template that can be reused across
-> datasets in the same plugin storage root.
+> datasets in the same plugin storage root. Choose only one template source at a
+> time; selecting both blocks execution with a configuration warning.
 
 ## Current capabilities
 

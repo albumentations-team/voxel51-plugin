@@ -76,13 +76,15 @@ VOX-25.
 
 The FiftyOne prompt renders general run settings before transform details, then
 shows a dedicated section for each visible pipeline stage slot. Disabled slots
-are skipped without clearing their transform settings. Enabled slots are sorted
-by `pipeline_stage_order`, with slot number as the tie-breaker. Toolbar
-placement is context-aware: augmentation is disabled until samples are selected
-or an image dataset/view is open, and run summary/cleanup actions are disabled
-until persisted runs exist. The augmentation operator supports immediate and
-delegated execution; immediate execution remains the default, and the form
-recommends delegated execution for larger views or datasets.
+are skipped without clearing their transform settings. Enabled slots must use
+unique `pipeline_stage_order` values; duplicate orders show a configuration
+warning in the prompt and are rejected before execution so users are not
+surprised by implicit tie-break behavior. Toolbar placement is context-aware:
+augmentation is disabled until samples are selected or an image dataset/view is
+open, and run summary/cleanup actions are disabled until persisted runs exist.
+The augmentation operator supports immediate and delegated execution; immediate
+execution remains the default, and the form recommends delegated execution for
+larger views or datasets.
 
 Each stage heading identifies the stable slot, while `Execution order` controls
 the pipeline order, so transform and parameter labels do not repeat the step

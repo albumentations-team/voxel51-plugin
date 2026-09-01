@@ -86,8 +86,10 @@ and similar) for compatibility. Later slots use prefixed field names such as
 `step_2_transform`, `step_2_p`, `step_3_height`, and `step_10_transform`.
 Each visible slot also has `pipeline_stage_enabled`/`step_N_pipeline_stage_enabled`
 and `pipeline_stage_order`/`step_N_pipeline_stage_order` controls. Disabled
-slots are skipped without clearing their transform settings. Enabled slots are
-sorted by execution order, with slot number as the tie-breaker.
+slots are skipped without clearing their transform settings. Enabled slots must
+use unique execution-order values; duplicate orders render a configuration
+warning and are rejected before preview, dry-run, save-only, or materialized
+execution starts.
 
 VOX-27 groups the prompt into a general settings section followed by one
 visible section for each configured augmentation stage slot. General settings
@@ -116,11 +118,19 @@ VOX-28 adds first-class named pipeline presets stored under the shared plugin
 storage root. A named preset can prefill the form across datasets because it
 stores only the validated pipeline config, output count, dependency versions,
 and user-facing metadata. It does not store source sample ids, output paths,
-custom run keys, or replay records. If both `Named preset` and `Previous run`
-are selected, the previous run is applied after the named preset and therefore
-takes precedence for overlapping pipeline values. Filling `Preset name` saves
-the resolved pipeline during a materialized augmentation run; `Save preset
-only` validates and saves the preset without running augmentation.
+custom run keys, or replay records. `Named preset` and `Previous run` are
+mutually exclusive template sources; selecting both renders a configuration
+warning and blocks execution instead of applying silent precedence. Filling
+`Preset name` saves the resolved pipeline during a materialized augmentation
+run; `Save preset only` validates and saves the preset without running
+augmentation.
+
+VOX-50 adds shared form/execution validation for confusing configuration
+combinations. `Preview only` and `Dry run` cannot be selected together, because
+preview is already non-persistent and uses selected samples only. `Save preset
+only` requires `Preset name` and cannot be combined with `Preview only` or `Dry
+run`. Filling `Preset name` while using `Preview only` or `Dry run` is also
+blocked, because those modes do not save presets.
 
 VOX-48 keeps preset lifecycle management out of the augmentation form. The
 separate `Manage AlbumentationsX Presets` operator handles inspect, export,
