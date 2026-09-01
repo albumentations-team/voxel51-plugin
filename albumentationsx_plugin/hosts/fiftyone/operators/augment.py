@@ -12,6 +12,12 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict, PluginError
+from albumentationsx_plugin.hosts.fiftyone.augment_validation import (
+    AugmentValidationIssue,
+    validate_augment_template_sources,
+    validate_effective_augment_params,
+    validation_issues_to_errors,
+)
 from albumentationsx_plugin.hosts.fiftyone.cancellation import FiftyOneCancellationChecker
 from albumentationsx_plugin.hosts.fiftyone.dependencies import (
     is_known_runtime_dependency,
@@ -137,10 +143,16 @@ class AugmentWithAlbumentationsX(foo.Operator):
     def execute(self, ctx: Any) -> JSONDict:
         params = _ctx_params(ctx)
         storage_root = storage_root_from_params(params)
+        template_source_issues = validate_augment_template_sources(params)
+        if template_source_issues:
+            return _augment_validation_error_result(params, template_source_issues)
         if _save_preset_only_param(params):
             try:
                 preset_params = params_with_pipeline_preset(params, storage_root=storage_root)
                 preset_params = params_with_previous_run_preset(ctx.dataset, preset_params, storage_root=storage_root)
+                validation_issues = validate_effective_augment_params(preset_params)
+                if validation_issues:
+                    return _augment_validation_error_result(preset_params, validation_issues)
                 return save_pipeline_preset_from_params(preset_params, storage_root=storage_root).to_dict()
             except Exception as error:
                 return _pipeline_preset_error_result(params, error)
@@ -162,6 +174,9 @@ class AugmentWithAlbumentationsX(foo.Operator):
             execution_params = params_with_previous_run_preset(ctx.dataset, execution_params, storage_root=storage_root)
         except Exception as error:
             return _previous_run_preset_error_result(params, error, source_scope=source_scope)
+        validation_issues = validate_effective_augment_params(execution_params)
+        if validation_issues:
+            return _augment_validation_error_result(execution_params, validation_issues, source_scope=source_scope)
         execution_params[EXECUTION_SCOPE_FIELD_NAME] = source_scope
         if preview_only:
             preview_params = dict(execution_params)
@@ -411,6 +426,19 @@ def _pipeline_preset_error_result(params: object, error: Exception, *, source_sc
 def _plugin_error_result(params: object, error: PluginError, *, source_scope: str = "") -> JSONDict:
     errors = [error.to_dict()]
     return _error_result(params, errors=errors, source_scope=source_scope)
+
+
+def _augment_validation_error_result(
+    params: object,
+    issues: tuple[AugmentValidationIssue, ...],
+    *,
+    source_scope: str = "",
+) -> JSONDict:
+    return _error_result(
+        params,
+        errors=validation_issues_to_errors(issues),
+        source_scope=source_scope,
+    )
 
 
 def _error_result(

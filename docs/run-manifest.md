@@ -72,10 +72,11 @@ listed in the manifest can be removed with `Delete AlbumentationsX Run`.
 Saved manifests also act as same-dataset augmentation presets. The
 `Augment with AlbumentationsX` form can load a previous run's `pipeline` config
 to prefill transforms, visible parameters, and output count for a new run.
-While selected, the saved pipeline takes precedence over already submitted form
-values; clear `Previous run` after loading if you want to keep editing from that
-state. Per-output replay records remain inspection metadata; they are not used
-for exact replay on new samples.
+When `Previous run` is the only selected template source, the saved pipeline
+prefills the current form values; clear `Previous run` after loading if you want
+to keep editing from that state. `Previous run` and `Named preset` cannot be
+selected together. Per-output replay records remain inspection metadata; they
+are not used for exact replay on new samples.
 
 First-class named pipeline presets are stored separately from dataset run
 manifests under the shared plugin storage root. They persist reusable pipeline

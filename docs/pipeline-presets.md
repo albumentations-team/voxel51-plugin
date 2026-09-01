@@ -31,8 +31,9 @@ sources:
 - `Previous run`: pipeline templates loaded from a saved run manifest in the
   active dataset.
 
-If both fields are selected, the previous run is applied after the named preset
-and therefore takes precedence for overlapping pipeline values.
+These template sources are mutually exclusive. If both fields are selected, the
+form shows a configuration warning and execution is blocked until one source is
+cleared. This avoids silently applying one saved pipeline over another.
 
 To save a reusable preset:
 
@@ -43,8 +44,18 @@ To save a reusable preset:
    enable `Save preset only` to validate and save the preset without running
    augmentation.
 
-`Preview only` and `Dry run` remain non-persistent for presets unless `Save
-preset only` is explicitly enabled.
+`Preview only`, `Dry run`, and `Save preset only` are mutually distinct modes:
+
+- `Preview only` renders selected-sample previews without saving presets,
+  samples, files, manifests, or custom runs.
+- `Dry run` validates the resolved pipeline without saving presets, samples, or
+  files.
+- `Save preset only` requires `Preset name`, validates and saves the preset,
+  and does not run augmentation.
+
+If `Preset name` is filled during `Preview only` or `Dry run`, execution is
+blocked with a validation message. Disable the non-persistent mode or enable
+`Save preset only` before saving the preset.
 
 ## Contract
 
