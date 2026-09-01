@@ -90,6 +90,10 @@ The full operator URIs are listed in the root [README](../README.md).
 
 ## First Run
 
+For the shortest click-by-click path, follow
+[First-run onboarding](first-run-onboarding.md). The summary below shows the
+same flow inline.
+
 Create the deterministic demo dataset:
 
 ```bash
@@ -306,9 +310,10 @@ The main generated fields and tags are:
 
 ## Demo Data
 
-The current stable demo command creates `albumentationsx-demo`, a small local
+The default stable demo command creates `albumentationsx-demo`, a small local
 image dataset with `Classification`, `Detections`, `Keypoints`, `Polylines`,
-`Heatmap`, and `Segmentation` labels.
+`Heatmap`, and `Segmentation` labels. This `basic` suite is intentionally kept
+to three samples so smoke checks stay fast and predictable.
 
 ```bash
 uv run python scripts/create_demo_dataset.py list
@@ -316,15 +321,44 @@ uv run fiftyone datasets info albumentationsx-demo
 uv run fiftyone app launch albumentationsx-demo
 ```
 
-Delete the dataset and generated local files with:
+The repository also includes focused suites for broader manual and automated
+checks:
+
+| Suite | Dataset | Purpose |
+| --- | --- | --- |
+| `basic` | `albumentationsx-demo` | Stable three-sample first-run and smoke workflow. |
+| `annotations` | `albumentationsx-demo-annotations` | Supported label families, multiple labels, empty containers, and boundary geometry. |
+| `masks` | `albumentationsx-demo-masks` | Memory-backed and file-backed segmentation, detection masks, and heatmap assets. |
+| `validation` | `albumentationsx-demo-validation` | Intentional edge cases for validation and error UX checks. |
+
+Create focused suites individually:
+
+```bash
+uv run python scripts/create_demo_dataset.py create --suite annotations --overwrite
+uv run python scripts/create_demo_dataset.py create --suite masks --overwrite
+uv run python scripts/create_demo_dataset.py create --suite validation --overwrite
+```
+
+Create or inspect every suite at once:
+
+```bash
+uv run python scripts/create_demo_dataset.py create --suite all --overwrite
+uv run python scripts/create_demo_dataset.py list --suite all
+```
+
+Use `annotations` when checking geometry-aware label handling, `masks` when
+checking file-backed and in-memory mask assets, and `validation` when checking
+structured failures such as missing media, missing mask files, unsupported label
+fields, heatmap/image-only conflicts, or crops larger than the source image.
+
+Delete generated demo datasets and local files with:
 
 ```bash
 uv run python scripts/create_demo_dataset.py delete --delete-files
+uv run python scripts/create_demo_dataset.py delete --suite all --delete-files
 ```
 
-Expanded demo suites for broader annotation, mask, and validation scenarios are
-planned separately. Once they are available, this guide should replace this note
-with the suite-specific commands from [Demo dataset](demo-dataset.md).
+The complete suite reference lives in [Demo dataset](demo-dataset.md).
 
 ## Troubleshooting
 
@@ -381,7 +415,7 @@ the resolved pipeline.
 | Separate save-generated-augmentations operator. | Generated samples are already saved and tracked by manifest. |
 | View or inspect the last augmentation run. | Inspect any available run by run key with `View AlbumentationsX Run`. |
 | Dataset-bound saved transform pipelines. | Shared named presets live in plugin storage and can be reused across datasets. |
-| Quickstart dataset plus optional model inference examples. | Repository-owned deterministic demo data avoids external downloads for local checks. |
+| Quickstart dataset plus optional model inference examples. | Repository-owned deterministic demo suites avoid external downloads and cover first-run, annotation, mask, and validation checks. |
 | Claim broad support for all target label classes. | Supported labels are explicit and safety-checked before execution. |
 
 ## Parity And Follow-Up Roadmap
@@ -426,6 +460,7 @@ public docs page, capture screenshots or short GIFs for:
 ## More References
 
 - [Root README](../README.md)
+- [First-run onboarding](first-run-onboarding.md)
 - [Demo dataset](demo-dataset.md)
 - [Verification](verification.md)
 - [Capability browser](capability-browser.md)
