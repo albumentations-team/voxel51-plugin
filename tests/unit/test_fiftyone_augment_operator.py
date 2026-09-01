@@ -441,10 +441,12 @@ def test_augment_operator_warns_about_incompatible_selected_annotations() -> Non
 
     assert warning["view"]["name"] == "Warning"
     assert warning["view"]["label"] == "Annotation compatibility"
-    assert (
-        "`heatmap` cannot be transformed safely with `RandomBrightnessContrast` at stage 2."
-        in warning["view"]["description"]
-    )
+    description = warning["view"]["description"]
+    assert "Selected annotation fields are not compatible with the active augmentation pipeline" in description
+    assert "`heatmap` (heatmap) requires target `image`" in description
+    assert "`RandomBrightnessContrast` at stage 2 cannot transform it safely" in description
+    assert "image-only stage" in description
+    assert "Disable the listed annotation fields or remove/replace the incompatible stage" in description
 
 
 @pytest.mark.unit
