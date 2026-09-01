@@ -10,6 +10,10 @@ import numpy as np
 import pytest
 
 from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
+from albumentationsx_plugin.hosts.fiftyone.onboarding import (
+    FIRST_RUN_OUTPUTS_PER_SAMPLE,
+    first_run_augment_params,
+)
 from albumentationsx_plugin.hosts.fiftyone.operators.delete_run import (
     CONFIRM_FIELD_NAME,
     DeleteAlbumentationsXRun,
@@ -47,19 +51,15 @@ def test_mvp_demo_workflow_creates_inspects_and_deletes_a_run(tmp_path) -> None:
         result = execute_fixed_augmentation(
             dataset=dataset,
             selected_sample_ids=(selected_sample_id,),
-            params={
-                "transform": "HorizontalFlip",
-                "p": 1.0,
-                "outputs_per_sample": 1,
-                "dry_run": False,
-            },
+            params=first_run_augment_params(),
             storage_root=storage_root,
         )
 
         output_samples = list(dataset.match_tags(DEFAULT_OUTPUT_TAG))
-        assert len(dataset) == len(DEMO_SAMPLES) + 1
-        assert len(output_samples) == 1
+        assert len(dataset) == len(DEMO_SAMPLES) + FIRST_RUN_OUTPUTS_PER_SAMPLE
+        assert len(output_samples) == FIRST_RUN_OUTPUTS_PER_SAMPLE
         assert Path(output_samples[0].filepath).exists()
+        assert str(result.run_key).startswith("first-run-demo-albumentationsx-")
         output = output_samples[0]
         assert output.ground_truth.label == source_samples[0].ground_truth.label
         assert len(output.detections.detections) == 1
