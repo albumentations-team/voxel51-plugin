@@ -54,7 +54,7 @@ these files hold development workflow, review, and release notes.
 - [Capability report v0.1.0](capability-report-v0.1.0.md): final albu-spec
   transform capability snapshot for the first public release.
 - [PR checklist](pr-checklist.md): required checks before review and merge.
-- [Verification](verification.md): local gate, targeted tests, and manual checks.
+- [Verification](verification.md): local gate, targeted tests, supported-transform smoke, and manual checks.
 
 ## Documentation rules
 
