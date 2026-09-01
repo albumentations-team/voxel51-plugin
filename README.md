@@ -7,6 +7,9 @@ Build and apply AlbumentationsX augmentation pipelines directly in the
 new output samples, keeps supported annotations aligned with geometric changes,
 and leaves the selected source samples and files unchanged.
 
+For the full user workflow, see the public
+[AlbumentationsX and FiftyOne integration guide](docs/albumentationsx-fiftyone-integration.md).
+
 ## Install a published release
 
 Install the plugin into the same Python environment as FiftyOne. Replace
