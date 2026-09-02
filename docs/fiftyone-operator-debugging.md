@@ -31,6 +31,9 @@ Before opening a PR, run the full local gate from
 When execution fails, the operator output should include structured diagnostic
 fields instead of only a raw traceback:
 
+- `debug_bundle_json`: a single copyable issue payload with errors, pipeline
+  config, operator params, selected annotation fields, execution scope, dataset
+  summary, dependency versions, and suggested next steps.
 - `errors_json`: normalized plugin errors with codes and context.
 - `pipeline_config_json`: the parsed pipeline config, or why it could not be
   built.
@@ -39,6 +42,10 @@ fields instead of only a raw traceback:
 These fields are intentionally rendered as read-only JSON so a failing
 pipeline can be copied into a unit test or used to reproduce the issue from a
 local script.
+
+For GitHub issues, prefer copying `debug_bundle_json` first. It intentionally
+excludes image data and file contents, while preserving the context maintainers
+usually need to distinguish expected validation blocks from plugin bugs.
 
 ## Debugging run and preset selectors
 

@@ -34,6 +34,7 @@ from albumentationsx_plugin.hosts.fiftyone.augment_validation import (
 )
 from albumentationsx_plugin.hosts.fiftyone.augmentation import FixedAugmentationExecutionResult
 from albumentationsx_plugin.hosts.fiftyone.cancellation import FiftyOneCancellationChecker
+from albumentationsx_plugin.hosts.fiftyone.diagnostics import DEBUG_BUNDLE_FIELD_NAME
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_CURRENT_VIEW,
     EXECUTION_SCOPE_ENTIRE_DATASET,
@@ -302,6 +303,7 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert output_json["type"]["properties"]["errors_json"]["view"]["name"] == "CodeView"
     assert output_json["type"]["properties"]["pipeline_config_json"]["view"]["name"] == "CodeView"
     assert output_json["type"]["properties"]["operator_params_json"]["view"]["name"] == "CodeView"
+    assert output_json["type"]["properties"][DEBUG_BUNDLE_FIELD_NAME]["view"]["name"] == "CodeView"
     assert output_json["type"]["properties"][PREVIEW_ONLY_FIELD_NAME]["type"]["name"] == "Boolean"
     assert output_json["type"]["properties"]["preview_count"]["type"]["name"] == "Number"
     assert output_json["type"]["properties"]["manifest_path"]["type"]["name"] == "String"
@@ -1144,11 +1146,11 @@ def test_augment_operator_execute_flattens_nested_annotation_fields(monkeypatch)
 
 
 @pytest.mark.unit
-def test_augment_operator_execute_ignores_reload_trigger_errors(monkeypatch, caplog) -> None:
+def test_augment_operator_execute_reports_reload_trigger_errors_with_debug_bundle(monkeypatch, caplog) -> None:
     operator = AugmentWithAlbumentationsX()
 
     class Context:
-        dataset = object()
+        dataset = SimpleNamespace(name="reload-failure-dataset")
         view = object()
         selected = ("sample-1",)
         params = {"transform": "HorizontalFlip"}
@@ -1174,9 +1176,24 @@ def test_augment_operator_execute_ignores_reload_trigger_errors(monkeypatch, cap
     caplog.set_level(logging.DEBUG, logger=augment_operator_module.__name__)
 
     result = operator.execute(Context())
+    errors_json = json.loads(str(result["errors_json"]))
+    debug_bundle_json = json.loads(str(result[DEBUG_BUNDLE_FIELD_NAME]))
 
+    assert result["error_count"] == 1
+    assert result["run_key"] == "albumentationsx-20260731T120000Z-test"
     assert result["created_count"] == 1
-    assert "Error while triggering FiftyOne dataset reload" in caplog.text
+    assert result["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
+    assert errors_json[0]["code"] == "unexpected_runtime_error"
+    assert errors_json[0]["context"] == {
+        "error_type": "RuntimeError",
+        "phase": "dataset_reload",
+        "source_scope": EXECUTION_SCOPE_SELECTED_SAMPLES,
+    }
+    assert debug_bundle_json["exception"] == {"type": "RuntimeError", "message": "reload_dataset failed"}
+    assert debug_bundle_json["pipeline_config"]["transforms"] == [{"name": "HorizontalFlip", "params": {"p": 1.0}}]
+    assert debug_bundle_json["operator_params"]["transform"] == "HorizontalFlip"
+    assert debug_bundle_json["dataset"]["name"] == "reload-failure-dataset"
+    assert "Unexpected augmentation operator error" in caplog.text
 
 
 @pytest.mark.unit
@@ -1826,7 +1843,52 @@ def test_augment_operator_execute_reports_plugin_error_with_diagnostics(monkeypa
     errors_json = json.loads(str(result["errors_json"]))
     pipeline_config_json = json.loads(str(result["pipeline_config_json"]))
     operator_params_json = json.loads(str(result["operator_params_json"]))
+    debug_bundle_json = json.loads(str(result[DEBUG_BUNDLE_FIELD_NAME]))
 
     assert errors_json[0]["context"]["field_name"] == "segmentation"
     assert pipeline_config_json["transforms"] == [{"name": "HorizontalFlip", "params": {"p": 1.0}}]
     assert operator_params_json["transform"] == "HorizontalFlip"
+    assert debug_bundle_json["errors"][0]["context"]["field_name"] == "segmentation"
+    assert debug_bundle_json["pipeline_config"]["transforms"] == [{"name": "HorizontalFlip", "params": {"p": 1.0}}]
+    assert debug_bundle_json["operator_params"]["transform"] == "HorizontalFlip"
+    assert debug_bundle_json["dataset"]["name"] == "diagnostics-dataset"
+    assert debug_bundle_json["execution"]["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
+    assert debug_bundle_json["execution"]["selected_sample_count"] == 1
+    assert debug_bundle_json["exception"] == {
+        "type": "HostAdapterError",
+        "message": "Selected annotation field cannot be transformed safely by the requested pipeline.",
+    }
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_reports_unexpected_error_with_debug_bundle(monkeypatch, caplog) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(name="unexpected-dataset")
+        view = object()
+        selected = ("sample-1",)
+        params = {
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise RuntimeError("backend exploded")
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    with caplog.at_level(logging.DEBUG):
+        result = operator.execute(Context())
+
+    errors_json = json.loads(str(result["errors_json"]))
+    debug_bundle_json = json.loads(str(result[DEBUG_BUNDLE_FIELD_NAME]))
+
+    assert result["error_count"] == 1
+    assert errors_json[0]["code"] == "unexpected_runtime_error"
+    assert errors_json[0]["context"]["error_type"] == "RuntimeError"
+    assert debug_bundle_json["exception"] == {"type": "RuntimeError", "message": "backend exploded"}
+    assert debug_bundle_json["operator_params"]["transform"] == "HorizontalFlip"
+    assert debug_bundle_json["dataset"]["name"] == "unexpected-dataset"
+    assert "Unexpected augmentation operator error" in caplog.text
