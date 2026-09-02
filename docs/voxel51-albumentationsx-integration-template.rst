@@ -346,6 +346,13 @@ The form derives defaults from the selected dataset when possible. For example,
 crop-like transforms can use image dimensions from selected samples or dataset
 metadata instead of forcing users to start from zero.
 
+The form also includes a compact compatibility section. It summarizes the
+selected source scope, estimated source count, schema availability, selected
+annotation fields, and whether the current pipeline will transform or copy those
+fields. Critical conflicts are shown before execution with a corrective action.
+Run `Analyze AlbumentationsX Compatibility` when you need the full report with
+field tables, target-family details, package versions, and copyable JSON.
+
 Recommended starting points:
 
 .. list-table::

@@ -14,6 +14,7 @@ import yaml
 
 import albumentationsx_plugin.hosts.fiftyone.operators.compatibility as compatibility_operator_module
 from albumentationsx_plugin.core import CapabilityStatus, TransformCapability
+from albumentationsx_plugin.hosts.fiftyone.annotations import resolve_annotation_field_selection
 from albumentationsx_plugin.hosts.fiftyone.dataset_compatibility import (
     build_dataset_compatibility_report,
     missing_dependency_compatibility_report,
@@ -201,6 +202,33 @@ def test_dataset_compatibility_report_counts_selected_scope_without_view_count()
     assert payload["source_count"] == 2
     assert payload["source_count_available"] is True
     assert payload["selected_sample_count"] == 2
+
+
+@pytest.mark.unit
+def test_dataset_compatibility_report_can_use_explicit_annotation_selection() -> None:
+    dataset = _dataset()
+    selection = resolve_annotation_field_selection(
+        dataset,
+        selected_label_fields=("detections",),
+        include_all_label_fields=False,
+        explicit=True,
+    )
+
+    report = build_dataset_compatibility_report(
+        dataset=dataset,
+        source_scope=EXECUTION_SCOPE_CURRENT_VIEW,
+        provider=_CatalogProvider(),
+        annotation_selection=selection,
+    )
+
+    payload = cast(dict[str, Any], report.to_dict())
+    field_rows = cast(list[dict[str, Any]], payload["annotation_fields"])
+
+    assert payload["supported_field_count"] == 1
+    assert payload["transformable_field_count"] == 1
+    assert payload["copied_field_count"] == 0
+    assert {row["field_name"] for row in field_rows} == {"detections", "regression"}
+    assert any(row["support_status"] == "unsupported" for row in field_rows)
 
 
 @pytest.mark.unit
