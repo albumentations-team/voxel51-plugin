@@ -13,6 +13,7 @@ from albumentationsx_plugin.core import (
     RUN_EXECUTION_STATUS_PREVIEW,
     RUN_LABEL_FIELD_NAME,
 )
+from albumentationsx_plugin.hosts.fiftyone.diagnostics import DEBUG_BUNDLE_FIELD_NAME
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_CURRENT_VIEW,
     EXECUTION_SCOPE_ENTIRE_DATASET,
@@ -384,9 +385,15 @@ def test_demo_user_scenario_reports_validation_error_with_config_diagnostics(tmp
         errors = json.loads(str(result["errors_json"]))
         pipeline_config = json.loads(str(result["pipeline_config_json"]))
         operator_params = json.loads(str(result["operator_params_json"]))
+        debug_bundle = json.loads(str(result[DEBUG_BUNDLE_FIELD_NAME]))
         assert errors[0]["code"] == "host_adapter_error"
         assert errors[0]["context"]["reason"] == "annotation_target_incompatible"
         assert pipeline_config["transforms"][1]["name"] == "RandomBrightnessContrast"
         assert operator_params["step_2_transform"] == "RandomBrightnessContrast"
+        assert debug_bundle["errors"][0]["context"]["reason"] == "annotation_target_incompatible"
+        assert debug_bundle["pipeline_config"]["transforms"][1]["name"] == "RandomBrightnessContrast"
+        assert debug_bundle["operator_params"]["step_2_transform"] == "RandomBrightnessContrast"
+        assert debug_bundle["dataset"]["name"] == dataset_name
+        assert debug_bundle["execution"]["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
     finally:
         delete_demo_dataset(dataset_name=dataset_name, data_root=data_root, delete_files=True)

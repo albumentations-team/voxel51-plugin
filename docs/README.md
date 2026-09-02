@@ -31,6 +31,9 @@ these files hold development workflow, review, and release notes.
   registry and review report.
 - [Capability browser](capability-browser.md): read-only FiftyOne operator for
   searching and filtering transform support metadata.
+- [Dataset compatibility report](dataset-compatibility-report.md): read-only
+  FiftyOne operator for inspecting dataset label fields, target families, and
+  safe augmentation recommendations.
 - [External-data transforms](external-data-transforms.md): external input
   contracts and execution policy for reference-image and metadata-backed
   transforms.
