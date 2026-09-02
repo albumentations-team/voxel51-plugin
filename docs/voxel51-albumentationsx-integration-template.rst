@@ -55,8 +55,9 @@ Workflows at a glance
       - Result
     * - Try a transform without writing data
       - `Preview only`
-      - Source/output image previews, transformed label JSON, and sampled
-        replay metadata in the operator output
+      - Source/output image previews, annotated before/after comparison images,
+        transformed label JSON, annotation comparison JSON, and sampled replay
+        metadata in the operator output
     * - Validate a configuration
       - `Dry run`
       - Scope and config validation without samples, files, manifests, presets,
@@ -404,8 +405,9 @@ Preview and dry run
 -------------------
 
 Use `Preview only` when you want to inspect selected-sample outputs before
-writing anything. Preview returns source images, output images, sampled replay
-metadata, and transformed label JSON through the operator output.
+writing anything. Preview returns source images, output images, annotated
+before/after comparison images, sampled replay metadata, transformed label JSON,
+and annotation comparison JSON through the operator output.
 
 Use `Dry run` when you want validation and scope resolution without creating
 samples, files, manifests, presets, or FiftyOne custom runs.

@@ -164,8 +164,9 @@ metadata instead of forcing users to start from zero.
 ## Preview, Dry Run, And Execution
 
 Use `Preview only` when you want to see a small selected-sample result before
-writing anything. Preview returns source images, output images, sampled replay
-metadata, and transformed label JSON through the operator output.
+writing anything. Preview returns source images, output images, annotated
+before/after comparison images, sampled replay metadata, transformed label JSON,
+and annotation comparison JSON through the operator output.
 
 Use `Dry run` when you want validation and scope resolution without creating
 samples or files. Dry runs do not create run directories, manifests, custom
@@ -437,8 +438,8 @@ features rather than implicit behavior:
   without knowing AlbumentationsX transform names up front.
 - Portable preset or run bundles should replace copy/paste workflows for
   sharing reusable augmentation recipes.
-- Side-by-side previews with annotation overlays should make visual validation
-  stronger than JSON/image preview output alone.
+- Richer preview galleries and saved preview sessions can build on the current
+  annotation-aware side-by-side preview output.
 - Optional examples using the FiftyOne zoo or external model integrations can
   be added after the deterministic demo flow remains stable.
 

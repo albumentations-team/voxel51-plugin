@@ -59,7 +59,9 @@ from albumentationsx_plugin.hosts.fiftyone.presets import (
 )
 from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
     MAX_PREVIEW_SAMPLES,
+    PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON,
     PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON,
+    PREVIEW_FIELD_COMPARISON_IMAGE,
     PREVIEW_FIELD_LABELS_JSON,
     PREVIEW_FIELD_OUTPUT_IMAGE,
     PREVIEW_FIELD_REPLAY_JSON,
@@ -317,8 +319,10 @@ def test_augment_operator_resolves_preview_output_fields() -> None:
     output_properties = output_json["type"]["properties"]
     source_image = output_properties[preview_field_name(1, PREVIEW_FIELD_SOURCE_IMAGE)]
     output_image = output_properties[preview_field_name(1, PREVIEW_FIELD_OUTPUT_IMAGE)]
+    comparison_image = output_properties[preview_field_name(1, PREVIEW_FIELD_COMPARISON_IMAGE)]
     replay_json = output_properties[preview_field_name(1, PREVIEW_FIELD_REPLAY_JSON)]
     labels_json = output_properties[preview_field_name(1, PREVIEW_FIELD_LABELS_JSON)]
+    comparison_json = output_properties[preview_field_name(1, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON)]
 
     assert output_properties["preview_note"]["view"]["read_only"] is True
     assert output_properties[preview_field_name(1, PREVIEW_FIELD_SOURCE_SAMPLE_ID)]["type"]["name"] == "String"
@@ -327,11 +331,16 @@ def test_augment_operator_resolves_preview_output_fields() -> None:
     assert source_image["view"]["height"] == "240px"
     assert output_image["type"]["name"] == "String"
     assert output_image["view"]["name"] == "ImageView"
+    assert comparison_image["type"]["name"] == "String"
+    assert comparison_image["view"]["name"] == "ImageView"
+    assert comparison_image["view"]["width"] == "640px"
     assert replay_json["view"]["name"] == "CodeView"
     assert replay_json["view"]["language"] == "json"
     assert replay_json["view"]["read_only"] is True
     assert labels_json["view"]["name"] == "CodeView"
+    assert comparison_json["view"]["name"] == "CodeView"
     assert preview_field_name(MAX_PREVIEW_SAMPLES, PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON) in output_properties
+    assert preview_field_name(MAX_PREVIEW_SAMPLES, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON) in output_properties
 
 
 @pytest.mark.unit

@@ -48,6 +48,11 @@ from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
 from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
     ViewAlbumentationsXRun,
 )
+from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
+    PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON,
+    PREVIEW_FIELD_COMPARISON_IMAGE,
+    preview_field_name,
+)
 from albumentationsx_plugin.hosts.fiftyone.progress import AugmentationProgress
 from albumentationsx_plugin.hosts.fiftyone.run_cleanup import cleanup_run
 from albumentationsx_plugin.hosts.fiftyone.samples import (
@@ -829,6 +834,21 @@ def test_fixed_augmentation_preview_matches_materialized_deterministic_geometry(
         source_image = load_rgb_image(source_path).data
         np.testing.assert_array_equal(_decode_preview_image(output.source_image), source_image)
         np.testing.assert_array_equal(_decode_preview_image(output.output_image), source_image[:, ::-1, :])
+        comparison_image = _decode_preview_image(output.comparison_image)
+        assert comparison_image.shape[0] > source_image.shape[0]
+        assert comparison_image.shape[1] > source_image.shape[1] * 2
+        comparison_rows = {
+            str(row["field_name"]): row for row in cast(list[dict[str, Any]], output.annotation_comparison["fields"])
+        }
+        assert comparison_rows["ground_truth"]["status"] == "copied"
+        assert comparison_rows["detections"]["status"] == "transformed"
+        assert comparison_rows["detections"]["rendered_overlay"] is True
+        assert comparison_rows["segmentation"]["rendered_overlay"] is True
+        preview_payload = output.to_dict(slot_number=1)
+        assert str(preview_payload[preview_field_name(1, PREVIEW_FIELD_COMPARISON_IMAGE)]).startswith(
+            "data:image/png;base64,"
+        )
+        assert preview_field_name(1, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON) in preview_payload
 
         preview_fields = cast(dict[str, Any], output.labels["fields"])
         preview_detection = cast(list[dict[str, Any]], preview_fields["detections"]["detections"])[0]

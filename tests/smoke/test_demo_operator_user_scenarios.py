@@ -42,6 +42,7 @@ from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
 )
 from albumentationsx_plugin.hosts.fiftyone.presets import PREVIOUS_RUN_KEY_FIELD_NAME, STORAGE_ROOT_PARAM_NAME
 from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
+    PREVIEW_FIELD_COMPARISON_IMAGE,
     PREVIEW_FIELD_OUTPUT_IMAGE,
     PREVIEW_ONLY_FIELD_NAME,
     preview_field_name,
@@ -122,6 +123,7 @@ def test_demo_user_scenario_previews_runs_inspects_and_deletes_selected_samples(
         assert dataset.match_tags(DEFAULT_OUTPUT_TAG).count() == 0
         assert len(dataset) == len(DEMO_SAMPLES)
         assert str(preview[preview_field_name(1, PREVIEW_FIELD_OUTPUT_IMAGE)]).startswith("data:image/png;base64,")
+        assert str(preview[preview_field_name(1, PREVIEW_FIELD_COMPARISON_IMAGE)]).startswith("data:image/png;base64,")
 
         run_context = _OperatorContext(
             dataset=dataset,

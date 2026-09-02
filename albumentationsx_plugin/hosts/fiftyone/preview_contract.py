@@ -12,9 +12,11 @@ PREVIEW_FIELD_SOURCE_SAMPLE_ID: Final[str] = "source_sample_id"
 PREVIEW_FIELD_SOURCE_FILEPATH: Final[str] = "source_filepath"
 PREVIEW_FIELD_SOURCE_IMAGE: Final[str] = "source_image"
 PREVIEW_FIELD_OUTPUT_IMAGE: Final[str] = "output_image"
+PREVIEW_FIELD_COMPARISON_IMAGE: Final[str] = "comparison_image"
 PREVIEW_FIELD_REPLAY_JSON: Final[str] = "replay_json"
 PREVIEW_FIELD_LABELS_JSON: Final[str] = "labels_json"
 PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON: Final[str] = "annotation_summary_json"
+PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON: Final[str] = "annotation_comparison_json"
 
 
 def preview_field_name(slot_number: int, suffix: str) -> str:
