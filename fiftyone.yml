@@ -9,6 +9,7 @@ fiftyone:
   version: ">=1.19,<2"
 operators:
   - augment_with_albumentationsx
+  - analyze_albumentationsx_dataset_compatibility
   - show_albumentationsx_capabilities
   - manage_albumentationsx_presets
   - view_albumentationsx_run

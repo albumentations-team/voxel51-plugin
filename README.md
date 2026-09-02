@@ -34,6 +34,7 @@ FiftyOne registers these operators:
 
 ```text
 @albumentations/albumentationsx/augment_with_albumentationsx
+@albumentations/albumentationsx/analyze_albumentationsx_dataset_compatibility
 @albumentations/albumentationsx/show_albumentationsx_capabilities
 @albumentations/albumentationsx/manage_albumentationsx_presets
 @albumentations/albumentationsx/view_albumentationsx_run
@@ -44,13 +45,15 @@ FiftyOne registers these operators:
 
 1. Open a FiftyOne image dataset or view. Optionally select samples if you want
    to process only a subset.
-2. Run **Augment with AlbumentationsX** from the App actions menu.
-3. Choose the execution scope, ordered pipeline stages, and transform
+2. Optionally run **Analyze AlbumentationsX Compatibility** to inspect detected
+   label fields, safe target families, and dataset-specific recommendations.
+3. Run **Augment with AlbumentationsX** from the App actions menu.
+4. Choose the execution scope, ordered pipeline stages, and transform
    parameters. Optionally enable `Preview only` to inspect up to three selected
    samples in memory, then disable it and run the same configuration to create
    outputs. Optionally choose a named preset or save the current pipeline as a
    reusable preset.
-4. Inspect the resulting samples tagged by the run key. Use **Manage
+5. Inspect the resulting samples tagged by the run key. Use **Manage
    AlbumentationsX Presets** for shared preset import/export/rename/delete,
    **View AlbumentationsX Run** to inspect the saved pipeline, and **Delete
    AlbumentationsX Run** to remove only that run's generated outputs.
@@ -76,6 +79,9 @@ the App responsive while progress is reported.
 - The form exposes 113 catalog-backed image transforms from the current locked
   dependency set. [albu-spec Catalog](docs/albu-spec-catalog.md) records the
   current transform-by-transform snapshot and exclusion reasons.
+- **Analyze AlbumentationsX Compatibility** reports dataset-specific label-field
+  support, source scope counts, safe target families, and recommendations before
+  a pipeline is executed.
 - **Show AlbumentationsX Capabilities** exposes the same catalog in the App with
   search, status filtering, target filtering, dependency versions, supported
   targets, advanced-parameter status, and exclusion reasons.

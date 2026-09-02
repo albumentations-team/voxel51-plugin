@@ -12,9 +12,16 @@ from albumentationsx_plugin.hosts.fiftyone.annotations.conversion import (
     transformed_annotation_payload,
 )
 from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
+    ALBU_TARGET_BBOXES,
+    ALBU_TARGET_IMAGE,
+    ALBU_TARGET_KEYPOINTS,
+    ALBU_TARGET_MASK,
+    ALBU_TARGET_ORDER,
     ANNOTATION_EXCLUDED_FIELDS_KEY,
     ANNOTATION_FIELD_PARAM_PREFIX,
     ANNOTATION_PAYLOAD_KEY,
+    ANNOTATION_ROLE_COPIED,
+    ANNOTATION_ROLE_TRANSFORMED,
     FIELD_TYPE_HEATMAP,
     SELECTED_LABEL_FIELDS_PARAM_NAME,
     AnnotationField,
@@ -36,9 +43,16 @@ from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
 )
 
 __all__ = [
+    "ALBU_TARGET_BBOXES",
+    "ALBU_TARGET_IMAGE",
+    "ALBU_TARGET_KEYPOINTS",
+    "ALBU_TARGET_MASK",
+    "ALBU_TARGET_ORDER",
     "ANNOTATION_EXCLUDED_FIELDS_KEY",
     "ANNOTATION_FIELD_PARAM_PREFIX",
     "ANNOTATION_PAYLOAD_KEY",
+    "ANNOTATION_ROLE_COPIED",
+    "ANNOTATION_ROLE_TRANSFORMED",
     "FIELD_TYPE_HEATMAP",
     "SELECTED_LABEL_FIELDS_PARAM_NAME",
     "AnnotationField",
