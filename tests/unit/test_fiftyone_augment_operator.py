@@ -42,6 +42,12 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_SELECTED_SAMPLES,
 )
 from albumentationsx_plugin.hosts.fiftyone.form_params import stage_parameter_group_name
+from albumentationsx_plugin.hosts.fiftyone.forms.compatibility import (
+    INLINE_COMPATIBILITY_RECOMMENDATIONS_FIELD_NAME,
+    INLINE_COMPATIBILITY_SECTION_FIELD_NAME,
+    INLINE_COMPATIBILITY_SUMMARY_FIELD_NAME,
+    INLINE_COMPATIBILITY_WARNING_FIELD_NAME,
+)
 from albumentationsx_plugin.hosts.fiftyone.operators.augment import (
     OPERATOR_NAME,
     AugmentWithAlbumentationsX,
@@ -109,11 +115,24 @@ class _SampleCollection:
 class _FieldSchemaDataset:
     media_type = "image"
 
-    def __init__(self, schema: dict[str, object]) -> None:
+    def __init__(self, schema: dict[str, object], *, name: str = "form-dataset", count: int = 5) -> None:
+        self.name = name
         self._schema = schema
+        self._count = count
 
     def get_field_schema(self) -> dict[str, object]:
         return self._schema
+
+    def count(self) -> int:
+        return self._count
+
+
+class _CountedView:
+    def __init__(self, count: int) -> None:
+        self._count = count
+
+    def count(self) -> int:
+        return self._count
 
 
 def _load_manifest() -> dict[str, Any]:
@@ -432,6 +451,70 @@ def test_augment_operator_renders_annotation_field_toggles() -> None:
 
 
 @pytest.mark.unit
+def test_augment_operator_renders_inline_dataset_compatibility_summary() -> None:
+    operator = AugmentWithAlbumentationsX()
+    ground_truth_param = annotation_field_param_name("ground_truth")
+
+    class Context:
+        dataset = _FieldSchemaDataset(
+            {
+                "ground_truth": _field(fo.Classification),
+                "detections": _field(fo.Detections),
+                "regression": _field(fo.Regression),
+            }
+        )
+        view = _CountedView(7)
+        selected = ("sample-1",)
+        params = {
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW,
+            ground_truth_param: False,
+        }
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    summary = input_properties[INLINE_COMPATIBILITY_SUMMARY_FIELD_NAME]
+    recommendations = input_properties[INLINE_COMPATIBILITY_RECOMMENDATIONS_FIELD_NAME]
+
+    assert input_properties[INLINE_COMPATIBILITY_SECTION_FIELD_NAME]["view"]["label"] == "Compatibility"
+    assert summary["view"]["name"] == "Notice"
+    description = summary["view"]["description"]
+    assert "Scope: Current view; source samples: 7; selected samples: 1; schema: available." in description
+    assert "Annotations: 1 selected supported field(s), 1 transform-capable, 0 copy-only, 1 unsupported/excluded." in (
+        description
+    )
+    assert "Pipeline: HorizontalFlip; transforms `detections`." in description
+    assert "Unsupported label fields are excluded" in recommendations["view"]["description"]
+    assert INLINE_COMPATIBILITY_WARNING_FIELD_NAME not in input_properties
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("source_scope", "expected_count"),
+    (
+        (EXECUTION_SCOPE_SELECTED_SAMPLES, "2"),
+        (EXECUTION_SCOPE_CURRENT_VIEW, "7"),
+        (EXECUTION_SCOPE_ENTIRE_DATASET, "5"),
+    ),
+)
+def test_augment_operator_inline_compatibility_reflects_source_scope_counts(
+    source_scope: str,
+    expected_count: str,
+) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = _FieldSchemaDataset({"detections": _field(fo.Detections)}, count=5)
+        view = _CountedView(7)
+        selected = ("sample-1", "sample-2")
+        params = {EXECUTION_SCOPE_FIELD_NAME: source_scope}
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    description = input_properties[INLINE_COMPATIBILITY_SUMMARY_FIELD_NAME]["view"]["description"]
+
+    assert f"source samples: {expected_count}" in description
+    assert "selected samples: 2" in description
+
+
+@pytest.mark.unit
 def test_augment_operator_warns_about_incompatible_selected_annotations() -> None:
     operator = AugmentWithAlbumentationsX()
 
@@ -444,8 +527,12 @@ def test_augment_operator_warns_about_incompatible_selected_annotations() -> Non
         }
 
     input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    inline_warning = input_properties[INLINE_COMPATIBILITY_WARNING_FIELD_NAME]
     warning = input_properties["_annotation_compatibility_warning"]
 
+    assert inline_warning["view"]["name"] == "Warning"
+    assert inline_warning["view"]["label"] == "Compatibility warning"
+    assert "Open Analyze AlbumentationsX Compatibility" in inline_warning["view"]["description"]
     assert warning["view"]["name"] == "Warning"
     assert warning["view"]["label"] == "Annotation compatibility"
     description = warning["view"]["description"]
@@ -473,6 +560,7 @@ def test_augment_operator_preserves_nested_annotation_field_toggle_values() -> N
     input_properties = _form_properties(operator.resolve_input(Context()).to_json())
 
     assert input_properties[heatmap_param]["default"] is False
+    assert INLINE_COMPATIBILITY_WARNING_FIELD_NAME not in input_properties
     assert "_annotation_compatibility_warning" not in input_properties
 
 

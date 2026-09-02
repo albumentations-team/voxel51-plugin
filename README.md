@@ -48,11 +48,13 @@ FiftyOne registers these operators:
 2. Optionally run **Analyze AlbumentationsX Compatibility** to inspect detected
    label fields, safe target families, and dataset-specific recommendations.
 3. Run **Augment with AlbumentationsX** from the App actions menu.
-4. Choose the execution scope, ordered pipeline stages, and transform
-   parameters. Optionally enable `Preview only` to inspect up to three selected
-   samples in memory, then disable it and run the same configuration to create
-   outputs. Optionally choose a named preset or save the current pipeline as a
-   reusable preset.
+4. Choose the execution scope, annotation fields, ordered pipeline stages, and
+   transform parameters. The form shows a compact compatibility summary for the
+   current dataset/scope/pipeline and warns about unsafe annotation choices
+   before execution. Optionally enable `Preview only` to inspect up to three
+   selected samples in memory, then disable it and run the same configuration to
+   create outputs. Optionally choose a named preset or save the current pipeline
+   as a reusable preset.
 5. Inspect the resulting samples tagged by the run key. Use **Manage
    AlbumentationsX Presets** for shared preset import/export/rename/delete,
    **View AlbumentationsX Run** to inspect the saved pipeline, and **Delete
@@ -82,6 +84,9 @@ the App responsive while progress is reported.
 - **Analyze AlbumentationsX Compatibility** reports dataset-specific label-field
   support, source scope counts, safe target families, and recommendations before
   a pipeline is executed.
+- **Augment with AlbumentationsX** embeds a compact compatibility section that
+  reuses the same report backend and selected-pipeline validation, while the
+  standalone compatibility operator remains the fuller diagnostic view.
 - **Show AlbumentationsX Capabilities** exposes the same catalog in the App with
   search, status filtering, target filtering, dependency versions, supported
   targets, advanced-parameter status, and exclusion reasons.

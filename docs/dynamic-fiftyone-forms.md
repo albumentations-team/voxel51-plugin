@@ -98,6 +98,14 @@ selector, execution scope, stage-slot count, output count, run label, dry-run
 flag, preview-only flag, and named preset save fields. Only visible slots are
 rendered, so later-stage validation is not shown before those slots are added.
 
+VOX-66 adds a compact compatibility section inside the augmentation form. It
+reuses the standalone dataset compatibility report backend plus the execution
+pipeline validation rules, then renders only the high-signal preflight summary:
+source scope/count, schema availability, selected annotation field counts, and
+current pipeline transform/copy behavior. Pipeline-specific conflicts are shown
+as warnings before execution. The standalone compatibility operator remains the
+full diagnostic view with field tables, target families, versions, and JSON.
+
 VOX-29 adds `Preview only` to the general settings. Preview is intentionally
 bounded to selected samples: the operator renders up to three selected source
 samples as source/augmented image pairs and JSON diagnostics, then returns
