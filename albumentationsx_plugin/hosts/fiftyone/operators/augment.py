@@ -50,7 +50,9 @@ from albumentationsx_plugin.hosts.fiftyone.presets import (
 )
 from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
     MAX_PREVIEW_SAMPLES,
+    PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON,
     PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON,
+    PREVIEW_FIELD_COMPARISON_IMAGE,
     PREVIEW_FIELD_LABELS_JSON,
     PREVIEW_FIELD_OUTPUT_IMAGE,
     PREVIEW_FIELD_REPLAY_JSON,
@@ -361,6 +363,17 @@ def _render_preview_output_fields(outputs: types.Object) -> None:
                 read_only=True,
             ),
         )
+        outputs.define_property(
+            preview_field_name(slot_number, PREVIEW_FIELD_COMPARISON_IMAGE),
+            types.String(),
+            label=f"{label_prefix} annotated comparison",
+            view=types.ImageView(
+                height="300px",
+                width="640px",
+                alt=f"{label_prefix} annotated before and after comparison",
+                read_only=True,
+            ),
+        )
         _render_preview_json_field(
             outputs,
             preview_field_name(slot_number, PREVIEW_FIELD_REPLAY_JSON),
@@ -375,6 +388,11 @@ def _render_preview_output_fields(outputs: types.Object) -> None:
             outputs,
             preview_field_name(slot_number, PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON),
             label=f"{label_prefix} annotation summary",
+        )
+        _render_preview_json_field(
+            outputs,
+            preview_field_name(slot_number, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON),
+            label=f"{label_prefix} annotation comparison",
         )
 
 

@@ -10,8 +10,9 @@ samples to a FiftyOne dataset.
 2. Open **Augment with AlbumentationsX**.
 3. Configure the same pipeline settings that would be used for a normal run.
 4. Enable `Preview only` and execute the operator.
-5. Inspect the source image, augmented image, sampled replay parameters, and
-   transformed labels returned in the operator output.
+5. Inspect the source image, augmented image, annotated before/after comparison,
+   sampled replay parameters, transformed labels, and annotation comparison JSON
+   returned in the operator output.
 6. Disable `Preview only` and run the same form to create persistent samples.
 
 Preview currently requires selected samples. It ignores broader execution
@@ -27,6 +28,9 @@ Preview uses the same shared runtime setup as materialized execution:
   labels for a single source/output pair.
 - `hosts/fiftyone/augmentation/preview.py` encodes the preview images as
   in-memory PNG data URIs and serializes replay/label diagnostics as JSON text.
+- `hosts/fiftyone/augmentation/preview_visuals.py` renders annotation-aware
+  before/after overlays for detections, keypoints, polylines, heatmaps, and
+  masks.
 
 The materialized executor still owns file writes, manifest checkpointing,
 FiftyOne sample creation, custom run registration, and progress reporting.
@@ -51,9 +55,12 @@ For each preview slot the operator returns:
 - source sample ID and filepath;
 - source image as a PNG data URI;
 - augmented image as a PNG data URI;
+- annotated before/after comparison image as a PNG data URI;
 - sampled replay parameters as JSON;
 - transformed labels as JSON;
-- annotation diagnostics, including dropped target counts where applicable.
+- annotation diagnostics, including dropped target counts where applicable;
+- annotation comparison JSON with field-level copied, transformed, dropped, and
+  overlay status.
 
 The first implementation renders one preview output per selected source sample.
 `outputs_per_sample` still controls the later materialized run, but preview is
@@ -73,8 +80,9 @@ Manual App check:
 1. Create or open the demo dataset.
 2. Select one to three images.
 3. Run `Augment with AlbumentationsX` with `Preview only` enabled.
-4. Confirm source and augmented preview images render.
-5. Confirm replay and transformed label JSON are shown.
+4. Confirm source, augmented, and annotated comparison preview images render.
+5. Confirm replay, transformed label JSON, and annotation comparison JSON are
+   shown.
 6. Refresh the dataset and confirm no generated samples or custom runs were
    created by preview.
 7. Disable `Preview only`, run the same configuration, and confirm persistent

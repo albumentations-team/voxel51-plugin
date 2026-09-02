@@ -60,12 +60,13 @@ FiftyOne registers these operators:
 
 `Execution scope` controls whether the operator processes selected samples, the
 active current view, or the entire dataset. `Preview only` renders source and
-augmented images, sampled replay parameters, and transformed label JSON for a
-bounded selected-sample preview without creating samples, files, manifests, or
-custom runs. `Dry run` validates a configuration and reports the resolved source
-scope without creating samples or files. Use immediate execution for small
-bounded selections; use delegated execution for larger views or datasets to keep
-the App responsive while progress is reported.
+augmented images, annotated before/after comparison images, sampled replay
+parameters, transformed label JSON, and annotation comparison JSON for a bounded
+selected-sample preview without creating samples, files, manifests, or custom
+runs. `Dry run` validates a configuration and reports the resolved source scope
+without creating samples or files. Use immediate execution for small bounded
+selections; use delegated execution for larger views or datasets to keep the App
+responsive while progress is reported.
 
 > [!NOTE]
 > Selecting `Previous run` loads its saved pipeline as a reusable template and
@@ -91,8 +92,8 @@ the App responsive while progress is reported.
   disabled, and lower `Execution order` values run earlier.
 - Runs can target selected samples, the active current view, or the entire
   dataset.
-- Selected samples can be previewed in memory before creating persistent output
-  samples.
+- Selected samples can be previewed in memory with annotation-aware side-by-side
+  comparisons before creating persistent output samples.
 - Augmentation supports both immediate execution and delegated execution.
   Progress reports processed sources, planned outputs, created outputs, skipped
   sources, and errors.
@@ -197,12 +198,13 @@ skipped with `Enabled` or moved by changing `Execution order`. Fill `Preset
 name` to save the current pipeline as a reusable named preset; enable `Save
 preset only` to save it without running augmentation. Select one to three source
 samples and enable `Preview only` to render source/augmented image previews,
-sampled replay parameters, and transformed label JSON without writing files,
-creating samples, or registering a run. `Dry run` validates the
-configuration and reports the resolved source scope without writing files or
-creating samples. Run small selections immediately. For larger views or full
-datasets, choose delegated execution in FiftyOne's execution dialog so the App
-can remain responsive and report live progress. Previous-run settings are used
+annotated before/after comparisons, sampled replay parameters, transformed
+label JSON, and annotation comparison JSON without writing files, creating
+samples, or registering a run. `Dry run` validates the configuration and reports
+the resolved source scope without writing files or creating samples. Run small
+selections immediately. For larger views or full datasets, choose delegated
+execution in FiftyOne's execution dialog so the App can remain responsive and
+report live progress. Previous-run settings are used
 as a reusable pipeline template with fresh randomness, including all saved
 stages up to the current ten-slot editor limit, not as an exact replay of
 earlier sampled parameters. Clear `Previous run` after loading if you want to

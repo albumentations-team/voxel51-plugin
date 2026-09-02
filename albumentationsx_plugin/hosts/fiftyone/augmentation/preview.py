@@ -14,7 +14,12 @@ from PIL import Image
 
 from albumentationsx_plugin.core import RUN_EXECUTION_STATUS_PREVIEW, JSONDict, PluginError
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
-from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import AppliedOutput, apply_output
+from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import (
+    AppliedOutput,
+    annotation_payload_for_source,
+    apply_output,
+)
+from albumentationsx_plugin.hosts.fiftyone.augmentation.preview_visuals import build_preview_visual_comparison
 from albumentationsx_plugin.hosts.fiftyone.augmentation.runtime import build_fixed_augmentation_runtime
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_FIELD_NAME,
@@ -22,7 +27,9 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
 )
 from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
     MAX_PREVIEW_SAMPLES,
+    PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON,
     PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON,
+    PREVIEW_FIELD_COMPARISON_IMAGE,
     PREVIEW_FIELD_LABELS_JSON,
     PREVIEW_FIELD_OUTPUT_IMAGE,
     PREVIEW_FIELD_REPLAY_JSON,
@@ -50,9 +57,11 @@ class FixedAugmentationPreviewOutput:
     source_filepath: str
     source_image: str
     output_image: str
+    comparison_image: str
     replay: JSONDict
     labels: JSONDict
     annotation_summary: JSONDict
+    annotation_comparison: JSONDict
 
     def to_dict(self, *, slot_number: int) -> JSONDict:
         """Serialize this output into the flat FiftyOne operator output schema."""
@@ -62,9 +71,13 @@ class FixedAugmentationPreviewOutput:
             preview_field_name(slot_number, PREVIEW_FIELD_SOURCE_FILEPATH): self.source_filepath,
             preview_field_name(slot_number, PREVIEW_FIELD_SOURCE_IMAGE): self.source_image,
             preview_field_name(slot_number, PREVIEW_FIELD_OUTPUT_IMAGE): self.output_image,
+            preview_field_name(slot_number, PREVIEW_FIELD_COMPARISON_IMAGE): self.comparison_image,
             preview_field_name(slot_number, PREVIEW_FIELD_REPLAY_JSON): _json_text(self.replay),
             preview_field_name(slot_number, PREVIEW_FIELD_LABELS_JSON): _json_text(self.labels),
             preview_field_name(slot_number, PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON): _json_text(self.annotation_summary),
+            preview_field_name(slot_number, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON): _json_text(
+                self.annotation_comparison
+            ),
         }
 
 
@@ -168,14 +181,24 @@ def execute_fixed_augmentation_preview(
 
 
 def _preview_output(applied: AppliedOutput) -> FixedAugmentationPreviewOutput:
+    source_labels = normalize_json_mapping(annotation_payload_for_source(applied.source))
+    output_labels = normalize_json_mapping(applied.labels)
+    visual_comparison = build_preview_visual_comparison(
+        source_image=applied.source_image,
+        output_image=applied.image,
+        source_labels=source_labels,
+        output_labels=output_labels,
+    )
     return FixedAugmentationPreviewOutput(
         source_sample_id=applied.source.sample_id,
         source_filepath=applied.source.filepath,
         source_image=_png_data_uri(applied.source_image),
         output_image=_png_data_uri(applied.image),
+        comparison_image=_png_data_uri(visual_comparison.image),
         replay=normalize_json_mapping(applied.replay),
-        labels=normalize_json_mapping(applied.labels),
+        labels=output_labels,
         annotation_summary=normalize_json_mapping(applied.annotation_metadata),
+        annotation_comparison=visual_comparison.annotation_comparison,
     )
 
 
@@ -197,9 +220,11 @@ def _empty_preview_slot(slot_number: int) -> JSONDict:
         preview_field_name(slot_number, PREVIEW_FIELD_SOURCE_FILEPATH): "",
         preview_field_name(slot_number, PREVIEW_FIELD_SOURCE_IMAGE): "",
         preview_field_name(slot_number, PREVIEW_FIELD_OUTPUT_IMAGE): "",
+        preview_field_name(slot_number, PREVIEW_FIELD_COMPARISON_IMAGE): "",
         preview_field_name(slot_number, PREVIEW_FIELD_REPLAY_JSON): "",
         preview_field_name(slot_number, PREVIEW_FIELD_LABELS_JSON): "",
         preview_field_name(slot_number, PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON): "",
+        preview_field_name(slot_number, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON): "",
     }
 
 

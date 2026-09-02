@@ -100,8 +100,9 @@ rendered, so later-stage validation is not shown before those slots are added.
 
 VOX-29 adds `Preview only` to the general settings. Preview is intentionally
 bounded to selected samples: the operator renders up to three selected source
-samples as source/augmented image pairs and JSON diagnostics, then returns
-without creating samples, files, manifests, custom runs, or dataset reloads.
+samples as source/augmented image pairs, annotation-aware before/after
+comparison images, and JSON diagnostics, then returns without creating samples,
+files, manifests, custom runs, or dataset reloads.
 The preview output schema is shown only while `preview_only` is selected so
 normal run summaries remain compact.
 
