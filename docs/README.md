@@ -11,6 +11,12 @@ these files hold development workflow, review, and release notes.
 - [Gitflow](gitflow.md): branch model and merge flow for MVP work.
 - [Architecture](architecture.md): layered code boundaries and extension points.
 - [Demo dataset](demo-dataset.md): deterministic local dataset workflow.
+- [AlbumentationsX and FiftyOne integration](albumentationsx-fiftyone-integration.md):
+  public guide for installation, App workflows, annotations, presets,
+  reproducibility, cleanup, and migration from the older Albumentations plugin.
+- [Voxel51 RST integration template](voxel51-albumentationsx-integration-template.rst):
+  Sphinx/reStructuredText draft matching the older Voxel51 integration page
+  structure.
 - [First-run onboarding](first-run-onboarding.md): guided starter path from
   demo dataset creation to preview, augmentation, run inspection, and cleanup.
 - [Fixed transform slice](fixed-transform-slice.md): executable
