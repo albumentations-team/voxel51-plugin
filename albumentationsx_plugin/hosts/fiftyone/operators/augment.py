@@ -286,7 +286,17 @@ class AugmentWithAlbumentationsX(foo.Operator):
                 source_scope=source_scope,
                 ctx=ctx,
             )
-        _trigger_dataset_reload(ctx, result)
+        try:
+            _trigger_dataset_reload(ctx, result)
+        except Exception as error:
+            return _unexpected_runtime_error_result(
+                execution_params,
+                error,
+                source_scope=source_scope,
+                ctx=ctx,
+                phase="dataset_reload",
+                extra=_successful_result_output_fields(result),
+            )
         output = result.to_dict()
         if saved_preset is not None:
             output.update(_pipeline_preset_output_fields(saved_preset))
@@ -553,6 +563,8 @@ def _unexpected_runtime_error_result(
     *,
     source_scope: str = "",
     ctx: Any | None = None,
+    phase: str = "augmentation_execution",
+    extra: Mapping[str, object] | None = None,
 ) -> JSONDict:
     _LOGGER.debug("Unexpected augmentation operator error", exc_info=True)
     errors: list[JSONDict] = [
@@ -561,6 +573,7 @@ def _unexpected_runtime_error_result(
             "message": "Unexpected augmentation error. Copy the debug bundle into a GitHub issue.",
             "context": {
                 "error_type": type(error).__name__,
+                "phase": phase,
                 "source_scope": source_scope,
             },
         }
@@ -571,6 +584,7 @@ def _unexpected_runtime_error_result(
         source_scope=source_scope,
         ctx=ctx,
         exception=error,
+        extra=extra,
     )
 
 
@@ -711,6 +725,21 @@ def _pipeline_preset_output_fields(save_result: Any) -> JSONDict:
     }
 
 
+def _successful_result_output_fields(result: Any) -> Mapping[str, object]:
+    return {
+        "run_key": getattr(result, "run_key", ""),
+        "processed_count": getattr(result, "processed_count", 0),
+        "created_count": getattr(result, "created_count", 0),
+        "skipped_count": getattr(result, "skipped_count", 0),
+        "dry_run": getattr(result, "dry_run", False),
+        "execution_status": getattr(result, "execution_status", ""),
+        "output_tag": getattr(result, "output_tag", ""),
+        "output_dir": getattr(result, "output_dir", ""),
+        "manifest_path": getattr(result, "manifest_path", ""),
+        "fiftyone_run_key": getattr(result, "fiftyone_run_key", ""),
+    }
+
+
 def _has_image_dataset_context(ctx: Any | None) -> bool:
     dataset = getattr(ctx, "dataset", None) if ctx is not None else None
     if dataset is None:
@@ -742,11 +771,7 @@ def _trigger_dataset_reload(ctx: Any, result: Any) -> None:
     trigger = getattr(ctx, "trigger", None)
     if not callable(trigger):
         return
-    try:
-        trigger("reload_dataset")
-    except Exception:
-        _LOGGER.debug("Error while triggering FiftyOne dataset reload", exc_info=True)
-        return
+    trigger("reload_dataset")
 
 
 def _is_missing_runtime_dependency(error: ModuleNotFoundError) -> bool:

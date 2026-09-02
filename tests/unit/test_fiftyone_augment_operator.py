@@ -1146,11 +1146,11 @@ def test_augment_operator_execute_flattens_nested_annotation_fields(monkeypatch)
 
 
 @pytest.mark.unit
-def test_augment_operator_execute_ignores_reload_trigger_errors(monkeypatch, caplog) -> None:
+def test_augment_operator_execute_reports_reload_trigger_errors_with_debug_bundle(monkeypatch, caplog) -> None:
     operator = AugmentWithAlbumentationsX()
 
     class Context:
-        dataset = object()
+        dataset = SimpleNamespace(name="reload-failure-dataset")
         view = object()
         selected = ("sample-1",)
         params = {"transform": "HorizontalFlip"}
@@ -1176,9 +1176,24 @@ def test_augment_operator_execute_ignores_reload_trigger_errors(monkeypatch, cap
     caplog.set_level(logging.DEBUG, logger=augment_operator_module.__name__)
 
     result = operator.execute(Context())
+    errors_json = json.loads(str(result["errors_json"]))
+    debug_bundle_json = json.loads(str(result[DEBUG_BUNDLE_FIELD_NAME]))
 
+    assert result["error_count"] == 1
+    assert result["run_key"] == "albumentationsx-20260731T120000Z-test"
     assert result["created_count"] == 1
-    assert "Error while triggering FiftyOne dataset reload" in caplog.text
+    assert result["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
+    assert errors_json[0]["code"] == "unexpected_runtime_error"
+    assert errors_json[0]["context"] == {
+        "error_type": "RuntimeError",
+        "phase": "dataset_reload",
+        "source_scope": EXECUTION_SCOPE_SELECTED_SAMPLES,
+    }
+    assert debug_bundle_json["exception"] == {"type": "RuntimeError", "message": "reload_dataset failed"}
+    assert debug_bundle_json["pipeline_config"]["transforms"] == [{"name": "HorizontalFlip", "params": {"p": 1.0}}]
+    assert debug_bundle_json["operator_params"]["transform"] == "HorizontalFlip"
+    assert debug_bundle_json["dataset"]["name"] == "reload-failure-dataset"
+    assert "Unexpected augmentation operator error" in caplog.text
 
 
 @pytest.mark.unit
