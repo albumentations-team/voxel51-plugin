@@ -73,3 +73,18 @@ steps, such as:
 The complete `report_json` field is intended for issue reports, release notes,
 and debugging conversations because it bundles source scope, package versions,
 schema warnings, field rows, target rows, and recommendations.
+
+## Inline Augment Form Preview
+
+`Augment with AlbumentationsX` reuses the same report backend for a compact
+inline preflight section. The inline view is intentionally smaller than the
+standalone operator output: it summarizes the selected source scope, available
+source count, schema availability, selected annotation fields, and the current
+pipeline's transform/copy behavior.
+
+Use the inline section while configuring a run. It updates with the form values
+and surfaces critical pipeline conflicts before submit, for example a selected
+heatmap field combined with mixed geometry and image-only stages. Use the
+standalone `Analyze AlbumentationsX Compatibility` operator when you need the
+full table output, target-family breakdown, package versions, or copyable JSON
+for bug reports.

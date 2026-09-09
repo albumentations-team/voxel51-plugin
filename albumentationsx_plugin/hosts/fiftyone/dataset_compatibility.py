@@ -254,6 +254,7 @@ def build_dataset_compatibility_report(
     selected_sample_ids: Sequence[str] = (),
     source_scope: str = EXECUTION_SCOPE_CURRENT_VIEW,
     provider: CompatibilityCatalogProvider | None = None,
+    annotation_selection: AnnotationFieldSelection | None = None,
 ) -> DatasetCompatibilityReport:
     """Build a read-only compatibility report for the active dataset context."""
 
@@ -266,7 +267,12 @@ def build_dataset_compatibility_report(
         selected_sample_ids=selected_sample_ids,
         source_scope=source_scope,
     )
-    selection, metadata_available, schema_warning = _safe_annotation_selection(dataset)
+    if annotation_selection is None:
+        selection, metadata_available, schema_warning = _safe_annotation_selection(dataset)
+    else:
+        selection = annotation_selection
+        metadata_available = True
+        schema_warning = ""
     catalog = provider or _default_catalog_provider()
     capabilities = catalog.list_transform_capabilities()
     executable_capabilities = tuple(

@@ -63,6 +63,11 @@ from albumentationsx_plugin.hosts.fiftyone.form_params import (
     flatten_fiftyone_form_groups,
     stage_parameter_group_name,
 )
+from albumentationsx_plugin.hosts.fiftyone.forms.compatibility import (
+    annotation_compatibility_warning,
+    build_inline_compatibility_preview,
+    render_inline_compatibility_preview,
+)
 from albumentationsx_plugin.hosts.fiftyone.forms.defaults import RandomCropDefaults, build_random_crop_defaults
 from albumentationsx_plugin.hosts.fiftyone.forms.renderer import (
     JSON_STRING_DEFAULT_METADATA_KEY,
@@ -103,7 +108,6 @@ RANDOM_CROP_TRANSFORM_NAME: Final[str] = "RandomCrop"
 GENERAL_SECTION_FIELD_NAME: Final[str] = "_general_settings"
 ANNOTATION_SECTION_FIELD_NAME: Final[str] = "_annotation_settings"
 ANNOTATION_COMPATIBILITY_WARNING_FIELD_NAME: Final[str] = "_annotation_compatibility_warning"
-ANNOTATION_COMPATIBILITY_WARNING_LIMIT: Final[int] = 3
 STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
 ADVANCED_STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage_advanced"
 AUGMENT_VALIDATION_WARNING_FIELD_NAME: Final[str] = "_augment_validation_warning"
@@ -170,6 +174,14 @@ class DynamicAugmentFormBuilder:
             pipeline=compatibility_pipeline,
             catalog_provider=self.catalog_provider,
         )
+        inline_compatibility_preview = build_inline_compatibility_preview(
+            ctx=ctx,
+            params=params,
+            selected_sample_ids=selected_sample_ids,
+            source_scope=selected_scope,
+            pipeline=compatibility_pipeline,
+            catalog_provider=self.catalog_provider,
+        )
 
         inputs = types.Object()
         self._render_general_settings(
@@ -185,6 +197,7 @@ class DynamicAugmentFormBuilder:
             preset_warning=preset_warning,
             validation_issues=validation_issues,
         )
+        render_inline_compatibility_preview(inputs, inline_compatibility_preview)
         self._render_annotation_fields(
             inputs,
             params,
@@ -440,7 +453,7 @@ class DynamicAugmentFormBuilder:
                 ANNOTATION_COMPATIBILITY_WARNING_FIELD_NAME,
                 types.Warning(
                     label="Annotation compatibility",
-                    description=_annotation_compatibility_warning(compatibility_conflicts),
+                    description=annotation_compatibility_warning(compatibility_conflicts),
                 ),
             )
         group = inputs.grid(
@@ -608,50 +621,6 @@ def _annotation_compatibility_conflicts(
         pipeline=pipeline,
         catalog_provider=catalog_provider,
     )
-
-
-def _annotation_compatibility_warning(conflicts: tuple[object, ...]) -> str:
-    summaries = tuple(
-        _annotation_compatibility_conflict_summary(conflict) for conflict in conflicts if isinstance(conflict, Mapping)
-    )
-    if not summaries:
-        return "Selected annotation fields are not compatible with the active augmentation pipeline."
-
-    visible_summaries = summaries[:ANNOTATION_COMPATIBILITY_WARNING_LIMIT]
-    details = "\n".join(f"- {summary}" for summary in visible_summaries)
-    omitted_count = len(summaries) - len(visible_summaries)
-    omitted = f"\n- {omitted_count} more conflict(s) hidden." if omitted_count > 0 else ""
-    return (
-        "Selected annotation fields are not compatible with the active augmentation pipeline:\n"
-        f"{details}{omitted}\n"
-        "Disable the listed annotation fields or remove/replace the incompatible stage before running augmentation."
-    )
-
-
-def _annotation_compatibility_conflict_summary(conflict: Mapping[str, object]) -> str:
-    field_name = _mapping_string(conflict, "field_name", default="selected field")
-    label_type = _mapping_string(conflict, "label_type", default="unknown")
-    target = _mapping_string(conflict, "target", default="unknown")
-    transform_name = _mapping_string(conflict, "transform_name", default="selected transform")
-    stage_number = conflict.get("stage_number")
-    stage_label = f" at stage {stage_number}" if stage_number is not None else ""
-    message = _mapping_string(conflict, "message", default="")
-    reason = _mapping_string(conflict, "reason", default="")
-
-    summary = (
-        f"`{field_name}` ({label_type}) requires target `{target}`, "
-        f"but `{transform_name}`{stage_label} cannot transform it safely."
-    )
-    if message:
-        return f"{summary} {message}"
-    if reason:
-        return f"{summary} Reason: {reason}."
-    return summary
-
-
-def _mapping_string(value: Mapping[str, object], key: str, *, default: str) -> str:
-    raw_value = value.get(key)
-    return raw_value if isinstance(raw_value, str) and raw_value else default
 
 
 def _selected_execution_scope(params: Mapping[str, object], *, selected_sample_ids: tuple[str, ...]) -> str:
