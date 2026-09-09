@@ -204,12 +204,19 @@ def test_invalid_schema_or_pipeline_never_overwrites(tmp_path, change):
         ("https://example.com/a.json", "invalid_import_path"),
         ("/tmp/a\0.json", "invalid_import_path"),
         ("/tmp/../a.json", "invalid_import_path"),
-        ("/tmp/a.txt", "non_json_import_file"),
     ],
 )
 def test_import_path_validation_returns_structured_errors(tmp_path, value, reason):
     result = _manage(tmp_path, "import", import_mode="file", import_path=value)
     assert result.errors[0]["reason"] == reason
+    assert not FilePipelinePresetStore(tmp_path).preset_dir.exists()
+
+
+def test_import_rejects_non_json_file(tmp_path):
+    file = tmp_path / "a.txt"
+    file.write_text("{}", encoding="utf-8")
+    result = _manage(tmp_path, "import", import_mode="file", import_path=str(file))
+    assert result.errors[0]["reason"] == "non_json_import_file"
     assert not FilePipelinePresetStore(tmp_path).preset_dir.exists()
 
 
