@@ -1,0 +1,16 @@
+{
+  "coco_image_id": 48564,
+  "source_count": 12,
+  "sources_with_missing_points": 7,
+  "ui_preview_count": 1,
+  "ui_created_count": 1,
+  "ui_error_count": 0,
+  "output_keypoint_slots": 17,
+  "missing_output_slots": 7,
+  "visibility_preserved": true,
+  "source_annotations_unchanged": true,
+  "output_pixels_match_horizontal_flip": true,
+  "strict_manifest_json": true,
+  "dry_run_processed": 12,
+  "dry_run_errors": 0
+}

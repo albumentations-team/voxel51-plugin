@@ -19,7 +19,14 @@ The current FiftyOne adapter supports these dataset label fields:
   `Detection.mask` values.
 - `Keypoints`: `Keypoint.points` are converted from relative FiftyOne
   coordinates to Albumentations `xy`, transformed, and written back as relative
-  points.
+  points. Missing `(NaN, NaN)` pairs are encoded as JSON `null` slots and excluded
+  from transform inputs. Reconstruction restores the original slot indices and
+  FiftyOne's `(NaN, NaN)` representation. Cropped-out points become missing slots;
+  they never shift subsequent joints, and even entirely missing poses are retained.
+  Per-point confidence stays aligned with the original slots. COCO's `visible`
+  values are preserved for surviving points and set to `0` for missing/cropped
+  points. Normalized coordinates at the right/bottom pixel boundary are clamped
+  to the last image pixel when passed to Albumentations.
 - `Polylines`: each `Polyline.points` contour vertex is converted from relative
   FiftyOne coordinates to Albumentations `xy` keypoints, transformed, grouped
   back into its source contour, and written as relative points. Labels,
@@ -38,6 +45,14 @@ The current FiftyOne adapter supports these dataset label fields:
 
 Supported label attributes, tags, labels, confidences, and indices are preserved
 where they can be represented as JSON-safe values.
+
+Missing-point slots follow the [FiftyOne skeleton convention](https://docs.voxel51.com/user_guide/using_datasets.html#storing-keypoint-skeletons).
+Only missing keypoint coordinates receive this special JSON encoding. Other
+non-finite values, partially missing coordinate pairs, out-of-range points, and
+misaligned per-point arrays are rejected with a sample/field-specific error.
+These errors stop preparation before any output is created and tell the user to
+correct the annotation or deselect the field. Normal COCO missingness does not
+require excluding the keypoint field.
 
 `Polylines` use vertex-based semantics. Albumentations keypoint handling can
 remove vertices that become invisible after transforms such as crops. The plugin

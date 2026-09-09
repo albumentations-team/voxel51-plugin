@@ -187,6 +187,8 @@ def _suggested_next_steps(errors: Sequence[Mapping[str, object]]) -> list[str]:
         steps.append("Install plugin requirements in the same Python environment that launches FiftyOne.")
     if "annotation_target_incompatible" in reasons:
         steps.append("Check selected annotation fields and use a pipeline compatible with their target types.")
+    if "invalid_annotation_data" in reasons:
+        steps.append("Correct the annotation on the reported sample, or deselect the reported field and retry.")
     if "no_selected_samples" in codes:
         steps.append("Select one or more samples, or switch execution scope to Current view or Entire dataset.")
     if "invalid_execution_scope" in codes:

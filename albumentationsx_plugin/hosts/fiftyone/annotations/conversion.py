@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final, cast
@@ -11,7 +12,7 @@ import numpy as np
 import numpy.typing as npt
 from PIL import Image
 
-from albumentationsx_plugin.core import JSONDict, JSONValue, MediaIOError
+from albumentationsx_plugin.core import HostAdapterError, JSONDict, JSONValue, MediaIOError
 from albumentationsx_plugin.core.serialization import normalize_json_mapping, normalize_json_value
 from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
     FIELD_TYPE_CLASSIFICATION,
@@ -68,7 +69,21 @@ def annotation_payload_from_sample(sample: fo.Sample, label_fields: Sequence[str
         label = sample.get_field(field_name)
         if label is None:
             continue
-        field_payload = _field_payload(label)
+        try:
+            field_payload = _field_payload(label)
+        except (TypeError, ValueError) as error:
+            raise HostAdapterError(
+                host="fiftyone",
+                message=(
+                    f"Cannot read annotation field '{field_name}' on sample {sample.id}: {error}. "
+                    "Correct the annotation or deselect this field and retry."
+                ),
+                context={
+                    "reason": "invalid_annotation_data",
+                    "sample_id": str(sample.id),
+                    "field_name": field_name,
+                },
+            ) from error
         if field_payload is not None:
             fields[field_name] = field_payload
     return {"fields": fields}
@@ -123,8 +138,15 @@ def target_data_from_annotation_payload(
                 heatmap_refs.append(_AnnotationRef(field_name=field_name, label_index=0))
         elif field_type == _KEYPOINTS_TYPE:
             for keypoint_index, keypoint in enumerate(_payload_sequence(field_payload, "keypoints")):
-                for point_index, point in enumerate(_relative_points(keypoint)):
-                    keypoints.append([point[0] * image_width, point[1] * image_height])
+                for point_index, raw_point in enumerate(_payload_sequence(keypoint, "points")):
+                    point = _keypoint_point(raw_point, point_index)
+                    if point is None:
+                        continue
+                    # FiftyOne accepts the normalized endpoints; Albumentations
+                    # requires pixel coordinates inside [0, width/height).
+                    keypoints.append(
+                        [min(point[0] * image_width, image_width - 1), min(point[1] * image_height, image_height - 1)]
+                    )
                     keypoint_indices.append(len(keypoint_refs))
                     keypoint_refs.append(
                         _AnnotationRef(field_name=field_name, label_index=keypoint_index, point_index=point_index)
@@ -276,12 +298,13 @@ def transformed_annotation_payload(
             field = cast(dict[str, object], fields[ref.field_name])
             keypoints = cast(list[dict[str, object]], field["keypoints"])
             keypoint = keypoints[ref.label_index]
-            cast(list[list[float]], keypoint["points"]).append(point)
-
+            assert ref.point_index is not None
+            cast(list[JSONValue], keypoint["points"])[ref.point_index] = normalize_json_value(point)
             source_keypoint = _payload_sequence(source_field, "keypoints")[ref.label_index]
-            confidence = _payload_sequence(source_keypoint, "confidence")
-            if ref.point_index is not None and ref.point_index < len(confidence):
-                cast(list[JSONValue], keypoint["confidence"]).append(normalize_json_value(confidence[ref.point_index]))
+            if "visible" in source_keypoint:
+                cast(list[JSONValue], keypoint["visible"])[ref.point_index] = _payload_sequence(
+                    source_keypoint, "visible"
+                )[ref.point_index]
             dropped["keypoints"] -= 1
         elif source_field_type == _POLYLINES_TYPE and ref.shape_index is not None:
             field = cast(dict[str, object], fields[ref.field_name])
@@ -291,7 +314,6 @@ def transformed_annotation_payload(
             shapes[ref.shape_index].append(point)
             dropped["polyline_points"] -= 1
 
-    fields = _drop_empty_keypoints(fields)
     fields, dropped_polyline_shapes = _drop_empty_polylines(fields)
     if dropped_polyline_shapes:
         dropped["polyline_shapes"] = dropped_polyline_shapes
@@ -406,24 +428,62 @@ def _heatmap_payload(label: fo.Heatmap) -> JSONDict | None:
 
 
 def _keypoints_payload(label: fo.Keypoints) -> JSONDict:
-    return {
-        _TYPE_FIELD: _KEYPOINTS_TYPE,
-        "keypoints": [_keypoint_payload(keypoint) for keypoint in _keypoints(label)],
-    }
+    keypoints: list[JSONValue] = []
+    for index, keypoint in enumerate(_keypoints(label)):
+        try:
+            keypoints.append(_keypoint_payload(keypoint))
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"Keypoint {index}: {error}") from error
+    return {_TYPE_FIELD: _KEYPOINTS_TYPE, "keypoints": keypoints}
 
 
 def _keypoint_payload(keypoint: fo.Keypoint) -> JSONDict:
+    points = [
+        _keypoint_point(point, index)
+        for index, point in enumerate(_runtime_sequence(getattr(keypoint, "points", None)))
+    ]
     payload = normalize_json_mapping(
         {
-            "points": [_float_sequence(point)[:2] for point in _runtime_sequence(getattr(keypoint, "points", None))],
+            "points": points,
             "tags": _str_list(getattr(keypoint, "tags", None)),
             "attributes": _json_mapping_or_empty(keypoint.attributes),
         }
     )
     _set_optional(payload, "label", keypoint.label)
-    _set_optional(payload, "confidence", _array_or_sequence(keypoint.confidence))
+    for name in ("confidence", "visible"):
+        values = _keypoint_values(getattr(keypoint, name, None), name=name, point_count=len(points))
+        _set_optional(payload, name, values)
     _set_optional(payload, "index", keypoint.index)
     return payload
+
+
+def _keypoint_point(value: object, index: int) -> list[float] | None:
+    """Encode a missing point as JSON null, keeping its anatomical slot."""
+
+    if value is None:
+        return None
+    if not isinstance(value, list | tuple | np.ndarray) or len(value) != 2:
+        raise ValueError(f"Point {index} must contain exactly two coordinates")
+    point = _float_sequence(value)
+    if len(point) != 2:
+        raise ValueError(f"Point {index} must contain numeric coordinates")
+    if all(math.isnan(coordinate) for coordinate in point):
+        return None
+    if not all(math.isfinite(coordinate) and 0 <= coordinate <= 1 for coordinate in point):
+        raise ValueError(f"Point {index} requires finite coordinates in [0, 1] or a missing (NaN, NaN) pair")
+    return point
+
+
+def _keypoint_values(value: object, *, name: str, point_count: int) -> JSONValue:
+    if value is None:
+        return None
+    values = value.tolist() if isinstance(value, np.ndarray) else value
+    if not isinstance(values, list | tuple) or len(values) != point_count:
+        raise ValueError(f"{name} must contain one value per point ({point_count} values)")
+    try:
+        return normalize_json_value(values)
+    except TypeError as error:
+        raise ValueError(f"Invalid {name}: {error}") from error
 
 
 def _polylines_payload(label: fo.Polylines) -> JSONDict:
@@ -512,14 +572,19 @@ def _keypoints_from_payload(payload: Mapping[str, object]) -> fo.Keypoints:
 def _keypoint_from_payload(payload: Mapping[str, object]) -> fo.Keypoint:
     keypoint = fo.Keypoint(
         label=_optional_str(payload.get("label")),
-        points=[_float_sequence(point) for point in _payload_sequence(payload, "points")],
-        confidence=_optional_float_list(payload.get("confidence")),
+        points=[
+            [float("nan"), float("nan")] if point is None else _float_sequence(point)
+            for point in _payload_sequence(payload, "points")
+        ],
+        confidence=None if payload.get("confidence") is None else _payload_sequence(payload, "confidence"),
         tags=_str_list(payload.get("tags")),
         attributes=_attributes_from_payload(payload.get("attributes")),
     )
     index = payload.get("index")
     if isinstance(index, int) and not isinstance(index, bool):
         keypoint.index = index
+    if "visible" in payload:
+        keypoint["visible"] = _payload_sequence(payload, "visible")
     return keypoint
 
 
@@ -588,9 +653,10 @@ def _empty_keypoints_payload(field_payload: Mapping[str, object]) -> JSONDict:
     keypoints = []
     for source_keypoint in _payload_sequence(field_payload, "keypoints"):
         keypoint = dict(source_keypoint)
-        keypoint["points"] = []
-        if "confidence" in keypoint:
-            keypoint["confidence"] = []
+        point_count = len(_payload_sequence(source_keypoint, "points"))
+        keypoint["points"] = [None] * point_count
+        if "visible" in keypoint:
+            keypoint["visible"] = [0] * point_count
         keypoints.append(normalize_json_mapping(keypoint))
     return normalize_json_mapping({_TYPE_FIELD: _KEYPOINTS_TYPE, "keypoints": keypoints})
 
@@ -602,20 +668,6 @@ def _empty_polylines_payload(field_payload: Mapping[str, object]) -> JSONDict:
         polyline["points"] = [[] for _shape in _payload_sequence(source_polyline, "points")]
         polylines.append(normalize_json_mapping(polyline))
     return normalize_json_mapping({_TYPE_FIELD: _POLYLINES_TYPE, "polylines": polylines})
-
-
-def _drop_empty_keypoints(fields: Mapping[str, object]) -> dict[str, object]:
-    updated = dict(fields)
-    for field_name, field_payload in tuple(updated.items()):
-        if not isinstance(field_payload, Mapping) or _payload_type(field_payload) != _KEYPOINTS_TYPE:
-            continue
-        keypoints = [
-            keypoint
-            for keypoint in _payload_sequence(field_payload, "keypoints")
-            if _payload_sequence(keypoint, "points")
-        ]
-        updated[field_name] = {_TYPE_FIELD: _KEYPOINTS_TYPE, "keypoints": keypoints}
-    return updated
 
 
 def _drop_empty_polylines(fields: Mapping[str, object]) -> tuple[dict[str, object], int]:
@@ -774,12 +826,6 @@ def _bbox_pixel_min(value: float, *, limit: int) -> int:
 
 def _bbox_pixel_max(value: float, *, limit: int) -> int:
     return max(0, min(limit, int(np.ceil(_clamp01(value) * limit - _PIXEL_COORD_EPSILON))))
-
-
-def _relative_points(payload: Mapping[str, object]) -> list[list[float]]:
-    return [
-        _float_sequence(point)[:2] for point in _payload_sequence(payload, "points") if len(_float_sequence(point)) >= 2
-    ]
 
 
 def _polyline_points(polyline: fo.Polyline) -> list[list[list[float]]]:
@@ -1057,12 +1103,6 @@ def _optional_array(value: object) -> npt.NDArray[np.float32] | None:
     if value is None:
         return None
     return np.asarray(value, dtype=np.float32)
-
-
-def _optional_float_list(value: object) -> list[float] | None:
-    if value is None:
-        return None
-    return _float_sequence(value)
 
 
 def _optional_float(value: object) -> float | None:
