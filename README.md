@@ -130,6 +130,12 @@ responsive while progress is reported.
 - Label tags and JSON-safe dynamic/legacy attributes are preserved. The form
   and execution results explain omitted fields, derived attributes and source
   provenance; see the [output metadata policy](docs/annotation-aware-execution.md#output-metadata-policy).
+- **View AlbumentationsX Run** provides searchable run history, newest first,
+  with run labels, timestamps, outcomes, scope, counters, and pipeline versions.
+  Select a run to inspect its manifest and errors, open generated samples,
+  reuse its pipeline with fresh randomness, or open the cleanup confirmation.
+  **Include cleaned runs** shows retained audit records; cleaned runs have no
+  delete action in the library.
 - Named pipeline presets can be saved from the augmentation form and loaded
   across datasets. They persist only the reusable pipeline config and dependency
   versions, not sample IDs, output paths, or replay records.

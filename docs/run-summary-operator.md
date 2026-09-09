@@ -5,6 +5,34 @@ inspecting previous AlbumentationsX plugin runs.
 
 ## Behavior
 
+VOX-56 extends the viewer into a run library. Open **View AlbumentationsX Run**
+from the samples grid, then search by label, run key, outcome, or transform.
+The selector shows labels first, followed by UTC creation time, outcome, and a
+unique key to distinguish runs with the same label. Runs are ordered newest
+first; unknown dates sort last. Legacy dates are recovered from the timestamp
+in the generated run key, never from mutable file modification times.
+
+Selecting a run displays its execution scope, total source count, generated
+output count, error count, pipeline summary, dependency versions (including
+albu-spec capability metadata version), and cleanup status before submission.
+The history is metadata-only; file and sample availability checks are limited
+to the selected run. **Include cleaned runs** defaults on for audit browsing.
+
+- **Reuse pipeline** opens Augment with the selected previous run. It prefills
+  pipeline configuration with fresh randomness; it is not exact replay.
+- **Delete run outputs** opens the existing cleanup form with confirmation
+  unchecked. It is omitted for cleaned audit records.
+- The read-only run-key field supports selection and keyboard copying.
+- Submit the viewer to read the full manifest, structured errors, and selected
+  output replay. **Open generated samples** also opens the retained samples.
+
+The `library_status` outcome is separate from the detailed availability
+`status`: `completed`, `failed` (errors without outputs), `partial` (errors with
+outputs), `cancelled`, `running`, or `cleaned`. Cleanup takes precedence over
+execution outcome. Missing and invalid manifests stay visible with explicit
+statuses and cannot be reused. Errors rejected before a manifest is persisted
+do not create history entries.
+
 The operator lists run keys known for the active dataset from two sources:
 
 - plugin-owned run manifests under the local storage directory;

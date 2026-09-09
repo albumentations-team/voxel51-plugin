@@ -16,6 +16,7 @@ from albumentationsx_plugin.hosts.fiftyone.editor_draft import RESULT_DETAILS
 from albumentationsx_plugin.hosts.fiftyone.forms.pipeline_loading import render_pipeline_load_button
 from albumentationsx_plugin.hosts.fiftyone.forms.sections import add_collapsible_section
 from albumentationsx_plugin.hosts.fiftyone.result_presentation import add_json_output, add_outcome, has_display_value
+from albumentationsx_plugin.hosts.fiftyone.run_library import RunLibraryEntry, list_run_library
 from albumentationsx_plugin.hosts.fiftyone.run_summary import build_run_summary, list_available_run_keys
 
 OPERATOR_NAME = "view_albumentationsx_run"
@@ -35,7 +36,7 @@ class ViewAlbumentationsXRun(foo.Operator):
         return foo.OperatorConfig(
             name=OPERATOR_NAME,
             label=OPERATOR_LABEL,
-            description="Inspect a persisted AlbumentationsX augmentation run.",
+            description="Browse augmentation run history, inspect results, and reuse pipelines.",
             dynamic=True,
             allow_immediate_execution=True,
             allow_delegated_execution=False,
@@ -48,18 +49,34 @@ class ViewAlbumentationsXRun(foo.Operator):
         params = _ctx_params(ctx)
         storage_root = _storage_root(params)
         dataset = getattr(ctx, "dataset", None)
-        run_keys = list_available_run_keys(dataset, storage_root=storage_root) if dataset is not None else ()
+        entries = list_run_library(dataset, storage_root=storage_root) if dataset is not None else ()
+        show_cleaned = params.get("show_cleaned", True) is not False
+        query = _optional_str_param(params.get("run_query")).casefold()
+        entries = tuple(
+            entry
+            for entry in entries
+            if (show_cleaned or entry.status != "cleaned")
+            and (not query or query in f"{entry.choice_label} {entry.pipeline_summary}".casefold())
+        )
+        run_keys = tuple(entry.run_key for entry in entries)
         selected_run_key = _selected_run_key(params.get(RUN_KEY_FIELD_NAME), run_keys)
 
         inputs = types.Object()
+        inputs.str("run_query", label="Search runs", default=query, required=False)
+        inputs.bool("show_cleaned", label="Include cleaned runs", default=show_cleaned)
+        inputs.message(
+            "run_history",
+            label=f"Run history: {len(entries)} run(s)",
+            description="Newest first. Search by label, run key, status, or transform.",
+        )
         if run_keys:
-            choices = types.AutocompleteView(label="Run key", allow_user_input=False)
-            for run_key in run_keys:
-                choices.add_choice(run_key, label=run_key)
+            choices = types.AutocompleteView(label="Run", allow_user_input=False)
+            for entry in entries:
+                choices.add_choice(entry.run_key, label=entry.choice_label)
             inputs.enum(
                 RUN_KEY_FIELD_NAME,
                 run_keys,
-                label="Run key",
+                label="Run",
                 default=selected_run_key,
                 required=True,
                 view=choices,
@@ -68,10 +85,13 @@ class ViewAlbumentationsXRun(foo.Operator):
             inputs.str(
                 RUN_KEY_FIELD_NAME,
                 label="Run key",
-                description="No persisted AlbumentationsX runs were found for this dataset.",
+                description="No persisted AlbumentationsX runs match this search for this dataset.",
             )
 
         if dataset is not None and selected_run_key:
+            entry = next((entry for entry in entries if entry.run_key == selected_run_key), None)
+            if entry is not None:
+                _add_library_details(inputs, entry, storage_root=storage_root)
             summary = build_run_summary(
                 dataset,
                 selected_run_key,
@@ -100,7 +120,10 @@ class ViewAlbumentationsXRun(foo.Operator):
     def resolve_output(self, ctx: Any):
         outputs = types.Object()
         outputs.str("run_key", label="Run key")
-        outputs.str("status", label="Manifest availability")
+        outputs.str("created_at", label="Created at (UTC)")
+        outputs.str("execution_scope", label="Execution scope")
+        outputs.str("library_status", label="Run outcome")
+        outputs.str("status", label="Manifest availability status")
         outputs.str("message", label="Message")
         outputs.str("manifest_path", label="Manifest path")
         outputs.str("fiftyone_run_key", label="FiftyOne run key")
@@ -137,6 +160,7 @@ class ViewAlbumentationsXRun(foo.Operator):
         outputs.str("pipeline_summary", label="Transform summary")
         outputs.str("pipeline_config_json", label="Transform config")
         outputs.str("errors_json", label="Errors")
+        outputs.str("manifest_json", label="Detailed manifest", view=types.CodeView(language="json", read_only=True))
         results = getattr(ctx, "results", None)
         if isinstance(results, Mapping):
             visible = types.Object()
@@ -193,6 +217,61 @@ class ViewAlbumentationsXRun(foo.Operator):
 def _ctx_params(ctx: Any | None) -> Mapping[str, object]:
     params = getattr(ctx, "params", {}) if ctx is not None else {}
     return params if isinstance(params, Mapping) else {}
+
+
+def _add_library_details(
+    inputs: types.Object,
+    entry: RunLibraryEntry,
+    *,
+    storage_root: str | PathLike[str] | None,
+) -> None:
+    inputs.message(
+        "run_details",
+        label=entry.display_name,
+        description=(
+            f"{entry.status} | Created: {entry.created_at or 'unknown'} | "
+            f"Scope: {entry.execution_scope or 'unknown'} | Sources: {entry.source_count} | "
+            f"Outputs: {entry.output_count} | Errors: {entry.error_count} | "
+            f"Cleanup: {entry.cleanup_status or 'unknown'}\n"
+            f"Pipeline: {entry.pipeline_summary or 'unavailable'}\n"
+            f"Versions: {entry.dependency_summary or 'unavailable'}"
+        ),
+    )
+    action_params: dict[str, object] = {"run_key": entry.run_key}
+    if storage_root is not None:
+        action_params[STORAGE_ROOT_PARAM_NAME] = str(storage_root)
+    inputs.str(
+        f"_copy_run_key_{entry.run_key}",
+        label="Run key (select to copy)",
+        default=entry.run_key,
+        view=types.CodeView(read_only=True, height=50),
+    )
+    if entry.manifest_available:
+        inputs.btn(
+            "reuse_pipeline",
+            label="Reuse pipeline",
+            icon="replay",
+            prompt=True,
+            on_click="@albumentations/albumentationsx/augment_with_albumentationsx",
+            params={
+                **{key: value for key, value in action_params.items() if key != "run_key"},
+                "previous_run_key": entry.run_key,
+            },
+        )
+        inputs.message(
+            "reuse_guidance",
+            label="Pipeline reuse uses fresh randomness",
+            description="Reuse prefills the pipeline configuration. It does not replay the previous outputs exactly.",
+        )
+    if entry.status != "cleaned":
+        inputs.btn(
+            "delete_run_outputs",
+            label="Delete run outputs",
+            icon="delete",
+            prompt=True,
+            on_click="@albumentations/albumentationsx/delete_albumentationsx_run",
+            params={**action_params, "confirm_delete": False},
+        )
 
 
 def _selected_run_key(raw_value: object, run_keys: tuple[str, ...]) -> str:
