@@ -56,6 +56,8 @@ _EXECUTION_FIELDS: Final[tuple[str, ...]] = (
     "save_preset_only",
     "save_preset_name",
     "save_preset_description",
+    "save_preset_mode",
+    "save_preset_target",
     "_storage_root",
 )
 

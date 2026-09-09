@@ -23,12 +23,15 @@ from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
     validate_annotation_pipeline_compatibility,
     validate_selected_annotation_fields,
 )
-from albumentationsx_plugin.storage import FilePipelinePresetStore, build_preset_key
+from albumentationsx_plugin.storage import FilePipelinePresetStore, new_preset_key
 
 PIPELINE_PRESET_KEY_FIELD_NAME: Final[str] = "pipeline_preset_key"
 SAVE_PRESET_ONLY_FIELD_NAME: Final[str] = "save_preset_only"
 SAVE_PRESET_NAME_FIELD_NAME: Final[str] = "save_preset_name"
 SAVE_PRESET_DESCRIPTION_FIELD_NAME: Final[str] = "save_preset_description"
+SAVE_PRESET_MODE_FIELD_NAME: Final[str] = "save_preset_mode"
+SAVE_PRESET_TARGET_FIELD_NAME: Final[str] = "save_preset_target"
+SAVE_PRESET_CONFIRM_FIELD_NAME: Final[str] = "save_preset_confirm_update"
 PRESET_SAVED_EXECUTION_STATUS: Final[str] = "preset_saved"
 
 
@@ -38,6 +41,7 @@ class PipelinePresetSaveResult:
 
     preset: PipelinePreset
     preset_path: str
+    updated: bool = False
 
     def to_dict(self) -> JSONDict:
         """Serialize this result using the augmentation operator output shape."""
@@ -62,6 +66,7 @@ class PipelinePresetSaveResult:
                 "preset_key": self.preset.key,
                 "preset_name": self.preset.name,
                 "preset_path": self.preset_path,
+                "preset_save_action": "updated" if self.updated else "created",
             }
         )
 
@@ -98,12 +103,13 @@ def save_pipeline_preset_from_params(
     """Validate current operator params and save them as a named shared saved pipeline."""
 
     preset_name = _required_preset_name(params)
-    preset_key = build_preset_key(preset_name)
     now = _utc_now()
     store = FilePipelinePresetStore(storage_root=storage_root)
-    existing = _load_existing_preset(store, preset_key)
+    existing = preset_update_target(params, store)
+    preset_key = existing.key if existing is not None else new_preset_key()
     pipeline = build_fixed_pipeline_config(params)
-    metadata: dict[str, object] = {"source": "fiftyone_augment_form"}
+    metadata: dict[str, object] = dict(existing.metadata) if existing else {}
+    metadata["source"] = "fiftyone_augment_form"
     if dataset is not None:
         selection = selected_annotation_fields_from_params(params, dataset)
         validate_selected_annotation_fields(selection)
@@ -123,6 +129,7 @@ def save_pipeline_preset_from_params(
         key=preset_key,
         name=preset_name,
         description=_optional_preset_description(params),
+        tags=existing.tags if existing is not None else (),
         plugin_version=albumentationsx_plugin.__version__,
         dependency_versions={
             "albumentationsx": _dependency_version("albumentationsx"),
@@ -134,8 +141,10 @@ def save_pipeline_preset_from_params(
         updated_at=now,
         metadata=metadata,
     )
-    store.save_preset(preset)
-    return PipelinePresetSaveResult(preset=preset, preset_path=str(store.preset_path(preset.key)))
+    store.save_preset(preset, overwrite=existing is not None)
+    return PipelinePresetSaveResult(
+        preset=preset, preset_path=str(store.preset_path(preset.key)), updated=existing is not None
+    )
 
 
 def validate_pipeline_preset(preset: PipelinePreset) -> None:
@@ -154,11 +163,35 @@ def validate_pipeline_preset(preset: PipelinePreset) -> None:
     validate_fixed_pipeline_config(preset.pipeline)
 
 
-def _load_existing_preset(store: FilePipelinePresetStore, preset_key: str) -> PipelinePreset | None:
-    try:
-        return store.load_preset(preset_key)
-    except Exception:
+def preset_update_target(params: Mapping[str, object], store: FilePipelinePresetStore) -> PipelinePreset | None:
+    """Resolve only an explicitly selected and confirmed replacement target."""
+    mode = params.get(SAVE_PRESET_MODE_FIELD_NAME, "new")
+    if mode == "new":
         return None
+    if mode != "update":
+        raise _save_error(
+            SAVE_PRESET_MODE_FIELD_NAME, "invalid_save_mode", "Choose Save as new or Update existing pipeline."
+        )
+    target = params.get(SAVE_PRESET_TARGET_FIELD_NAME)
+    if not isinstance(target, str) or not target:
+        raise _save_error(
+            SAVE_PRESET_TARGET_FIELD_NAME, "missing_update_target", "Select the saved pipeline to update."
+        )
+    existing = store.load_preset(target)
+    confirmations = params.get(SAVE_PRESET_CONFIRM_FIELD_NAME)
+    if not isinstance(confirmations, Mapping) or confirmations.get(existing.key) is not True:
+        raise _save_error(
+            SAVE_PRESET_CONFIRM_FIELD_NAME,
+            "confirmation_required",
+            f"Confirm replacement of '{existing.name}' ({existing.key}) or choose Save as new pipeline.",
+        )
+    return existing
+
+
+def _save_error(field: str, reason: str, message: str) -> InvalidParameterError:
+    return InvalidParameterError(
+        transform_name="<preset>", parameter_name=field, message=message, context={"reason_code": reason}
+    )
 
 
 def _required_preset_name(params: Mapping[str, object]) -> str:
@@ -170,7 +203,7 @@ def _required_preset_name(params: Mapping[str, object]) -> str:
             message="Enter a name before saving the pipeline.",
             context={"reason_code": "missing_preset_name"},
         )
-    return " ".join(value.split())
+    return value.strip()
 
 
 def _optional_preset_description(params: Mapping[str, object]) -> str:

@@ -7,19 +7,22 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from os import PathLike
-from typing import Final, cast
+from typing import Final
 
-from albumentationsx_plugin.core import JSONDict, PipelinePreset
+from albumentationsx_plugin.core import JSONDict, MediaIOError, PipelinePreset
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.dependencies import (
     is_known_runtime_dependency,
     runtime_dependency_package_name,
 )
-from albumentationsx_plugin.storage import FilePipelinePresetStore, build_preset_key
+from albumentationsx_plugin.storage import FilePipelinePresetStore, new_preset_key
+from albumentationsx_plugin.storage.preset_import import parse_preset_json, read_preset_json_file
 
 ACTION_FIELD_NAME: Final[str] = "action"
 PRESET_KEY_FIELD_NAME: Final[str] = "preset_key"
 PRESET_JSON_FIELD_NAME: Final[str] = "preset_json"
+IMPORT_MODE_FIELD_NAME: Final[str] = "import_mode"
+IMPORT_PATH_FIELD_NAME: Final[str] = "import_path"
 NEW_PRESET_NAME_FIELD_NAME: Final[str] = "new_preset_name"
 OVERWRITE_FIELD_NAME: Final[str] = "overwrite"
 CONFIRM_DELETE_FIELD_NAME: Final[str] = "confirm_delete"
@@ -29,6 +32,8 @@ ACTION_INSPECT: Final[str] = "inspect"
 ACTION_EXPORT: Final[str] = "export"
 ACTION_IMPORT: Final[str] = "import"
 ACTION_RENAME: Final[str] = "rename"
+ACTION_EDIT: Final[str] = "edit"
+ACTION_DUPLICATE: Final[str] = "duplicate"
 ACTION_DELETE: Final[str] = "delete"
 
 PRESET_MANAGEMENT_ACTIONS: Final[tuple[str, ...]] = (
@@ -36,6 +41,8 @@ PRESET_MANAGEMENT_ACTIONS: Final[tuple[str, ...]] = (
     ACTION_EXPORT,
     ACTION_IMPORT,
     ACTION_RENAME,
+    ACTION_EDIT,
+    ACTION_DUPLICATE,
     ACTION_DELETE,
 )
 PRESET_ACTIONS_REQUIRING_PRESET: Final[frozenset[str]] = frozenset(
@@ -43,6 +50,8 @@ PRESET_ACTIONS_REQUIRING_PRESET: Final[frozenset[str]] = frozenset(
         ACTION_INSPECT,
         ACTION_EXPORT,
         ACTION_RENAME,
+        ACTION_EDIT,
+        ACTION_DUPLICATE,
         ACTION_DELETE,
     }
 )
@@ -112,6 +121,8 @@ class PresetManagementPayload:
                 "presets_json": json_dump(preset_rows),
                 "selected_preset_json": self.selected_preset_json,
                 "exported_preset_json": self.exported_preset_json,
+                "importable_preset_json": self.exported_preset_json or self.selected_preset_json,
+                "errors": list(self.errors),
                 "errors_json": json_dump(list(self.errors)),
             }
         )
@@ -185,7 +196,7 @@ def bool_param(value: object) -> bool:
 def json_dump(value: object) -> str:
     """Serialize a value as stable formatted JSON."""
 
-    return json.dumps(value, indent=2, sort_keys=True)
+    return json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False)
 
 
 def error_reason(error: Exception) -> str:
@@ -196,7 +207,7 @@ def error_reason(error: Exception) -> str:
         reason = context.get("reason") or context.get("reason_code")
         if isinstance(reason, str) and reason:
             return reason
-    return "preset_management_failed"
+    return "invalid_preset_schema" if isinstance(error, (TypeError, ValueError)) else "preset_management_failed"
 
 
 def error_payload(
@@ -216,6 +227,9 @@ def error_payload(
     }
     if exception is not None:
         error["exception_type"] = type(exception).__name__
+        context = getattr(exception, "context", None)
+        if isinstance(context, Mapping):
+            error["context"] = normalize_json_mapping(context)
     if preset is not None:
         error["preset_key"] = preset.key
         error["preset_name"] = preset.name
@@ -268,6 +282,10 @@ def _execute_action(
         return _import_preset(store, params)
     if action == ACTION_RENAME:
         return _rename_preset(store, params)
+    if action == ACTION_EDIT:
+        return _edit_preset(store, params)
+    if action == ACTION_DUPLICATE:
+        return _duplicate_preset(store, params)
     if action == ACTION_DELETE:
         return _delete_preset(store, params)
     return error_payload(
@@ -314,7 +332,17 @@ def _import_preset(
     store: FilePipelinePresetStore,
     params: Mapping[str, object],
 ) -> PresetManagementPayload:
-    preset = _preset_from_json_param(params)
+    mode = params.get(IMPORT_MODE_FIELD_NAME, "json")
+    if mode not in {"json", "file"}:
+        return error_payload(
+            store, action=ACTION_IMPORT, message="Choose Paste JSON or Local JSON file.", reason="invalid_import_mode"
+        )
+    raw_json = (
+        read_preset_json_file(params.get(IMPORT_PATH_FIELD_NAME))
+        if mode == "file"
+        else params.get(PRESET_JSON_FIELD_NAME)
+    )
+    preset = parse_preset_json(raw_json)
     _validate_imported_preset(preset)
     overwrite = bool_param(params.get(OVERWRITE_FIELD_NAME))
     if store.preset_exists(preset.key) and not overwrite:
@@ -326,7 +354,7 @@ def _import_preset(
             preset=preset,
         )
 
-    store.save_preset(preset)
+    store.save_preset(preset, overwrite=overwrite)
     return _success_payload(
         store,
         action=ACTION_IMPORT,
@@ -342,34 +370,76 @@ def _rename_preset(
 ) -> PresetManagementPayload:
     preset = store.load_preset(_required_preset_key(params, store))
     new_name = _required_text(params.get(NEW_PRESET_NAME_FIELD_NAME), "New saved pipeline name is required.")
-    new_key = build_preset_key(new_name)
-    overwrite = bool_param(params.get(OVERWRITE_FIELD_NAME))
-    if new_key != preset.key and store.preset_exists(new_key) and not overwrite:
-        return error_payload(
-            store,
-            action=ACTION_RENAME,
-            message=f"Saved pipeline '{new_key}' already exists. Enable overwrite to replace it.",
-            reason="preset_already_exists",
-            preset=preset,
-        )
-
-    metadata = dict(preset.metadata)
-    if new_key != preset.key:
-        metadata["renamed_from"] = preset.key
     renamed = replace(
         preset,
-        key=new_key,
         name=new_name,
         updated_at=_utc_now(),
-        metadata=normalize_json_mapping(metadata),
     )
-    store.rename_preset(preset.key, renamed, overwrite=overwrite)
+    store.save_preset(renamed, overwrite=True)
     return _success_payload(
         store,
         action=ACTION_RENAME,
         message=f"Renamed saved pipeline '{preset.name}' to '{renamed.name}'.",
         preset=renamed,
         selected_preset_json=_preset_json(renamed),
+    )
+
+
+def preset_edit_group(preset_key: str) -> str:
+    """Isolate metadata inputs when the selected pipeline changes in the App."""
+    return f"_preset_edit_{preset_key}"
+
+
+def _edit_preset(store: FilePipelinePresetStore, params: Mapping[str, object]) -> PresetManagementPayload:
+    preset = store.load_preset(_required_preset_key(params, store))
+    edits = params.get(preset_edit_group(preset.key), {})
+    if not isinstance(edits, Mapping):
+        raise ValueError("Saved pipeline edits must be an object.")
+    metadata = preset.metadata
+    if "metadata_json" in edits:
+        try:
+            metadata = json.loads(str(edits["metadata_json"]))
+        except ValueError as error:
+            raise ValueError("Metadata must be a valid JSON object.") from error
+        if not isinstance(metadata, Mapping):
+            raise ValueError("Metadata must be a JSON object.")
+    edited = replace(
+        preset,
+        name=_required_text(edits.get("name", preset.name), "Saved pipeline name is required."),
+        description=edits.get("description", preset.description),
+        tags=edits.get("tags", preset.tags),
+        metadata=metadata,
+        updated_at=_utc_now(),
+    )
+    # Serialize before any write, including validation of non-finite metadata.
+    copyable = _preset_json(edited)
+    store.save_preset(edited, overwrite=True)
+    return _success_payload(
+        store,
+        action=ACTION_EDIT,
+        message=f"Updated details for saved pipeline '{edited.name}'.",
+        preset=edited,
+        selected_preset_json=copyable,
+    )
+
+
+def _duplicate_preset(store: FilePipelinePresetStore, params: Mapping[str, object]) -> PresetManagementPayload:
+    preset = store.load_preset(_required_preset_key(params, store))
+    now = _utc_now()
+    duplicate = replace(
+        preset,
+        key=new_preset_key(),
+        name=_required_text(params.get(NEW_PRESET_NAME_FIELD_NAME), "New saved pipeline name is required."),
+        created_at=now,
+        updated_at=now,
+    )
+    store.save_preset(duplicate)
+    return _success_payload(
+        store,
+        action=ACTION_DUPLICATE,
+        message=f"Created saved pipeline '{duplicate.name}' as a new copy.",
+        preset=duplicate,
+        selected_preset_json=_preset_json(duplicate),
     )
 
 
@@ -419,34 +489,25 @@ def _success_payload(
     )
 
 
-def _preset_from_json_param(params: Mapping[str, object]) -> PipelinePreset:
-    raw_json = _required_text(params.get(PRESET_JSON_FIELD_NAME), "Saved pipeline JSON is required.")
-    try:
-        payload = json.loads(raw_json)
-    except json.JSONDecodeError as error:
-        raise ValueError("Saved pipeline JSON could not be parsed.") from error
-    if not isinstance(payload, Mapping):
-        raise TypeError("Saved pipeline JSON must be an object.")
-    preset = PipelinePreset.from_dict(cast(Mapping[str, object], payload))
-    expected_key = build_preset_key(preset.name)
-    if preset.key != expected_key:
-        raise ValueError("Saved pipeline key must match the normalized saved pipeline name.")
-    return preset
-
-
 def _validate_imported_preset(preset: PipelinePreset) -> None:
     from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import validate_pipeline_preset
 
-    validate_pipeline_preset(preset)
+    try:
+        validate_pipeline_preset(preset)
+    except ModuleNotFoundError:
+        raise
+    except Exception as error:
+        raise MediaIOError(
+            filepath="",
+            message=f"Saved pipeline validation failed: {error}",
+            context={"reason": "invalid_preset_pipeline"},
+        ) from error
 
 
 def _required_preset_key(params: Mapping[str, object], store: FilePipelinePresetStore) -> str:
     preset_key = string_param(params.get(PRESET_KEY_FIELD_NAME))
     if preset_key:
         return preset_key
-    preset_keys = store.list_preset_keys()
-    if preset_keys:
-        return preset_keys[0]
     raise ValueError("A saved pipeline must be selected for this action.")
 
 
@@ -476,7 +537,7 @@ def _required_text(raw_value: object, message: str) -> str:
     value = string_param(raw_value)
     if not value:
         raise ValueError(message)
-    return " ".join(value.split())
+    return value
 
 
 def _utc_now() -> str:

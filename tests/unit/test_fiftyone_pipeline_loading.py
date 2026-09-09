@@ -109,7 +109,7 @@ def test_loaded_edits_control_actual_execution(monkeypatch, tmp_path, kind, prev
     )
     # Execution must no longer require the source to exist, even for a queued job.
     if kind == "saved":
-        FilePipelinePresetStore(storage_root=tmp_path).preset_path("flip").unlink()
+        FilePipelinePresetStore(storage_root=tmp_path).preset_path(source.removeprefix("saved:")).unlink()
     else:
         FileRunStore(dataset.name, storage_root=tmp_path).manifest_path("flip-run").unlink()
     result = augment_module.AugmentWithAlbumentationsX().execute(context)

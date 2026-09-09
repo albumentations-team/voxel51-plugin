@@ -296,9 +296,10 @@ def test_demo_user_scenario_saves_named_preset_and_reuses_previous_run(tmp_path)
 
         assert saved["execution_status"] == PRESET_SAVED_EXECUTION_STATUS
         assert saved["created_count"] == 0
-        assert saved["preset_key"] == "reusable-demo-flip"
+        assert saved["preset_key"] and saved["preset_key"] != "reusable-demo-flip"
         assert save_context.triggers == []
         preset = FilePipelinePresetStore(storage_root=storage_root).load_preset(str(saved["preset_key"]))
+        assert preset.name == "Reusable demo flip"
         assert preset.pipeline.outputs_per_sample == 2
         assert [transform.name for transform in preset.pipeline.transforms] == ["HorizontalFlip"]
 

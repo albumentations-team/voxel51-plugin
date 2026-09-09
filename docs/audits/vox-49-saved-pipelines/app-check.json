@@ -1,0 +1,31 @@
+{
+  "dataset": "vox-49-pipeline-app",
+  "source_count": 1,
+  "source_sha256": "25a8b3a7480ed1edeb87a0c1c8f2b57b66bf38c6b369f0e8b2dc725aacc7d418",
+  "cancel_and_invalid_import_preserved_hashes": true,
+  "pipelines": [
+    {
+      "key": "pipeline-1bb28ffc17f748f1aa253bbab834266c",
+      "name": "Яркость",
+      "description": "",
+      "tags": [],
+      "p": 0.0
+    },
+    {
+      "key": "pipeline-b5feb04241ca4019987c1293355379ad",
+      "name": "Поворот",
+      "description": "Проверка VOX-49",
+      "tags": [
+        "обучение"
+      ],
+      "p": 1.0
+    },
+    {
+      "key": "manual-file-import",
+      "name": "Импорт из файла",
+      "description": "",
+      "tags": [],
+      "p": 0.0
+    }
+  ]
+}

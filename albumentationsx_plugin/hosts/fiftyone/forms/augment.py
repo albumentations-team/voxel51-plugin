@@ -87,6 +87,7 @@ from albumentationsx_plugin.hosts.fiftyone.forms.defaults import (
     selected_sample_shapes,
 )
 from albumentationsx_plugin.hosts.fiftyone.forms.pipeline_loading import render_pipeline_loader
+from albumentationsx_plugin.hosts.fiftyone.forms.preset_saving import render_preset_save_controls
 from albumentationsx_plugin.hosts.fiftyone.forms.renderer import (
     JSON_STRING_DEFAULT_METADATA_KEY,
     FiftyOneFormRenderer,
@@ -272,6 +273,7 @@ class DynamicAugmentFormBuilder:
             ),
         )
         render_pipeline_loader(inputs, dataset, params)
+        render_preset_save_controls(inputs, params)
         self._render_execution_scope_selector(inputs, selected_scope=selected_scope)
         self._render_execution_mode_guidance(inputs)
         if validation_issues:
@@ -320,7 +322,7 @@ class DynamicAugmentFormBuilder:
                     label="Saved pipeline name",
                     required=False,
                     default=_selected_string(params.get(SAVE_PRESET_NAME_FIELD_NAME)),
-                    help_text="Used only by Save pipeline. An existing name replaces that saved pipeline.",
+                    help_text="Used only by Save pipeline. Names may repeat; Save as new always keeps existing pipelines.",
                 ),
                 FormFieldSchema(
                     name=SAVE_PRESET_DESCRIPTION_FIELD_NAME,

@@ -32,7 +32,7 @@ def render_pipeline_loader(inputs: types.Object, dataset: Any, params: Mapping[s
     choices.add_choice("", label="Current unsaved draft")
     try:
         for preset in list_pipeline_presets(storage_root=storage_root):
-            choices.add_choice(f"saved:{preset.key}", label=f"Saved pipeline: {preset.name}")
+            choices.add_choice(f"saved:{preset.key}", label=f"Saved pipeline: {preset.name} ({preset.key})")
         for run_key in list_previous_run_preset_keys(dataset, storage_root=storage_root):
             choices.add_choice(f"run:{run_key}", label=f"From run history: {run_key}")
     except Exception as error:

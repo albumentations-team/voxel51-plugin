@@ -15,12 +15,16 @@ from albumentationsx_plugin.hosts.fiftyone.branding import ALBUMENTATIONS_ICON
 from albumentationsx_plugin.hosts.fiftyone.forms.pipeline_loading import render_pipeline_load_button
 from albumentationsx_plugin.hosts.fiftyone.preset_management import (
     ACTION_DELETE,
+    ACTION_DUPLICATE,
+    ACTION_EDIT,
     ACTION_EXPORT,
     ACTION_FIELD_NAME,
     ACTION_IMPORT,
     ACTION_INSPECT,
     ACTION_RENAME,
     CONFIRM_DELETE_FIELD_NAME,
+    IMPORT_MODE_FIELD_NAME,
+    IMPORT_PATH_FIELD_NAME,
     NEW_PRESET_NAME_FIELD_NAME,
     OVERWRITE_FIELD_NAME,
     PRESET_ACTIONS_REQUIRING_PRESET,
@@ -30,6 +34,8 @@ from albumentationsx_plugin.hosts.fiftyone.preset_management import (
     STORAGE_ROOT_PARAM_NAME,
     bool_param,
     execute_preset_management_action,
+    json_dump,
+    preset_edit_group,
     selected_management_action,
     selected_preset_key,
     storage_root_from_params,
@@ -52,7 +58,7 @@ class ManageAlbumentationsXPresets(foo.Operator):
             name=OPERATOR_NAME,
             label=OPERATOR_LABEL,
             icon=ALBUMENTATIONS_ICON,
-            description="Inspect, export, import, rename, and delete AlbumentationsX saved pipelines.",
+            description="Inspect, export, import, edit, duplicate, and delete AlbumentationsX saved pipelines.",
             dynamic=True,
             allow_immediate_execution=True,
             allow_delegated_execution=False,
@@ -92,8 +98,13 @@ class ManageAlbumentationsXPresets(foo.Operator):
             )
         if action == ACTION_IMPORT:
             _add_import_controls(inputs, params)
-        if action == ACTION_RENAME:
+        if action in {ACTION_RENAME, ACTION_DUPLICATE}:
             _add_rename_controls(inputs, params)
+        if action == ACTION_EDIT:
+            key = selected_preset_key(params.get(PRESET_KEY_FIELD_NAME), presets)
+            preset = next((preset for preset in presets if preset.key == key), None)
+            if preset is not None:
+                _add_edit_controls(inputs, params, preset)
         if action == ACTION_DELETE:
             _add_delete_controls(inputs, params)
 
@@ -126,13 +137,24 @@ class ManageAlbumentationsXPresets(foo.Operator):
         outputs.str("action", label="Action")
         outputs.str("preset_key", label="Saved pipeline key")
         outputs.str("preset_name", label="Saved pipeline name")
-        outputs.str("preset_path", label="Saved pipeline path")
+        outputs.str("preset_path", label="Local JSON file on the FiftyOne server")
         outputs.int("preset_count", label="Saved pipeline count")
-        outputs.list("presets", preset_row, label="Saved Pipelines")
-        outputs.str("presets_json", label="Saved Pipelines JSON")
-        outputs.str("selected_preset_json", label="Selected saved pipeline JSON")
-        outputs.str("exported_preset_json", label="Exported saved pipeline JSON")
-        outputs.str("errors_json", label="Errors")
+        table = types.TableView()
+        for key, label in (
+            ("name", "Name"),
+            ("description", "Description"),
+            ("pipeline_summary", "Pipeline"),
+            ("key", "ID"),
+        ):
+            table.add_column(key, label=label)
+        outputs.list("presets", preset_row, label="Saved pipelines overview", view=table)
+        outputs.str(
+            "importable_preset_json",
+            label="Importable pipeline JSON",
+            description="Copy this entire JSON object into Import → Paste full JSON, or save it as a .json file.",
+            view=types.CodeView(language="json", read_only=True),
+        )
+        outputs.str("errors_json", label="Error details", view=types.CodeView(language="json", read_only=True))
         return types.Property(outputs)
 
     # pyrefly: ignore[bad-override]
@@ -173,17 +195,40 @@ def _add_preset_selector(
 
 
 def _add_import_controls(inputs: types.Object, params: Mapping[str, object]) -> None:
-    inputs.str(
-        PRESET_JSON_FIELD_NAME,
-        label="Saved pipeline JSON",
-        default=string_param(params.get(PRESET_JSON_FIELD_NAME)),
-        allow_empty=False,
+    mode = params.get(IMPORT_MODE_FIELD_NAME, "json")
+    choices = types.RadioGroup()
+    choices.add_choice("json", label="Paste full JSON")
+    choices.add_choice("file", label="Local JSON file")
+    inputs.enum(
+        IMPORT_MODE_FIELD_NAME,
+        ["json", "file"],
+        label="Import from",
+        default=mode,
         required=True,
-        view=types.FieldView(caption="Paste JSON exported from a saved pipeline."),
+        view=choices,
     )
+    if mode == "file":
+        inputs.str(
+            IMPORT_PATH_FIELD_NAME,
+            label="Local JSON file path",
+            required=True,
+            default=string_param(params.get(IMPORT_PATH_FIELD_NAME)),
+            description="Absolute path on the FiftyOne server (or ~/…). Choose a regular UTF-8 .json file, not a URL or symbolic link.",
+        )
+    else:
+        inputs.str(
+            PRESET_JSON_FIELD_NAME,
+            label="Importable pipeline JSON",
+            required=True,
+            allow_empty=False,
+            default=string_param(params.get(PRESET_JSON_FIELD_NAME)),
+            description="Paste the complete Importable pipeline JSON from Export saved pipeline. Overview rows and paths are not import payloads.",
+            view=types.CodeView(language="json"),
+        )
     inputs.bool(
         OVERWRITE_FIELD_NAME,
         label="Overwrite existing saved pipeline",
+        description="Replace only the saved pipeline with the same ID as the imported JSON. Matching names alone never replace another pipeline.",
         default=bool_param(params.get(OVERWRITE_FIELD_NAME)),
         required=False,
         view=types.CheckboxView(),
@@ -198,13 +243,26 @@ def _add_rename_controls(inputs: types.Object, params: Mapping[str, object]) -> 
         allow_empty=False,
         required=True,
     )
-    inputs.bool(
-        OVERWRITE_FIELD_NAME,
-        label="Overwrite existing saved pipeline",
-        default=bool_param(params.get(OVERWRITE_FIELD_NAME)),
-        required=False,
-        view=types.CheckboxView(),
+
+
+def _add_edit_controls(inputs: types.Object, params: Mapping[str, object], preset: PipelinePreset) -> None:
+    group_name = preset_edit_group(preset.key)
+    values = params.get(group_name, {})
+    values = values if isinstance(values, Mapping) else {}
+    edits = types.Object()
+    edits.str("name", label="Saved pipeline name", default=values.get("name", preset.name), required=True)
+    edits.str("description", label="Description", default=values.get("description", preset.description))
+    edits.list(
+        "tags", types.String(), label="Tags", default=values.get("tags", list(preset.tags)), view=types.ListView()
     )
+    edits.str(
+        "metadata_json",
+        label="Metadata JSON (advanced)",
+        description="Keep annotation_selection to preserve saved annotation mapping when loading this pipeline.",
+        default=values.get("metadata_json", json_dump(preset.metadata)),
+        view=types.CodeView(language="json"),
+    )
+    inputs.define_property(group_name, edits, view=types.ObjectView(label=f"Details for {preset.name}"))
 
 
 def _add_delete_controls(inputs: types.Object, params: Mapping[str, object]) -> None:
@@ -225,6 +283,8 @@ def _action_view() -> types.DropdownView:
         ACTION_EXPORT: "Export saved pipeline",
         ACTION_IMPORT: "Import saved pipeline",
         ACTION_RENAME: "Rename saved pipeline",
+        ACTION_EDIT: "Edit saved pipeline details",
+        ACTION_DUPLICATE: "Duplicate saved pipeline",
         ACTION_DELETE: "Delete saved pipeline",
     }
     for action in PRESET_MANAGEMENT_ACTIONS:
@@ -238,6 +298,8 @@ def _submit_label(action: str) -> str:
         ACTION_EXPORT: "Export saved pipeline",
         ACTION_IMPORT: "Import saved pipeline",
         ACTION_RENAME: "Rename saved pipeline",
+        ACTION_EDIT: "Save pipeline details",
+        ACTION_DUPLICATE: "Duplicate saved pipeline",
         ACTION_DELETE: "Delete saved pipeline",
     }.get(action, "Run")
 

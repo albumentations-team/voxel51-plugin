@@ -735,6 +735,7 @@ def _pipeline_preset_error_result(
             "code": "pipeline_preset_unavailable",
             "message": f"Pipeline could not be saved: {error}. Check its name, settings, and storage access.",
             "context": {
+                **dict(getattr(error, "context", {})),
                 "pipeline_preset_key": selected_pipeline_preset_key(params) if isinstance(params, dict) else "",
                 "source_scope": source_scope,
                 "error_type": type(error).__name__,

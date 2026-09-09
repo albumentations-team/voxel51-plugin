@@ -29,6 +29,11 @@ def outcome_summary(result: Mapping[str, object]) -> tuple[str, str]:
     if not status:
         return "Result unavailable", str(result.get("message") or "No execution result is available.")
     if status == "preset_saved":
+        if result.get("preset_save_action") == "updated":
+            return (
+                "Pipeline updated",
+                f"Updated saved pipeline: {result.get('preset_name', '')}. No augmented samples were created.",
+            )
         return "Pipeline saved", f"Saved pipeline: {result.get('preset_name', '')}. No augmented samples were created."
     if status == "dry_run":
         return "Validation passed", (

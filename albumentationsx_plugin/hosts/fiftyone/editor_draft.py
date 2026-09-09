@@ -73,6 +73,7 @@ def snapshot_editor(ctx: Any, params: Mapping[str, object]) -> dict[str, object]
 def continuation_draft(draft: Mapping[str, object], *, action: str | None = None) -> dict[str, object]:
     """Give every return to the editor isolated form paths."""
     copied = deepcopy(dict(draft))
+    copied.pop("save_preset_confirm_update", None)
     copied[DRAFT_ID] = uuid4().hex
     copied[PREVIOUS_SELECTION] = copied.pop(REVIEWED_SELECTION, [])
     if action is not None:

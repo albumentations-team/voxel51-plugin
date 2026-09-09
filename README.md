@@ -160,9 +160,16 @@ responsive while progress is reported.
 - Named pipeline presets can be saved from the augmentation form and loaded
   across datasets. They persist only the reusable pipeline config and dependency
   versions, not sample IDs, output paths, or replay records.
-- **Saved pipelines** can inspect, export, import, rename, and
-  delete named presets. Import validates the preset schema and pipeline against
-  the current executable catalog before saving. Deleting a preset removes only
+- **Save pipeline** offers **Save as new pipeline** and **Update existing
+  pipeline** with an explicit target and replacement confirmation. Unicode and
+  repeated display names get independent IDs; renaming keeps existing references.
+- **Saved pipelines** can inspect, export, import, edit details, duplicate, rename,
+  and delete pipelines. Export's **Importable pipeline JSON** is the field to
+  copy. Import accepts this complete JSON object or a local `.json` file path
+  on the FiftyOne server. Import validates the schema and executable pipeline
+  before saving; replacing the same ID requires **Overwrite existing saved pipeline**.
+  See the [save/import/edit workflow](docs/pipeline-presets.md#save-and-manage).
+  Deleting a preset removes only
   the preset JSON file, not runs, generated samples, output files, or sources.
 
 ## Current limits
@@ -256,8 +263,8 @@ Then run `Run history` to inspect persisted counts, generated
 sample availability, versions, transform config, per-output replay records, and
 stale/missing manifest state. The viewer can also open the generated samples
 that still exist in the active dataset. Run `Saved pipelines` to
-inspect shared presets, export one as JSON, import validated preset JSON, rename
-presets, or delete only a preset JSON file. In **Run history**, choose
+inspect shared pipelines, copy **Importable pipeline JSON**, import from JSON or
+a local file, edit details, duplicate, or delete a configuration. In **Run history**, choose
 **Review deletion of generated outputs**, inspect the scope, and confirm to remove generated
 samples/files and the FiftyOne custom run; source samples and source files
 remain unchanged. Cleaned runs remain inspectable through the retained manifest

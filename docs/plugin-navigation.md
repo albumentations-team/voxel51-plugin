@@ -79,5 +79,7 @@ uses a separate run-bound confirmation field. The additional check does not
 change the manifest allowlist or deletion implementation.
 
 The history listing reuses VOX-56, merged from `dev` at `8ce5e21`; editable loading
-and result presentation reuse VOX-71–74. Broader saved-pipeline lifecycle work
-(VOX-49) and discovery recommendations (VOX-58) remain separate tasks.
+and result presentation reuse VOX-71–74. VOX-49 extends the existing Saved
+pipelines entry with explicit create/update modes, portable JSON/file import,
+and metadata editing; see [the saved pipeline workflow](pipeline-presets.md).
+Discovery recommendations (VOX-58) remain a separate task.

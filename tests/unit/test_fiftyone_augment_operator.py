@@ -1615,10 +1615,11 @@ def test_augment_operator_execute_saves_named_preset_without_selected_samples(mo
     assert result["execution_status"] == PRESET_SAVED_EXECUTION_STATUS
     assert result["created_count"] == 0
     assert result["error_count"] == 0
-    assert result["preset_key"] == "portable-training-preset"
+    preset_key = str(result["preset_key"])
+    assert preset_key and preset_key != "portable-training-preset"
     assert result["preset_name"] == "Portable training preset"
 
-    preset = FilePipelinePresetStore(storage_root=tmp_path).load_preset("portable-training-preset")
+    preset = FilePipelinePresetStore(storage_root=tmp_path).load_preset(preset_key)
     assert preset.description == "Cross-dataset baseline."
     assert preset.pipeline == PipelineConfig(
         transforms=(TransformConfig(name="HorizontalFlip", params={"p": 1.0}),),
@@ -1715,12 +1716,13 @@ def test_augment_operator_execute_saves_named_preset_and_runs_augmentation(monke
 
     assert len(preflight_calls) == 1
     assert result["run_key"] == "albumentationsx-20260731T120000Z-reusable-crop"
-    assert result["preset_key"] == "reusable-crop"
+    preset_key = str(result["preset_key"])
+    assert preset_key and preset_key != "reusable-crop"
     assert result["preset_name"] == "Reusable crop"
-    assert pathlib.Path(str(result["preset_path"])).parts[-2:] == ("presets", "reusable-crop.json")
+    assert pathlib.Path(str(result["preset_path"])).parts[-2:] == ("presets", f"{preset_key}.json")
     assert Context.triggered == ["reload_dataset"]
 
-    preset = FilePipelinePresetStore(storage_root=tmp_path).load_preset("reusable-crop")
+    preset = FilePipelinePresetStore(storage_root=tmp_path).load_preset(preset_key)
     assert preset.description == "Crop baseline for multiple datasets."
     assert preset.pipeline == PipelineConfig(
         transforms=(TransformConfig(name="RandomCrop", params={"height": 32, "width": 24, "p": 1.0}),),

@@ -13,7 +13,13 @@ DRAFT_ID: Final[str] = "_pipeline_draft_id"
 EDITOR_SECTION_FIELDS: Final[dict[str, tuple[str, ...]]] = {
     "_pipeline_library": ("pipeline_load_source",),
     "_run_options": ("run_label",),
-    "_save_options": ("save_preset_name", "save_preset_description"),
+    "_save_options": (
+        "save_preset_name",
+        "save_preset_description",
+        "save_preset_mode",
+        "save_preset_target",
+        "save_preset_confirm_update",
+    ),
 }
 
 

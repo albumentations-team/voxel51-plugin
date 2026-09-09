@@ -80,7 +80,8 @@ def test_manage_presets_operator_resolves_export_form_and_output(tmp_path) -> No
     assert input_properties["preset_key"]["type"]["name"] == "Enum"
     assert input_properties["preset_key"]["default"] == preset.key
     assert output_properties["presets"]["type"]["name"] == "List"
-    assert output_properties["exported_preset_json"]["type"]["name"] == "String"
+    assert output_properties["importable_preset_json"]["type"]["name"] == "String"
+    assert {"presets_json", "selected_preset_json", "exported_preset_json"}.isdisjoint(output_properties)
     assert output_properties["errors_json"]["type"]["name"] == "String"
 
 
@@ -201,7 +202,7 @@ def test_manage_presets_operator_rejects_import_overwrite_without_confirmation(t
 
 
 @pytest.mark.unit
-def test_manage_presets_operator_renames_preset_and_removes_old_file(tmp_path) -> None:
+def test_manage_presets_operator_renames_preset_without_changing_identity(tmp_path) -> None:
     preset = _save_preset(tmp_path, "Training defaults")
     operator = ManageAlbumentationsXPresets()
 
@@ -215,17 +216,17 @@ def test_manage_presets_operator_renames_preset_and_removes_old_file(tmp_path) -
 
     result = operator.execute(Context())
     store = FilePipelinePresetStore(storage_root=tmp_path)
-    renamed_key = build_preset_key("Validation defaults")
+    renamed_key = preset.key
     renamed = store.load_preset(renamed_key)
 
     assert result["status"] == "ok"
     assert result["preset_key"] == renamed_key
-    assert not store.preset_exists(preset.key)
+    assert store.preset_exists(preset.key)
     assert renamed.name == "Validation defaults"
     assert renamed.pipeline == preset.pipeline
     assert renamed.created_at == preset.created_at
     assert renamed.updated_at is not None
-    assert renamed.metadata["renamed_from"] == preset.key
+    assert renamed.metadata == preset.metadata
 
 
 @pytest.mark.unit

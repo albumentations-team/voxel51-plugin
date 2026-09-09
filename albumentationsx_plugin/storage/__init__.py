@@ -14,6 +14,7 @@ from albumentationsx_plugin.storage.paths import (
     build_preset_key,
     build_run_key,
     default_storage_root,
+    new_preset_key,
     slugify_run_label,
 )
 from albumentationsx_plugin.storage.presets import PRESET_FILE_SUFFIX, FilePipelinePresetStore
@@ -32,6 +33,7 @@ __all__ = [
     "build_run_key",
     "delete_manifest_output_files",
     "default_storage_root",
+    "new_preset_key",
     "resolve_manifest_output_path",
     "slugify_run_label",
 ]

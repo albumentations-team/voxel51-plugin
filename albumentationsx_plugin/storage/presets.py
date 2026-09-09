@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 import tempfile
 from dataclasses import dataclass
 from os import PathLike
@@ -11,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from albumentationsx_plugin.core import MediaIOError, PipelinePreset
-from albumentationsx_plugin.storage.paths import build_preset_dir, build_preset_key
+from albumentationsx_plugin.storage.paths import MAX_PRESET_KEY_LENGTH, build_preset_dir
 
 PRESET_FILE_SUFFIX = ".json"
 _LOGGER = logging.getLogger(__name__)
@@ -32,7 +34,7 @@ class FilePipelinePresetStore:
     def preset_path(self, preset_key: str) -> Path:
         """Return the JSON file path for one preset key."""
 
-        safe_key = _safe_preset_key(preset_key)
+        safe_key = validate_preset_key(preset_key)
         return self.preset_dir / f"{safe_key}{PRESET_FILE_SUFFIX}"
 
     def preset_exists(self, preset_key: str) -> bool:
@@ -40,22 +42,39 @@ class FilePipelinePresetStore:
 
         return self.preset_path(preset_key).is_file()
 
-    def save_preset(self, preset: PipelinePreset) -> None:
-        """Atomically write a preset JSON file."""
+    def save_preset(self, preset: PipelinePreset, *, overwrite: bool = False) -> None:
+        """Atomically publish validated JSON, requiring explicit replacement.
+
+        Linking the finished temporary file for a new save prevents concurrent
+        writers from silently replacing an existing identity.
+        """
 
         preset_path = self.preset_path(preset.key)
-        preset_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path = _write_temporary_preset(preset_path, preset)
+        temporary_path = None
         try:
-            temporary_path.replace(preset_path)
+            preset_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary_path = _write_temporary_preset(preset_path, preset)
+            if overwrite:
+                temporary_path.replace(preset_path)
+            else:
+                os.link(temporary_path, preset_path)
+        except FileExistsError as error:
+            raise _preset_error(
+                preset_path,
+                "Saved pipeline already exists. Confirm replacement or save as a new pipeline.",
+                reason="preset_already_exists",
+                preset_key=preset.key,
+            ) from error
         except OSError as error:
-            temporary_path.unlink(missing_ok=True)
             raise _preset_error(
                 preset_path,
                 "Pipeline preset could not be moved into place.",
                 reason="preset_write_failed",
                 exception_type=type(error).__name__,
             ) from error
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
 
     def load_preset(self, preset_key: str) -> PipelinePreset:
         """Load one preset by exact key."""
@@ -69,7 +88,7 @@ class FilePipelinePresetStore:
         try:
             with preset_path.open("r", encoding="utf-8") as file:
                 payload = json.load(file)
-        except (OSError, json.JSONDecodeError) as error:
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
             raise _preset_error(
                 preset_path,
                 "Pipeline preset could not be read as valid JSON.",
@@ -80,7 +99,7 @@ class FilePipelinePresetStore:
         if not isinstance(payload, dict):
             raise _preset_error(preset_path, "Pipeline preset must be a JSON object.", reason="invalid_preset_shape")
         preset = PipelinePreset.from_dict(payload)
-        expected_key = _safe_preset_key(preset_key)
+        expected_key = validate_preset_key(preset_key)
         if preset.key != expected_key:
             raise _preset_error(
                 preset_path,
@@ -138,7 +157,7 @@ class FilePipelinePresetStore:
                 preset_key=renamed_preset.key,
             )
 
-        self.save_preset(renamed_preset)
+        self.save_preset(renamed_preset, overwrite=source_path == target_path or overwrite)
         if source_path == target_path:
             return
 
@@ -153,8 +172,15 @@ class FilePipelinePresetStore:
             ) from error
 
 
-def _safe_preset_key(value: str) -> str:
-    return build_preset_key(value)
+def validate_preset_key(value: str) -> str:
+    """Accept exact legacy/new IDs without normalizing a replacement target."""
+    if (
+        not isinstance(value, str)
+        or len(value) > MAX_PRESET_KEY_LENGTH
+        or re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", value) is None
+    ):
+        raise _preset_error(str(value), "Saved pipeline ID is not a safe storage key.", reason="invalid_preset_key")
+    return value
 
 
 def _write_temporary_preset(preset_path: Path, preset: PipelinePreset) -> Path:
@@ -169,9 +195,9 @@ def _write_temporary_preset(preset_path: Path, preset: PipelinePreset) -> Path:
             delete=False,
         ) as file:
             temporary_path = Path(file.name)
-            json.dump(preset.to_dict(), file, indent=2, sort_keys=True)
+            json.dump(preset.to_dict(), file, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False)
             file.write("\n")
-    except OSError as error:
+    except (OSError, TypeError, ValueError) as error:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
         raise _preset_error(
