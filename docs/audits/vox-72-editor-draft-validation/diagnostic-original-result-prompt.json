@@ -1,0 +1,46 @@
+{
+  "note": "Intermediate native prompt retained completed execution state; replaced with show_output presentation before final validation.",
+  "observations": [
+    {
+      "scenario": "returned-editor-preserves-values",
+      "focused": {
+        "tag": "BUTTON",
+        "text": "Back to editor"
+      },
+      "images": [
+        {
+          "alt": "Preview 1 annotated before and after comparison",
+          "height": 370,
+          "width": 460
+        },
+        {
+          "alt": "Preview 1 source image",
+          "height": 640,
+          "width": 427
+        },
+        {
+          "alt": "Preview 1 augmented image",
+          "height": 640,
+          "width": 427
+        }
+      ],
+      "inputs": [
+        {
+          "type": "text",
+          "value": "Preview generated in memory for up to three selected source samples. No samples, files, manifests, or FiftyOne custom runs were created."
+        }
+      ],
+      "sections": [
+        {
+          "label": "Result details",
+          "open": false
+        }
+      ],
+      "text": "Preview 1 annotated comparison\n\nBack to editor\n\nPreview again\n\nReview and create samples\n\nContinue editing\n\nYour configuration is preserved. Each preview or creation samples fresh randomness, so its pixels may differ. Closing this result ends this draft; use Back to editor or save the pipeline to keep it.\n\nCreated:\n\n0\n\nProcessed:\n\n1\n\nErrors:\n\n0\n\nPreview results:\n\n1\n\nResult details\n\nClose",
+      "viewport": {
+        "height": 768,
+        "width": 1366
+      }
+    }
+  ]
+}

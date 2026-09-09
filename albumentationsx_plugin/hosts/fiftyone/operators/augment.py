@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Mapping, Sequence
+from types import SimpleNamespace
 from typing import Any, cast
 
 import fiftyone.operators as foo
@@ -27,6 +28,21 @@ from albumentationsx_plugin.hosts.fiftyone.diagnostics import (
     DEBUG_BUNDLE_FIELD_NAME,
     build_augmentation_debug_bundle,
 )
+from albumentationsx_plugin.hosts.fiftyone.editor_draft import (
+    ACTION_LABELS,
+    DRAFT_DATASET,
+    EDITOR_ACTION,
+    EDITOR_DRAFT,
+    RESULT_DETAILS,
+    RETURN_ERRORS,
+    REVIEWED_SELECTION,
+    continuation_draft,
+    editor_action,
+    snapshot_editor,
+)
+from albumentationsx_plugin.hosts.fiftyone.editor_draft import (
+    execution_params as effective_editor_params,
+)
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_FIELD_NAME,
     EXECUTION_SCOPE_SELECTED_SAMPLES,
@@ -40,6 +56,8 @@ from albumentationsx_plugin.hosts.fiftyone.form_params import (
     draft_parameter_group_name,
     flatten_fiftyone_form_groups,
 )
+from albumentationsx_plugin.hosts.fiftyone.forms.sections import add_collapsible_section
+from albumentationsx_plugin.hosts.fiftyone.pipeline_loading import AUGMENT_OPERATOR_URI, pipeline_draft_prompt_params
 from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
     SAVE_PRESET_ONLY_FIELD_NAME,
     pipeline_preset_save_requested,
@@ -107,7 +125,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
             inputs,
             view=types.PromptView(
                 label=OPERATOR_LABEL,
-                submit_button_label="Run augmentation",
+                submit_button_label=ACTION_LABELS[editor_action(_ctx_params(ctx))],
                 cancel_button_label="Close",
                 # Remount uncontrolled FiftyOne inputs only when a snapshot is explicitly loaded.
                 componentsProps={"container": {"key": str(_ctx_params(ctx).get(DRAFT_ID, "unsaved"))}},
@@ -116,6 +134,12 @@ class AugmentWithAlbumentationsX(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_output(self, ctx: Any):
+        results = getattr(ctx, "results", None)
+        if isinstance(results, Mapping) and results.get("_displayed_in_app") is True:
+            return types.Property(types.Object())
+        return self._result_schema(ctx)
+
+    def _result_schema(self, ctx: Any):
         outputs = types.Object()
         outputs.str("run_key", label="Run key")
         outputs.str("source_scope", label="Source scope")
@@ -143,7 +167,13 @@ class AugmentWithAlbumentationsX(foo.Operator):
         if _preview_only_from_ctx(ctx):
             results = getattr(ctx, "results", {})
             _render_preview_output_fields(outputs, results if isinstance(results, Mapping) else {})
-        return types.Property(outputs)
+        return types.Property(_arrange_output(outputs, ctx))
+
+    # pyrefly: ignore[bad-override]
+    def resolve_delegation(self, ctx: Any):
+        if editor_action(_ctx_params(ctx)) in {"preview", "save", "validate"}:
+            return False
+        return None
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
@@ -159,7 +189,80 @@ class AugmentWithAlbumentationsX(foo.Operator):
         )
 
     def execute(self, ctx: Any) -> JSONDict:
-        params = _ctx_params(ctx)
+        draft = snapshot_editor(ctx, _ctx_params(ctx))
+        result = self._execute(ctx)
+        errors = result.get("errors")
+        if isinstance(errors, list) and errors:
+            draft[RETURN_ERRORS] = "\n".join(
+                str(error.get("message", "")) for error in errors if isinstance(error, Mapping)
+            )
+        result[EDITOR_DRAFT] = cast(Any, draft)
+        # Keep the flat execution API; nested values serve only the collapsed App report.
+        result[RESULT_DETAILS] = dict(result)
+        cast(dict, result[RESULT_DETAILS]).pop(EDITOR_DRAFT, None)
+        if (
+            EDITOR_ACTION in _ctx_params(ctx)
+            and not getattr(ctx, "delegated", False)
+            and callable(getattr(ctx, "trigger", None))
+        ):
+            # The 1.19 prompt retains hasExecuted when another prompt replaces
+            # its output. Show results through the public independent output
+            # modal so the completed editor can close and a fresh one can open.
+            output_ctx = SimpleNamespace(params=_ctx_params(ctx), results=result)
+            schema = self._result_schema(output_ctx).to_json()
+            ctx.trigger("show_output", params={"outputs": schema, "results": dict(result)})
+            result["_displayed_in_app"] = True
+        return result
+
+    def _execute(self, ctx: Any) -> JSONDict:
+        raw_params = _ctx_params(ctx)
+        params = effective_editor_params(raw_params)
+        if EDITOR_ACTION in raw_params and (
+            not isinstance(raw_params[EDITOR_ACTION], str) or raw_params[EDITOR_ACTION] not in ACTION_LABELS
+        ):
+            return _error_result(
+                params,
+                errors=[
+                    {
+                        "code": "invalid_editor_action",
+                        "message": "Choose Preview, Create augmented samples, Save pipeline, or Validate without creating samples.",
+                        "context": {},
+                    }
+                ],
+                ctx=ctx,
+            )
+        dataset_name = getattr(getattr(ctx, "dataset", None), "name", None)
+        if raw_params.get(DRAFT_DATASET) and raw_params[DRAFT_DATASET] != dataset_name:
+            return _error_result(
+                params,
+                errors=[
+                    {
+                        "code": "draft_dataset_changed",
+                        "message": "This draft belongs to another dataset. Open its original dataset or load a saved pipeline to map annotations to this dataset.",
+                        "context": {},
+                    }
+                ],
+                ctx=ctx,
+            )
+        reviewed = raw_params.get(REVIEWED_SELECTION)
+        selected_now = selected_sample_ids_from_context(ctx)
+        if (
+            editor_action(params) == "create"
+            and params.get("execution_scope") == EXECUTION_SCOPE_SELECTED_SAMPLES
+            and isinstance(reviewed, list)
+            and set(reviewed) != set(selected_now)
+        ):
+            return _error_result(
+                params,
+                errors=[
+                    {
+                        "code": "selection_changed",
+                        "message": "The selected samples changed after this editor was opened. Return to the editor to review the current selection before creating samples.",
+                        "context": {"reviewed_count": len(reviewed), "selected_count": len(selected_now)},
+                    }
+                ],
+                ctx=ctx,
+            )
         selected_sample_ids = selected_sample_ids_from_context(ctx)
         storage_root = storage_root_from_params(params)
         template_source_issues = validate_augment_template_sources(params)
@@ -299,6 +402,58 @@ class AugmentWithAlbumentationsX(foo.Operator):
         if saved_preset is not None:
             output.update(_pipeline_preset_output_fields(saved_preset))
         return output
+
+
+def _arrange_output(fields: types.Object, ctx: Any) -> types.Object:
+    results = getattr(ctx, "results", None)
+    results = results if isinstance(results, Mapping) else {}
+    outputs = types.Object()
+    # Useful comparisons lead; source images and technical payloads remain available below.
+    for slot in range(1, MAX_PREVIEW_SAMPLES + 1):
+        name = preview_field_name(slot, PREVIEW_FIELD_COMPARISON_IMAGE)
+        if name in fields.properties:
+            outputs.add_property(name, fields.properties[name])
+    errors = results.get("errors")
+    if isinstance(errors, list) and errors:
+        outputs.view(
+            "_execution_errors",
+            types.Warning(
+                label="Execution needs attention",
+                description="\n".join(str(error.get("message", "")) for error in errors if isinstance(error, Mapping)),
+            ),
+        )
+    draft = results.get(EDITOR_DRAFT)
+    if isinstance(draft, Mapping):
+        for name, label, action in (
+            ("_back_to_editor", "Back to editor", None),
+            ("_preview_again", "Preview again", "preview"),
+            ("_create_from_draft", "Review and create samples", "create"),
+        ):
+            restored = continuation_draft(draft, action=action)
+            outputs.btn(
+                name,
+                label=label,
+                on_click=AUGMENT_OPERATOR_URI,
+                prompt=True,
+                params=pipeline_draft_prompt_params(restored),
+                description="Restores your configuration. Review the current source selection and submit the chosen action.",
+            )
+        outputs.view(
+            "_draft_continuation_note",
+            types.Notice(
+                label="Continue editing",
+                description="Your configuration is preserved. Each preview or creation samples fresh randomness, so its pixels may differ. Closing this result ends this draft; use Back to editor or save the pipeline to keep it.",
+            ),
+        )
+    for name in ("created_count", "processed_count", "error_count", "preview_count", "preset_name"):
+        if name in results and name in fields.properties:
+            outputs.add_property(name, fields.properties[name])
+    details = types.Object()
+    for name, prop in fields.properties.items():
+        if name not in outputs.properties:
+            details.add_property(name, prop)
+    add_collapsible_section(outputs, RESULT_DETAILS, "Result details", details)
+    return outputs
 
 
 def _build_dynamic_augment_form(ctx: Any):
@@ -774,7 +929,7 @@ def _save_preset_only_param(params: object) -> bool:
 
 
 def _preview_only_from_ctx(ctx: Any | None) -> bool:
-    return _preview_only_param(_ctx_params(ctx))
+    return _preview_only_param(effective_editor_params(_ctx_params(ctx)))
 
 
 def _trigger_dataset_reload(ctx: Any, result: Any) -> None:

@@ -10,6 +10,11 @@ from albumentationsx_plugin.core import MAX_PIPELINE_STEPS
 STAGE_PARAMETER_GROUP_PREFIX: Final[str] = "_stage_parameters"
 ANNOTATION_FIELD_GROUP_NAME: Final[str] = "_annotation_fields"
 DRAFT_ID: Final[str] = "_pipeline_draft_id"
+EDITOR_SECTION_FIELDS: Final[dict[str, tuple[str, ...]]] = {
+    "_pipeline_library": ("pipeline_load_source",),
+    "_run_options": ("run_label",),
+    "_save_options": ("save_preset_name", "save_preset_description"),
+}
 
 
 def draft_parameter_group_name(draft_id: str) -> str:
@@ -46,6 +51,10 @@ def flatten_fiftyone_form_groups(params: Mapping[str, object]) -> dict[str, obje
             # Ignore delayed updates from the replaced prompt's old field paths.
             params = draft
     flattened = flatten_stage_parameter_groups(params)
+    for name in EDITOR_SECTION_FIELDS:
+        group = flattened.pop(name, None)
+        if isinstance(group, Mapping):
+            flattened.update(group)
     annotation_group = flattened.pop(ANNOTATION_FIELD_GROUP_NAME, None)
     if isinstance(annotation_group, Mapping):
         flattened.update(annotation_group)

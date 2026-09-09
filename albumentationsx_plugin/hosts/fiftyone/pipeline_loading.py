@@ -14,6 +14,7 @@ from albumentationsx_plugin.core import (
     MAX_PIPELINE_STEPS,
     FieldKind,
     PipelineConfig,
+    UnsupportedTransformError,
     pipeline_stage_enabled_field_name,
     pipeline_stage_order_field_name,
     pipeline_step_field_name,
@@ -26,6 +27,7 @@ from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
 from albumentationsx_plugin.hosts.fiftyone.form_params import (
     ANNOTATION_FIELD_GROUP_NAME,
     DRAFT_ID,
+    EDITOR_SECTION_FIELDS,
     draft_parameter_group_name,
     flatten_fiftyone_form_groups,
     stage_parameter_group_name,
@@ -45,6 +47,8 @@ ANNOTATION_SELECTION: Final[str] = "annotation_selection"
 # These belong to the current execution, not the reusable pipeline. An allowlist
 # also removes every old stage parameter, including stage 1's unprefixed keys.
 _EXECUTION_FIELDS: Final[tuple[str, ...]] = (
+    "_editor_action",
+    "_reviewed_selection",
     "execution_scope",
     "run_label",
     "dry_run",
@@ -72,7 +76,13 @@ def pipeline_draft_prompt_params(draft: Mapping[str, object]) -> dict[str, objec
         for name in (pipeline_stage_enabled_field_name(step), pipeline_stage_order_field_name(step)):
             if name in params:
                 group[name] = params.pop(name)
-        for field in schema_provider.get_parameter_schema(transform):
+        try:
+            fields = schema_provider.get_parameter_schema(transform)
+        except (UnsupportedTransformError, ModuleNotFoundError):
+            # Returning from a failed execution must also work for invalid
+            # transforms or unavailable runtime dependencies.
+            fields = ()
+        for field in fields:
             name = pipeline_step_field_name(step, field.name)
             if name in params:
                 value = params.pop(name)
@@ -83,6 +93,10 @@ def pipeline_draft_prompt_params(draft: Mapping[str, object]) -> dict[str, objec
     annotations = {name: params.pop(name) for name in tuple(params) if name.startswith(ANNOTATION_FIELD_PARAM_PREFIX)}
     if annotations:
         params[ANNOTATION_FIELD_GROUP_NAME] = annotations
+    for section, names in EDITOR_SECTION_FIELDS.items():
+        group = {name: params.pop(name) for name in names if name in params}
+        if group:
+            params[section] = group
     draft_id = str(params[DRAFT_ID])
     return {DRAFT_ID: draft_id, draft_parameter_group_name(draft_id): params}
 
@@ -138,6 +152,7 @@ def load_pipeline_draft(
     draft.update(
         {LOAD_SOURCE: source, ORIGIN_SOURCE: source, ORIGIN_LABEL: label, LOAD_NOTICE: notice, DRAFT_ID: uuid4().hex}
     )
+    draft["_draft_dataset"] = getattr(dataset, "name", None)
     return draft
 
 

@@ -220,7 +220,10 @@ def test_missing_source_leaves_form_draft_usable(tmp_path):
         .to_json()["type"]["properties"]
     )
     assert LOAD_BUTTON not in schema
-    assert "Current draft is unchanged" in schema["_pipeline_load_error"]["view"]["description"]
+    assert (
+        "Current draft is unchanged"
+        in schema["_pipeline_library"]["type"]["properties"]["_pipeline_load_error"]["view"]["description"]
+    )
     assert schema[stage_parameter_group_name(1)]["type"]["properties"]["p"]["default"] == 0.0
 
 
@@ -243,7 +246,9 @@ def test_prompt_uses_nested_values_and_new_identity_only_on_explicit_reload(tmp_
     values["_stage_parameters_1"]["p"] = 0.0
     edited = operator.resolve_input(ctx).to_json()
     assert edited["view"]["componentsProps"]["container"]["key"] == draft[DRAFT_ID]
-    replacement = edited["type"]["properties"][group_name]["type"]["properties"][LOAD_BUTTON]["view"]["params"]
+    replacement = edited["type"]["properties"][group_name]["type"]["properties"]["_pipeline_library"]["type"][
+        "properties"
+    ][LOAD_BUTTON]["view"]["params"]
     assert replacement[DRAFT_ID] != draft[DRAFT_ID]
     new_values = replacement[draft_parameter_group_name(replacement[DRAFT_ID])]
     assert new_values["_stage_parameters_1"]["p"] == 1.0

@@ -43,6 +43,7 @@ class InlineCompatibilityPreview:
     summary: str
     warning: str = ""
     recommendations: tuple[str, ...] = ()
+    source_count: int | None = None
 
 
 def build_inline_compatibility_preview(
@@ -103,6 +104,7 @@ def build_inline_compatibility_preview(
         summary=_report_summary(report, selection=selection, pipeline=pipeline, catalog_provider=catalog_provider),
         warning=warning,
         recommendations=_visible_recommendations(report),
+        source_count=report.source.source_count if report.source.source_count_available else None,
     )
 
 

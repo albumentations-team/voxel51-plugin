@@ -51,21 +51,21 @@ FiftyOne registers these operators:
 4. Choose the execution scope, annotation fields, ordered pipeline stages, and
    transform parameters. The form shows a compact compatibility summary for the
    current dataset/scope/pipeline and warns about unsafe annotation choices
-   before execution. Optionally enable `Preview only` to inspect up to three
-   selected samples in memory, then disable it and run the same configuration to
-   create outputs. Optionally choose a named preset or save the current pipeline
-   as a reusable preset.
+   before execution. Choose **Action → Preview** to inspect up to three selected
+   samples in memory. The result offers **Back to editor**, **Preview again**, and
+   **Review and create samples**, preserving your stages, parameters, annotations,
+   scope, and output count. Choose **Action → Save pipeline** to save a reusable configuration.
 5. Inspect the resulting samples tagged by the run key. Use **Manage
-   AlbumentationsX Presets** for shared preset import/export/rename/delete,
+   AlbumentationsX Saved Pipelines** for shared pipeline import/export/rename/delete,
    **View AlbumentationsX Run** to inspect the saved pipeline, and **Delete
    AlbumentationsX Run** to remove only that run's generated outputs.
 
 `Execution scope` controls whether the operator processes selected samples, the
-active current view, or the entire dataset. `Preview only` renders source and
+active current view, or the entire dataset. **Preview** renders source and
 augmented images, annotated before/after comparison images, sampled replay
 parameters, transformed label JSON, and annotation comparison JSON for a bounded
 selected-sample preview without creating samples, files, manifests, or custom
-runs. `Dry run` validates a configuration and reports the resolved source scope
+runs. **Validate without creating samples** validates a configuration and reports the resolved source scope
 without creating samples or files. Use immediate execution for small bounded
 selections; use delegated execution for larger views or datasets to keep the App
 responsive while progress is reported.
@@ -200,13 +200,13 @@ optionally use `Load pipeline` and `Replace draft with selected pipeline` to loa
 an editable copy from saved pipelines or run history, set `Run label` and
 `Outputs per sample`, and choose
 a catalog-backed transform for each visible stage slot. Each stage slot can be
-skipped with `Enabled` or moved by changing `Execution order`. Fill `Saved pipeline
-name` to save the current pipeline as a reusable named preset; enable `Save
-pipeline only` to save it without running augmentation. Select one to three source
-samples and enable `Preview only` to render source/augmented image previews,
+skipped with `Enabled` or moved by changing `Execution order`. Choose **Action →
+Save pipeline** and fill **Saved pipeline name** to save it without creating samples.
+A name retained in the editor does not request a save during other actions.
+Select one to three source samples and choose **Action → Preview** to render source/augmented image previews,
 annotated before/after comparisons, sampled replay parameters, transformed
 label JSON, and annotation comparison JSON without writing files, creating
-samples, or registering a run. `Dry run` validates the configuration and reports
+samples, or registering a run. **Validate without creating samples** validates the configuration and reports
 the resolved source scope without writing files or creating samples. Run small
 selections immediately. For larger views or full datasets, choose delegated
 execution in FiftyOne's execution dialog so the App can remain responsive and

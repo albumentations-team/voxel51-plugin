@@ -51,6 +51,15 @@ from albumentationsx_plugin.hosts.fiftyone.augment_validation import (
     validate_augment_template_sources,
     validate_effective_augment_params,
 )
+from albumentationsx_plugin.hosts.fiftyone.editor_draft import (
+    ACTION_LABELS,
+    EDITOR_ACTION,
+    PREVIOUS_SELECTION,
+    RETURN_ERRORS,
+    REVIEWED_SELECTION,
+    editor_action,
+    execution_params,
+)
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_CHOICES,
     EXECUTION_SCOPE_FIELD_NAME,
@@ -74,15 +83,11 @@ from albumentationsx_plugin.hosts.fiftyone.forms.renderer import (
     JSON_STRING_DEFAULT_METADATA_KEY,
     FiftyOneFormRenderer,
 )
+from albumentationsx_plugin.hosts.fiftyone.forms.sections import add_collapsible_section
 from albumentationsx_plugin.hosts.fiftyone.output_metadata import build_output_metadata_policy, metadata_policy_summary
 from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
     SAVE_PRESET_DESCRIPTION_FIELD_NAME,
     SAVE_PRESET_NAME_FIELD_NAME,
-    SAVE_PRESET_ONLY_FIELD_NAME,
-)
-from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
-    MAX_PREVIEW_SAMPLES,
-    PREVIEW_ONLY_FIELD_NAME,
 )
 from albumentationsx_plugin.hosts.fiftyone.progress import DELEGATED_EXECUTION_RECOMMENDED_SOURCE_COUNT
 
@@ -125,7 +130,7 @@ class DynamicAugmentFormBuilder:
         dataset = getattr(ctx, "dataset", None) if ctx is not None else None
         params = dict(raw_params)
         template_source_issues = validate_augment_template_sources(params)
-        validation_issues = (*template_source_issues, *validate_effective_augment_params(params))
+        validation_issues = (*template_source_issues, *validate_effective_augment_params(execution_params(params)))
         supported_transform_names = self._executable_transform_names()
         selected_sample_ids = selected_sample_ids_from_context(ctx)
         selected_scope = _selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
@@ -196,7 +201,12 @@ class DynamicAugmentFormBuilder:
                 params=params,
                 random_crop_defaults=random_crop_defaults,
             )
-        return inputs
+        return _arrange_editor(
+            inputs,
+            params,
+            selected_sample_ids=selected_sample_ids,
+            source_count=inline_compatibility_preview.source_count if inline_compatibility_preview else None,
+        )
 
     def _executable_transform_names(self) -> tuple[str, ...]:
         return tuple(
@@ -232,6 +242,8 @@ class DynamicAugmentFormBuilder:
                     label="Configuration validation",
                     description=augment_validation_warning(validation_issues),
                 ),
+                invalid=True,
+                error_message=augment_validation_warning(validation_issues),
             )
         self.renderer.render_into(
             inputs,
@@ -264,28 +276,12 @@ class DynamicAugmentFormBuilder:
                     max_value=MAX_OUTPUTS_PER_SAMPLE,
                 ),
                 FormFieldSchema(
-                    name=DRY_RUN_FIELD_NAME,
-                    kind=FieldKind.BOOLEAN,
-                    label="Dry run",
-                    default=_selected_bool(params.get(DRY_RUN_FIELD_NAME), default=False),
-                ),
-                FormFieldSchema(
-                    name=PREVIEW_ONLY_FIELD_NAME,
-                    kind=FieldKind.BOOLEAN,
-                    label="Preview only",
-                    default=_selected_bool(params.get(PREVIEW_ONLY_FIELD_NAME), default=False),
-                    help_text=(
-                        f"Render up to {MAX_PREVIEW_SAMPLES} selected samples in memory without creating samples, "
-                        "files, manifests, or custom runs."
-                    ),
-                ),
-                FormFieldSchema(
                     name=SAVE_PRESET_NAME_FIELD_NAME,
                     kind=FieldKind.STRING,
                     label="Saved pipeline name",
                     required=False,
                     default=_selected_string(params.get(SAVE_PRESET_NAME_FIELD_NAME)),
-                    help_text="Optional saved pipeline name to save this pipeline.",
+                    help_text="Used only by Save pipeline. An existing name replaces that saved pipeline.",
                 ),
                 FormFieldSchema(
                     name=SAVE_PRESET_DESCRIPTION_FIELD_NAME,
@@ -293,14 +289,6 @@ class DynamicAugmentFormBuilder:
                     label="Saved pipeline description",
                     required=False,
                     default=_selected_string(params.get(SAVE_PRESET_DESCRIPTION_FIELD_NAME)),
-                ),
-                FormFieldSchema(
-                    name=SAVE_PRESET_ONLY_FIELD_NAME,
-                    kind=FieldKind.BOOLEAN,
-                    label="Save pipeline only",
-                    required=False,
-                    default=_selected_bool(params.get(SAVE_PRESET_ONLY_FIELD_NAME), default=False),
-                    help_text="Save the current pipeline as a saved pipeline without running augmentation.",
                 ),
             ),
         )
@@ -448,6 +436,89 @@ class DynamicAugmentFormBuilder:
                 parameter_group,
                 _step_parameter_fields(parameter_fields=advanced_fields, step_number=step_number),
             )
+
+
+def _arrange_editor(
+    inputs: types.Object,
+    params: Mapping[str, object],
+    *,
+    selected_sample_ids: tuple[str, ...],
+    source_count: int | None,
+) -> types.Object:
+    arranged = types.Object()
+    action = editor_action(params)
+    choices = types.DropdownView()
+    for value, label in ACTION_LABELS.items():
+        choices.add_choice(value, label=label)
+    arranged.enum(EDITOR_ACTION, choices.values(), default=action, required=True, label="Action", view=choices)
+    if params.get(RETURN_ERRORS):
+        arranged.view(
+            "_previous_execution_error",
+            types.Warning(
+                label="Previous attempt needs attention",
+                description=str(params[RETURN_ERRORS]) + " Your settings are preserved below.",
+            ),
+        )
+    if AUGMENT_VALIDATION_WARNING_FIELD_NAME in inputs.properties:
+        arranged.add_property(
+            AUGMENT_VALIDATION_WARNING_FIELD_NAME, inputs.properties[AUGMENT_VALIDATION_WARNING_FIELD_NAME]
+        )
+    arranged.add_property(EXECUTION_SCOPE_FIELD_NAME, inputs.properties[EXECUTION_SCOPE_FIELD_NAME])
+    summary = (
+        f"Source samples in this scope: {source_count if source_count is not None else 'unknown'}. "
+        f"Selected now: {len(selected_sample_ids)}. "
+        f"Outputs per source: {_selected_outputs_per_sample(params.get(OUTPUTS_PER_SAMPLE_FIELD_NAME))}. "
+        "Creation uses the scope shown above. Preview uses up to 3 selected samples and creates no dataset samples."
+    )
+    arranged.view("_source_summary", types.Notice(label="Source and outputs", description=summary))
+    previous = params.get(PREVIOUS_SELECTION)
+    if isinstance(previous, list) and set(previous) != set(selected_sample_ids):
+        arranged.view(
+            "_selection_changed",
+            types.Warning(
+                label="Selection changed",
+                description=f"The previous draft used {len(previous)} selected sample(s); now {len(selected_sample_ids)} are selected. Review this scope before creating samples.",
+            ),
+        )
+    arranged.list(REVIEWED_SELECTION, types.String(), default=list(selected_sample_ids), view=types.HiddenView())
+    for name in (PIPELINE_STEP_COUNT_FIELD_NAME, OUTPUTS_PER_SAMPLE_FIELD_NAME):
+        prop = inputs.properties[name]
+        prop.view.space = 6
+        arranged.add_property(name, prop)
+    for name, prop in inputs.properties.items():
+        if (
+            name.startswith((STAGE_SECTION_FIELD_PREFIX + "_", "_stage_parameters_"))
+            or name == "transform"
+            or (name.startswith("step_") and name.endswith("_transform"))
+        ):
+            arranged.add_property(name, prop)
+    for name in (
+        ANNOTATION_SECTION_FIELD_NAME,
+        ANNOTATION_COMPATIBILITY_WARNING_FIELD_NAME,
+        ANNOTATION_FIELD_GROUP_NAME,
+    ):
+        if name in inputs.properties:
+            arranged.add_property(name, inputs.properties[name])
+    groups = (
+        (
+            "_pipeline_library",
+            "Load a saved pipeline or run",
+            lambda n: n.startswith("_pipeline_") or n == "pipeline_load_source" or n == "_load_pipeline",
+        ),
+        ("_save_options", "Save pipeline settings", lambda n: n.startswith("save_preset_")),
+        ("_run_options", "Run options", lambda n: n in (RUN_LABEL_FIELD_NAME, EXECUTION_MODE_GUIDANCE_FIELD_NAME)),
+        ("_compatibility_details", "Compatibility details", lambda n: n.startswith("_dataset_compatibility")),
+        ("_metadata_details", "Output metadata details", lambda n: n == "_output_metadata_policy"),
+    )
+    for key, label, matches in groups:
+        group = types.Object()
+        for name, prop in inputs.properties.items():
+            if name not in arranged.properties and matches(name):
+                group.add_property(name, prop)
+        if key == "_save_options" and action == "save":
+            group.properties[SAVE_PRESET_NAME_FIELD_NAME].required = True
+        add_collapsible_section(arranged, key, label, group, expanded=key == "_save_options" and action == "save")
+    return arranged
 
 
 def build_dynamic_augment_form(ctx: Any | None) -> types.Object:

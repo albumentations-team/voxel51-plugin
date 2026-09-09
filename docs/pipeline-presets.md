@@ -38,7 +38,7 @@ loading a pipeline does not reproduce an earlier output's replay or seed.
 | Outputs per sample | Restore the saved count; editable afterward. |
 | Annotation selection | Restore compatible saved fields as described below. |
 | Scope, current sample selection/view | Keep the current execution context. |
-| Run label, preview/dry run/save mode | Keep current form settings. |
+| Run label and chosen action | Keep current form settings. |
 | Save name and description | Keep current form settings; loading does not enable saving. |
 | Seed, replay, source IDs, output paths | Do not restore. |
 
@@ -66,10 +66,15 @@ Review those fields before executing. Checkboxes remain editable after loading.
 
 ## Save and manage
 
-Fill **Saved pipeline name** and optionally **Saved pipeline description**.
-Run normally to save the draft and materialize outputs, or enable **Save
-pipeline only**. Preview and dry run do not save pipelines; combining them with
-a save name or save-only mode produces an actionable validation error.
+Choose **Action → Save pipeline**. The **Save pipeline settings** section opens;
+fill **Saved pipeline name** and optionally **Saved pipeline description**.
+Saving creates no dataset samples. The result lets you return to the editor,
+preview, or review the scope before creating samples. Names and descriptions
+remain in the draft, but other UI actions do not implicitly save a pipeline.
+
+The Python API continues to support `preview_only`, `dry_run`, and
+`save_preset_only` when `_editor_action` is absent, including its validation of
+conflicting modes and its explicit save-and-materialize behavior.
 
 Shared storage remains `~/.fiftyone/albumentationsx-plugin/presets/<preset-key>.json`.
 The key is a path-safe slug of the name. Saving the same name updates that file,

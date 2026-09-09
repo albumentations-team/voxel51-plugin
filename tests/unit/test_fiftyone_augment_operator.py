@@ -190,21 +190,9 @@ def _pipeline_preset(name: str = "Training defaults") -> PipelinePreset:
 
 def _form_properties(input_json: dict[str, Any]) -> dict[str, Any]:
     properties = dict(input_json["type"]["properties"])
-    for name, prop in tuple(properties.items()):
-        if name.startswith("_pipeline_draft_"):
-            properties = dict(prop["type"]["properties"])
-    group_names = [
-        ANNOTATION_FIELD_GROUP_NAME,
-        *(stage_parameter_group_name(step_number) for step_number in range(1, MAX_PIPELINE_STEPS + 1)),
-    ]
-    for group_name in group_names:
-        group = properties.get(group_name)
-        if isinstance(group, dict):
-            group_type = group.get("type")
-            if isinstance(group_type, dict):
-                group_properties = group_type.get("properties")
-                if isinstance(group_properties, dict):
-                    properties.update(group_properties)
+    for prop in tuple(properties.values()):
+        if prop.get("type", {}).get("name") == "Object":
+            properties.update(_form_properties(prop))
     return properties
 
 
@@ -254,9 +242,7 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
 
     assert input_json["view"]["label"] == "Augment with AlbumentationsX"
     assert input_json["view"]["name"] == "PromptView"
-    assert input_json["view"]["submit_button_label"] == "Run augmentation"
-    assert input_properties["_general_settings"]["view"]["name"] == "Header"
-    assert input_properties["_general_settings"]["view"]["label"] == "General"
+    assert input_json["view"]["submit_button_label"] == "Create augmented samples"
     assert input_properties["_pipeline_stage_1"]["view"]["name"] == "Header"
     assert input_properties["_pipeline_stage_1"]["view"]["label"] == "Stage 1"
     assert input_properties[stage_parameter_group_name(1)]["view"]["name"] == "GridView"
@@ -314,26 +300,22 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["outputs_per_sample"]["type"]["name"] == "Number"
     assert input_properties["outputs_per_sample"]["required"] is False
     assert input_properties["outputs_per_sample"]["default"] == 1
-    assert input_properties["dry_run"]["type"]["name"] == "Boolean"
-    assert input_properties[PREVIEW_ONLY_FIELD_NAME]["type"]["name"] == "Boolean"
-    assert input_properties[PREVIEW_ONLY_FIELD_NAME]["default"] is False
-    assert (
-        f"up to {MAX_PREVIEW_SAMPLES} selected samples" in input_properties[PREVIEW_ONLY_FIELD_NAME]["view"]["caption"]
-    )
-    assert output_json["type"]["properties"]["run_key"]["type"]["name"] == "String"
-    assert output_json["type"]["properties"]["source_scope"]["type"]["name"] == "String"
-    assert output_json["type"]["properties"]["processed_count"]["type"]["name"] == "Number"
-    assert output_json["type"]["properties"]["created_count"]["type"]["name"] == "Number"
-    assert output_json["type"]["properties"]["error_count"]["type"]["name"] == "Number"
-    assert output_json["type"]["properties"]["execution_status"]["type"]["name"] == "String"
-    assert output_json["type"]["properties"]["errors_json"]["view"]["name"] == "CodeView"
-    assert output_json["type"]["properties"]["pipeline_config_json"]["view"]["name"] == "CodeView"
-    assert output_json["type"]["properties"]["operator_params_json"]["view"]["name"] == "CodeView"
-    assert output_json["type"]["properties"][DEBUG_BUNDLE_FIELD_NAME]["view"]["name"] == "CodeView"
-    assert output_json["type"]["properties"][PREVIEW_ONLY_FIELD_NAME]["type"]["name"] == "Boolean"
-    assert output_json["type"]["properties"]["preview_count"]["type"]["name"] == "Number"
-    assert output_json["type"]["properties"]["manifest_path"]["type"]["name"] == "String"
-    assert output_json["type"]["properties"]["fiftyone_run_key"]["type"]["name"] == "String"
+    assert input_properties["_editor_action"]["default"] == "create"
+    assert set(input_properties["_editor_action"]["type"]["values"]) == {"preview", "create", "save", "validate"}
+    assert _form_properties(output_json)["run_key"]["type"]["name"] == "String"
+    assert _form_properties(output_json)["source_scope"]["type"]["name"] == "String"
+    assert _form_properties(output_json)["processed_count"]["type"]["name"] == "Number"
+    assert _form_properties(output_json)["created_count"]["type"]["name"] == "Number"
+    assert _form_properties(output_json)["error_count"]["type"]["name"] == "Number"
+    assert _form_properties(output_json)["execution_status"]["type"]["name"] == "String"
+    assert _form_properties(output_json)["errors_json"]["view"]["name"] == "CodeView"
+    assert _form_properties(output_json)["pipeline_config_json"]["view"]["name"] == "CodeView"
+    assert _form_properties(output_json)["operator_params_json"]["view"]["name"] == "CodeView"
+    assert _form_properties(output_json)[DEBUG_BUNDLE_FIELD_NAME]["view"]["name"] == "CodeView"
+    assert _form_properties(output_json)[PREVIEW_ONLY_FIELD_NAME]["type"]["name"] == "Boolean"
+    assert _form_properties(output_json)["preview_count"]["type"]["name"] == "Number"
+    assert _form_properties(output_json)["manifest_path"]["type"]["name"] == "String"
+    assert _form_properties(output_json)["fiftyone_run_key"]["type"]["name"] == "String"
 
 
 @pytest.mark.unit
@@ -349,7 +331,7 @@ def test_augment_operator_resolves_preview_output_fields() -> None:
     )
 
     output_json = operator.resolve_output(context).to_json()
-    output_properties = output_json["type"]["properties"]
+    output_properties = _form_properties(output_json)
     source_image = output_properties[preview_field_name(1, PREVIEW_FIELD_SOURCE_IMAGE)]
     output_image = output_properties[preview_field_name(1, PREVIEW_FIELD_OUTPUT_IMAGE)]
     comparison_image = output_properties[preview_field_name(1, PREVIEW_FIELD_COMPARISON_IMAGE)]
@@ -392,7 +374,7 @@ def test_preview_schema_only_renders_populated_result_slots(populated_slots: tup
     }
     results["preview_count"] = "3"
     ctx = SimpleNamespace(params={PREVIEW_ONLY_FIELD_NAME: True}, results=results)
-    properties = AugmentWithAlbumentationsX().resolve_output(ctx).to_json()["type"]["properties"]
+    properties = _form_properties(AugmentWithAlbumentationsX().resolve_output(ctx).to_json())
     for slot in range(1, MAX_PREVIEW_SAMPLES + 1):
         assert (preview_field_name(slot, PREVIEW_FIELD_SOURCE_IMAGE) in properties) == (slot in populated_slots)
         assert (preview_field_name(slot, PREVIEW_FIELD_LABELS_JSON) in properties) == (slot in populated_slots)
@@ -403,7 +385,7 @@ def test_preview_schema_only_renders_populated_result_slots(populated_slots: tup
 @pytest.mark.parametrize("results", [None, {}, {"preview_count": 3}])
 def test_preview_schema_without_result_images_has_no_blank_image_regions(results: object) -> None:
     ctx = SimpleNamespace(params={PREVIEW_ONLY_FIELD_NAME: True}, results=results)
-    properties = AugmentWithAlbumentationsX().resolve_output(ctx).to_json()["type"]["properties"]
+    properties = _form_properties(AugmentWithAlbumentationsX().resolve_output(ctx).to_json())
     assert "preview_note" in properties
     assert all(prop["view"]["name"] != "ImageView" for prop in properties.values())
 
@@ -1275,7 +1257,8 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
 
     monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
 
-    assert operator.execute(Context()) == {
+    result = operator.execute(Context())
+    assert {name: value for name, value in result.items() if name not in {"_editor_draft", "_result_details"}} == {
         "run_key": "albumentationsx-20260731T120000Z-test",
         "source_scope": EXECUTION_SCOPE_SELECTED_SAMPLES,
         "processed_count": 1,

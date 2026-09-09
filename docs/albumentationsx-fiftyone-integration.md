@@ -106,14 +106,15 @@ In the App:
 1. Select one or more source samples.
 2. Open `Augment with AlbumentationsX` from the actions menu.
 3. Set `Execution scope` to `Selected samples`.
-4. Enable `Preview only` for the first pass.
+4. Choose **Action → Preview** for the first pass.
 5. Set `Pipeline stages` to `1`.
 6. Choose `HorizontalFlip`.
 7. Keep `p` at `1.0`.
 8. Keep `Outputs per sample` at `1`.
 9. Run the operator and inspect the preview output.
-10. Disable `Preview only`, optionally set a readable `Run label`, and run the
-    same configuration again.
+10. Click **Review and create samples**. Review the current scope, optionally set
+    **Run options → Run label**, then click **Create augmented samples**.
+    All pipeline edits and annotation choices are preserved.
 
 The plugin creates new output samples tagged with `albumentationsx-output` and
 a run-specific tag. Source samples and source image files remain unchanged.
@@ -132,19 +133,19 @@ run diagnostics.
 
 ## Build A Pipeline
 
-The augmentation form starts with general settings, then renders one section per
-pipeline stage.
+The form starts with the action and source/output summary, followed by pipeline
+stages and annotations. Optional library, save/run settings, and reports are
+collapsed and can be opened with the keyboard.
 
-General settings include:
+Settings include:
 
 - `Load pipeline`: choose a saved pipeline or run history, then explicitly replace the draft.
 - `Execution scope`: selected samples, current view, or entire dataset.
-- `Preview only`: render bounded selected-sample previews without persistence.
+- `Action`: Preview, Create augmented samples, Save pipeline, or Validate without creating samples.
 - `Run label`: add a readable prefix to generated run keys.
 - `Outputs per sample`: generate multiple outputs for each source sample.
 - `Saved pipeline name` and `Saved pipeline description`: save the resolved pipeline as a named
   preset.
-- `Save pipeline only`: validate and save a preset without running augmentation.
 - `Pipeline stages`: choose how many stage slots are visible.
 
 Loading creates an editable snapshot. Changing the source picker alone keeps
@@ -168,12 +169,17 @@ field tables, target-family details, package versions, and copyable JSON.
 
 ## Preview, Dry Run, And Execution
 
-Use `Preview only` when you want to see a small selected-sample result before
+Use **Action → Preview** when you want to see a small selected-sample result before
 writing anything. Preview returns source images, output images, annotated
 before/after comparison images, sampled replay metadata, transformed label JSON,
-and annotation comparison JSON through the operator output.
+and annotation comparison JSON through the operator output. Annotated comparisons
+appear first; technical fields are under **Result details**. Use **Back to editor**
+or **Preview again** to continue editing, or **Review and create samples** to
+review the current source selection before materializing the same configuration.
+Errors preserve the draft for correction. Each execution uses fresh randomness.
+Closing the result ends the transient draft; save a pipeline for later reuse.
 
-Use `Dry run` when you want validation and scope resolution without creating
+Use **Action → Validate without creating samples** when you want validation and scope resolution without creating
 samples or files. Dry runs do not create run directories, manifests, custom
 runs, or presets.
 
