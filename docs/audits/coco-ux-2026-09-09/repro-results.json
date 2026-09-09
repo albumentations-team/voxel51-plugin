@@ -1,0 +1,367 @@
+{
+  "sources": [
+    {
+      "id": "6aa1364835ca8e1d6df234f0",
+      "coco_id": 48564,
+      "keypoint_objects": 1,
+      "nan_points": 7
+    },
+    {
+      "id": "6aa1364935ca8e1d6df23583",
+      "coco_id": 396205,
+      "keypoint_objects": 0,
+      "nan_points": 0
+    },
+    {
+      "id": "6aa1364935ca8e1d6df23584",
+      "coco_id": 369442,
+      "keypoint_objects": 12,
+      "nan_points": 84
+    },
+    {
+      "id": "6aa1364935ca8e1d6df23585",
+      "coco_id": 464251,
+      "keypoint_objects": 0,
+      "nan_points": 0
+    },
+    {
+      "id": "6aa1364935ca8e1d6df23586",
+      "coco_id": 346905,
+      "keypoint_objects": 0,
+      "nan_points": 0
+    },
+    {
+      "id": "6aa1364935ca8e1d6df23587",
+      "coco_id": 314264,
+      "keypoint_objects": 1,
+      "nan_points": 6
+    },
+    {
+      "id": "6aa1364935ca8e1d6df23588",
+      "coco_id": 374052,
+      "keypoint_objects": 5,
+      "nan_points": 59
+    },
+    {
+      "id": "6aa1364935ca8e1d6df23589",
+      "coco_id": 548780,
+      "keypoint_objects": 6,
+      "nan_points": 29
+    },
+    {
+      "id": "6aa1364935ca8e1d6df235f4",
+      "coco_id": 327890,
+      "keypoint_objects": 0,
+      "nan_points": 0
+    },
+    {
+      "id": "6aa1364935ca8e1d6df235f5",
+      "coco_id": 540414,
+      "keypoint_objects": 14,
+      "nan_points": 117
+    },
+    {
+      "id": "6aa1364935ca8e1d6df235f6",
+      "coco_id": 426241,
+      "keypoint_objects": 1,
+      "nan_points": 10
+    },
+    {
+      "id": "6aa1364935ca8e1d6df235f7",
+      "coco_id": 338191,
+      "keypoint_objects": 0,
+      "nan_points": 0
+    }
+  ],
+  "default_preview": {
+    "run_key": "",
+    "source_scope": "selected_samples",
+    "processed_count": 0,
+    "created_count": 0,
+    "skipped_count": 0,
+    "error_count": 1,
+    "dry_run": false,
+    "execution_status": "",
+    "preview_only": true,
+    "output_tag": "",
+    "output_dir": "",
+    "manifest_path": "",
+    "fiftyone_run_key": "",
+    "errors": [
+      {
+        "code": "unexpected_runtime_error",
+        "message": "Unexpected augmentation error. Copy the debug bundle into a GitHub issue.",
+        "context": {
+          "error_type": "TypeError",
+          "phase": "augmentation_execution",
+          "source_scope": "selected_samples"
+        }
+      }
+    ],
+    "preview_count": 0,
+    "errors_json": "[\n  {\n    \"code\": \"unexpected_runtime_error\",\n    \"context\": {\n      \"error_type\": \"TypeError\",\n      \"phase\": \"augmentation_execution\",\n      \"source_scope\": \"selected_samples\"\n    },\n    \"message\": \"Unexpected augmentation error. Copy the debug bundle into a GitHub issue.\"\n  }\n]",
+    "pipeline_config_json": "{\n  \"copy_fields\": [],\n  \"options\": {\n    \"source\": \"catalog_mvp_pipeline\"\n  },\n  \"outputs_per_sample\": 1,\n  \"seed\": null,\n  \"target_fields\": [],\n  \"transforms\": [\n    {\n      \"name\": \"HorizontalFlip\",\n      \"params\": {\n        \"p\": 1.0\n      }\n    }\n  ],\n  \"use_replay\": true\n}",
+    "operator_params_json": "{\n  \"_storage_root\": \"/tmp/voxel51-coco-audit/storage\",\n  \"dry_run\": false,\n  \"execution_scope\": \"selected_samples\",\n  \"p\": 1.0,\n  \"pipeline_step_count\": 1,\n  \"preview_only\": true,\n  \"transform\": \"HorizontalFlip\"\n}",
+    "debug_bundle_json": "{\n  \"capability_version_key\": \"albumentationsx-2.3.8__albu-spec-0.0.6\",\n  \"dataset\": {\n    \"available\": true,\n    \"media_type\": \"image\",\n    \"name\": \"albumentationsx-coco-ux-audit\",\n    \"view_available\": true,\n    \"view_type\": \"DatasetView\"\n  },\n  \"dependency_versions\": {\n    \"albu-spec\": \"0.0.6\",\n    \"albumentationsx\": \"2.3.8\",\n    \"fiftyone\": \"1.19.0\",\n    \"plugin\": \"0.1.0\",\n    \"python\": \"3.12.13\"\n  },\n  \"errors\": [\n    {\n      \"code\": \"unexpected_runtime_error\",\n      \"context\": {\n        \"error_type\": \"TypeError\",\n        \"phase\": \"augmentation_execution\",\n        \"source_scope\": \"selected_samples\"\n      },\n      \"message\": \"Unexpected augmentation error. Copy the debug bundle into a GitHub issue.\"\n    }\n  ],\n  \"exception\": {\n    \"message\": \"JSON values cannot contain NaN or infinite floats\",\n    \"type\": \"TypeError\"\n  },\n  \"execution\": {\n    \"dry_run\": false,\n    \"preview_only\": true,\n    \"selected_sample_count\": 3,\n    \"selected_sample_ids\": [\n      \"6aa1364835ca8e1d6df234f0\",\n      \"6aa1364935ca8e1d6df23583\",\n      \"6aa1364935ca8e1d6df23584\"\n    ],\n    \"selected_sample_ids_truncated\": false,\n    \"source_scope\": \"selected_samples\"\n  },\n  \"kind\": \"albumentationsx_augmentation_failure_debug_bundle\",\n  \"operator_params\": {\n    \"_storage_root\": \"/tmp/voxel51-coco-audit/storage\",\n    \"dry_run\": false,\n    \"execution_scope\": \"selected_samples\",\n    \"p\": 1.0,\n    \"pipeline_step_count\": 1,\n    \"preview_only\": true,\n    \"transform\": \"HorizontalFlip\"\n  },\n  \"pipeline_config\": {\n    \"copy_fields\": [],\n    \"options\": {\n      \"source\": \"catalog_mvp_pipeline\"\n    },\n    \"outputs_per_sample\": 1,\n    \"seed\": null,\n    \"target_fields\": [],\n    \"transforms\": [\n      {\n        \"name\": \"HorizontalFlip\",\n        \"params\": {\n          \"p\": 1.0\n        }\n      }\n    ],\n    \"use_replay\": true\n  },\n  \"redaction_note\": \"This bundle does not include image data or file contents.\",\n  \"schema_version\": 1,\n  \"selected_annotation_fields\": [],\n  \"suggested_next_steps\": [\n    \"Copy this debug bundle into the GitHub issue together with the visible traceback.\"\n  ],\n  \"summary\": \"Unexpected augmentation error. Copy the debug bundle into a GitHub issue.\"\n}"
+  },
+  "default_dry_run": {
+    "run_key": "",
+    "source_scope": "selected_samples",
+    "processed_count": 0,
+    "created_count": 0,
+    "skipped_count": 0,
+    "error_count": 1,
+    "dry_run": true,
+    "execution_status": "",
+    "preview_only": false,
+    "output_tag": "",
+    "output_dir": "",
+    "manifest_path": "",
+    "fiftyone_run_key": "",
+    "errors": [
+      {
+        "code": "unexpected_runtime_error",
+        "message": "Unexpected augmentation error. Copy the debug bundle into a GitHub issue.",
+        "context": {
+          "error_type": "TypeError",
+          "phase": "augmentation_execution",
+          "source_scope": "selected_samples"
+        }
+      }
+    ],
+    "preview_count": 0,
+    "errors_json": "[\n  {\n    \"code\": \"unexpected_runtime_error\",\n    \"context\": {\n      \"error_type\": \"TypeError\",\n      \"phase\": \"augmentation_execution\",\n      \"source_scope\": \"selected_samples\"\n    },\n    \"message\": \"Unexpected augmentation error. Copy the debug bundle into a GitHub issue.\"\n  }\n]",
+    "pipeline_config_json": "{\n  \"copy_fields\": [],\n  \"options\": {\n    \"source\": \"catalog_mvp_pipeline\"\n  },\n  \"outputs_per_sample\": 1,\n  \"seed\": null,\n  \"target_fields\": [],\n  \"transforms\": [\n    {\n      \"name\": \"HorizontalFlip\",\n      \"params\": {\n        \"p\": 1.0\n      }\n    }\n  ],\n  \"use_replay\": true\n}",
+    "operator_params_json": "{\n  \"_storage_root\": \"/tmp/voxel51-coco-audit/storage\",\n  \"dry_run\": true,\n  \"execution_scope\": \"selected_samples\",\n  \"p\": 1.0,\n  \"pipeline_step_count\": 1,\n  \"transform\": \"HorizontalFlip\"\n}",
+    "debug_bundle_json": "{\n  \"capability_version_key\": \"albumentationsx-2.3.8__albu-spec-0.0.6\",\n  \"dataset\": {\n    \"available\": true,\n    \"media_type\": \"image\",\n    \"name\": \"albumentationsx-coco-ux-audit\",\n    \"view_available\": true,\n    \"view_type\": \"DatasetView\"\n  },\n  \"dependency_versions\": {\n    \"albu-spec\": \"0.0.6\",\n    \"albumentationsx\": \"2.3.8\",\n    \"fiftyone\": \"1.19.0\",\n    \"plugin\": \"0.1.0\",\n    \"python\": \"3.12.13\"\n  },\n  \"errors\": [\n    {\n      \"code\": \"unexpected_runtime_error\",\n      \"context\": {\n        \"error_type\": \"TypeError\",\n        \"phase\": \"augmentation_execution\",\n        \"source_scope\": \"selected_samples\"\n      },\n      \"message\": \"Unexpected augmentation error. Copy the debug bundle into a GitHub issue.\"\n    }\n  ],\n  \"exception\": {\n    \"message\": \"JSON values cannot contain NaN or infinite floats\",\n    \"type\": \"TypeError\"\n  },\n  \"execution\": {\n    \"dry_run\": true,\n    \"preview_only\": false,\n    \"selected_sample_count\": 12,\n    \"selected_sample_ids\": [\n      \"6aa1364835ca8e1d6df234f0\",\n      \"6aa1364935ca8e1d6df23583\",\n      \"6aa1364935ca8e1d6df23584\",\n      \"6aa1364935ca8e1d6df23585\",\n      \"6aa1364935ca8e1d6df23586\",\n      \"6aa1364935ca8e1d6df23587\",\n      \"6aa1364935ca8e1d6df23588\",\n      \"6aa1364935ca8e1d6df23589\",\n      \"6aa1364935ca8e1d6df235f4\",\n      \"6aa1364935ca8e1d6df235f5\",\n      \"6aa1364935ca8e1d6df235f6\",\n      \"6aa1364935ca8e1d6df235f7\"\n    ],\n    \"selected_sample_ids_truncated\": false,\n    \"source_scope\": \"selected_samples\"\n  },\n  \"kind\": \"albumentationsx_augmentation_failure_debug_bundle\",\n  \"operator_params\": {\n    \"_storage_root\": \"/tmp/voxel51-coco-audit/storage\",\n    \"dry_run\": true,\n    \"execution_scope\": \"selected_samples\",\n    \"p\": 1.0,\n    \"pipeline_step_count\": 1,\n    \"transform\": \"HorizontalFlip\"\n  },\n  \"pipeline_config\": {\n    \"copy_fields\": [],\n    \"options\": {\n      \"source\": \"catalog_mvp_pipeline\"\n    },\n    \"outputs_per_sample\": 1,\n    \"seed\": null,\n    \"target_fields\": [],\n    \"transforms\": [\n      {\n        \"name\": \"HorizontalFlip\",\n        \"params\": {\n          \"p\": 1.0\n        }\n      }\n    ],\n    \"use_replay\": true\n  },\n  \"redaction_note\": \"This bundle does not include image data or file contents.\",\n  \"schema_version\": 1,\n  \"selected_annotation_fields\": [],\n  \"suggested_next_steps\": [\n    \"Copy this debug bundle into the GitHub issue together with the visible traceback.\"\n  ],\n  \"summary\": \"Unexpected augmentation error. Copy the debug bundle into a GitHub issue.\"\n}"
+  },
+  "boxes_masks_preview": {
+    "run_key": "",
+    "source_scope": "selected_samples",
+    "processed_count": 3,
+    "created_count": 0,
+    "skipped_count": 0,
+    "error_count": 0,
+    "dry_run": false,
+    "execution_status": "preview",
+    "output_tag": "",
+    "output_dir": "",
+    "manifest_path": "",
+    "fiftyone_run_key": "",
+    "errors": [],
+    "preview_only": true,
+    "preview_count": 3,
+    "preview_note": "Preview generated in memory for up to three selected source samples. No samples, files, manifests, or FiftyOne custom runs were created."
+  },
+  "boxes_masks_materialized": {
+    "run_key": "audit-headless-albumentationsx-20260909T103737Z-91d8d956",
+    "source_scope": "selected_samples",
+    "processed_count": 2,
+    "created_count": 2,
+    "skipped_count": 0,
+    "error_count": 0,
+    "dry_run": false,
+    "execution_status": "completed",
+    "output_tag": "albumentationsx-output",
+    "output_dir": "/tmp/voxel51-coco-audit/storage/albumentationsx-coco-ux-audit-bcf642b279/audit-headless-albumentationsx-20260909T103737Z-91d8d956",
+    "manifest_path": "/tmp/voxel51-coco-audit/storage/albumentationsx-coco-ux-audit-bcf642b279/audit-headless-albumentationsx-20260909T103737Z-91d8d956/manifest.json",
+    "fiftyone_run_key": "audit_headless_albumentationsx_20260909T103737Z_91d8d956",
+    "errors": []
+  },
+  "run_summary": {
+    "run_key": "audit-headless-albumentationsx-20260909T103737Z-91d8d956",
+    "status": "ok",
+    "message": "Run manifest loaded.",
+    "manifest_path": "/tmp/voxel51-coco-audit/storage/albumentationsx-coco-ux-audit-bcf642b279/audit-headless-albumentationsx-20260909T103737Z-91d8d956/manifest.json",
+    "fiftyone_run_key": "audit_headless_albumentationsx_20260909T103737Z_91d8d956",
+    "cleanup_status": "",
+    "cleaned_at": "",
+    "execution_status": "completed",
+    "cancelled_at": "",
+    "run_label": "audit-headless",
+    "run_label_slug": "audit-headless",
+    "source_count": 2,
+    "created_count": 2,
+    "output_count": 2,
+    "available_output_count": 2,
+    "missing_output_count": 0,
+    "error_count": 0,
+    "replay_count": 2,
+    "replay_available": true,
+    "output_tag": "albumentationsx-output",
+    "output_dir": "/tmp/voxel51-coco-audit/storage/albumentationsx-coco-ux-audit-bcf642b279/audit-headless-albumentationsx-20260909T103737Z-91d8d956",
+    "plugin_version": "0.1.0",
+    "dependency_versions_json": "{\"albu-spec\": \"0.0.6\", \"albumentationsx\": \"2.3.8\", \"fiftyone\": \"1.19.0\"}",
+    "pipeline_summary": "HorizontalFlip(p=1.0)",
+    "pipeline_config_json": "{\"copy_fields\": [], \"options\": {\"source\": \"catalog_mvp_pipeline\"}, \"outputs_per_sample\": 1, \"seed\": null, \"target_fields\": [\"detections\", \"segmentations\"], \"transforms\": [{\"name\": \"HorizontalFlip\", \"params\": {\"p\": 1.0}}], \"use_replay\": true}",
+    "errors_json": "[]",
+    "generated_sample_ids_json": "[\"6aa136f21ba162a578485255\", \"6aa136f31ba162a57848525a\"]",
+    "available_generated_sample_ids_json": "[\"6aa136f21ba162a578485255\", \"6aa136f31ba162a57848525a\"]",
+    "generated_outputs_json": "[{\"generated_sample_available\": true, \"generated_sample_id\": \"6aa136f21ba162a578485255\", \"key\": \"0|6aa1364835ca8e1d6df234f0|0|images/000000048564-6aa1364835ca8e1d6df234f0-0000.png\", \"label\": \"#1 source=6aa1364835ca8e1d6df234f0 output_index=0 status=available path=images/000000048564-6aa1364835ca8e1d6df234f0-0000.png\", \"output_file_available\": true, \"output_index\": 0, \"output_path\": \"images/000000048564-6aa1364835ca8e1d6df234f0-0000.png\", \"position\": 0, \"replay_available\": true, \"replay_record\": {\"annotations\": {\"dropped_annotations\": {}}, \"output_index\": 0, \"output_path\": \"images/000000048564-6aa1364835ca8e1d6df234f0-0000.png\", \"replay\": {\"__class_fullname__\": \"ReplayCompose\", \"additional_targets\": {}, \"applied\": true, \"bbox_params\": {\"bbox_type\": \"hbb\", \"check_each_transform\": true, \"clip_after_transform\": true, \"clip_bboxes_on_input\": true, \"coord_format\": \"pascal_voc\", \"label_fields\": [\"bbox_indices\"], \"max_accept_ratio\": null, \"min_area\": 0.0, \"min_height\": 0.0, \"min_visibility\": 0.0, \"min_width\": 0.0}, \"is_check_shapes\": true, \"keypoint_params\": null, \"params\": null, \"transforms\": [{\"__class_fullname__\": \"HorizontalFlip\", \"applied\": true, \"p\": 1.0, \"params\": {\"bbox_type\": \"hbb\", \"shape\": [640, 427, 3]}}]}, \"source_sample_id\": \"6aa1364835ca8e1d6df234f0\"}, \"source_sample_id\": \"6aa1364835ca8e1d6df234f0\", \"status\": \"available\"}, {\"generated_sample_available\": true, \"generated_sample_id\": \"6aa136f31ba162a57848525a\", \"key\": \"1|6aa1364935ca8e1d6df23583|0|images/000000396205-6aa1364935ca8e1d6df23583-0000.png\", \"label\": \"#2 source=6aa1364935ca8e1d6df23583 output_index=0 status=available path=images/000000396205-6aa1364935ca8e1d6df23583-0000.png\", \"output_file_available\": true, \"output_index\": 0, \"output_path\": \"images/000000396205-6aa1364935ca8e1d6df23583-0000.png\", \"position\": 1, \"replay_available\": true, \"replay_record\": {\"annotations\": {\"dropped_annotations\": {}}, \"output_index\": 0, \"output_path\": \"images/000000396205-6aa1364935ca8e1d6df23583-0000.png\", \"replay\": {\"__class_fullname__\": \"ReplayCompose\", \"additional_targets\": {}, \"applied\": true, \"bbox_params\": {\"bbox_type\": \"hbb\", \"check_each_transform\": true, \"clip_after_transform\": true, \"clip_bboxes_on_input\": true, \"coord_format\": \"pascal_voc\", \"label_fields\": [\"bbox_indices\"], \"max_accept_ratio\": null, \"min_area\": 0.0, \"min_height\": 0.0, \"min_visibility\": 0.0, \"min_width\": 0.0}, \"is_check_shapes\": true, \"keypoint_params\": null, \"params\": null, \"transforms\": [{\"__class_fullname__\": \"HorizontalFlip\", \"applied\": true, \"p\": 1.0, \"params\": {\"bbox_type\": \"hbb\", \"shape\": [640, 425, 3]}}]}, \"source_sample_id\": \"6aa1364935ca8e1d6df23583\"}, \"source_sample_id\": \"6aa1364935ca8e1d6df23583\", \"status\": \"available\"}]",
+    "selected_output_key": "0|6aa1364835ca8e1d6df234f0|0|images/000000048564-6aa1364835ca8e1d6df234f0-0000.png",
+    "selected_output_status": "available",
+    "selected_source_sample_id": "6aa1364835ca8e1d6df234f0",
+    "selected_generated_sample_id": "6aa136f21ba162a578485255",
+    "selected_output_index": 0,
+    "selected_output_path": "images/000000048564-6aa1364835ca8e1d6df234f0-0000.png",
+    "selected_output_available": true,
+    "selected_replay_json": "{\"annotations\": {\"dropped_annotations\": {}}, \"output_index\": 0, \"output_path\": \"images/000000048564-6aa1364835ca8e1d6df234f0-0000.png\", \"replay\": {\"__class_fullname__\": \"ReplayCompose\", \"additional_targets\": {}, \"applied\": true, \"bbox_params\": {\"bbox_type\": \"hbb\", \"check_each_transform\": true, \"clip_after_transform\": true, \"clip_bboxes_on_input\": true, \"coord_format\": \"pascal_voc\", \"label_fields\": [\"bbox_indices\"], \"max_accept_ratio\": null, \"min_area\": 0.0, \"min_height\": 0.0, \"min_visibility\": 0.0, \"min_width\": 0.0}, \"is_check_shapes\": true, \"keypoint_params\": null, \"params\": null, \"transforms\": [{\"__class_fullname__\": \"HorizontalFlip\", \"applied\": true, \"p\": 1.0, \"params\": {\"bbox_type\": \"hbb\", \"shape\": [640, 427, 3]}}]}, \"source_sample_id\": \"6aa1364835ca8e1d6df234f0\"}"
+  },
+  "previous_run_edit": {
+    "transform": "HorizontalFlip",
+    "p": 1.0,
+    "pipeline_step_count": 1,
+    "execution_scope": "selected_samples",
+    "_storage_root": "/tmp/voxel51-coco-audit/storage",
+    "previous_run_key": "audit-headless-albumentationsx-20260909T103737Z-91d8d956",
+    "outputs_per_sample": 1,
+    "pipeline_stage_enabled": true,
+    "pipeline_stage_order": 1
+  },
+  "output_fields": [],
+  "entire_dataset_dry": {
+    "run_key": "albumentationsx-20260909T103742Z-a5f8d9f0",
+    "source_scope": "entire_dataset",
+    "processed_count": 14,
+    "created_count": 0,
+    "skipped_count": 0,
+    "error_count": 0,
+    "dry_run": true,
+    "execution_status": "dry_run",
+    "output_tag": "albumentationsx-output",
+    "output_dir": "/tmp/voxel51-coco-audit/storage/albumentationsx-coco-ux-audit-bcf642b279/albumentationsx-20260909T103742Z-a5f8d9f0",
+    "manifest_path": "",
+    "fiftyone_run_key": "albumentationsx_20260909T103742Z_a5f8d9f0",
+    "errors": []
+  },
+  "cleanup": {
+    "run_key": "audit-headless-albumentationsx-20260909T103737Z-91d8d956",
+    "status": "ok",
+    "message": "Cleanup completed.",
+    "manifest_path": "/tmp/voxel51-coco-audit/storage/albumentationsx-coco-ux-audit-bcf642b279/audit-headless-albumentationsx-20260909T103737Z-91d8d956/manifest.json",
+    "fiftyone_run_key": "audit_headless_albumentationsx_20260909T103737Z_91d8d956",
+    "deleted_sample_count": 2,
+    "skipped_sample_count": 0,
+    "deleted_file_count": 2,
+    "skipped_file_count": 0,
+    "failed_file_count": 0,
+    "custom_run_deleted": true,
+    "custom_run_missing": false,
+    "confirmed": true,
+    "errors_json": "[]"
+  },
+  "preset_edit": {
+    "transform": "HorizontalFlip",
+    "p": 1.0,
+    "pipeline_step_count": 1,
+    "execution_scope": "selected_samples",
+    "_storage_root": "/tmp/voxel51-coco-audit/storage",
+    "pipeline_preset_key": "audit-preset",
+    "outputs_per_sample": 1,
+    "pipeline_stage_enabled": true,
+    "pipeline_stage_order": 1
+  },
+  "unicode_preset_collision": {
+    "first": "preset",
+    "second": "preset",
+    "same_path": true
+  },
+  "sources_unchanged": true,
+  "final_count": 12,
+  "additional_checks": {
+    "source_detection": {
+      "_id": "6aa1364835ca8e1d6df234ec",
+      "_cls": "Detection",
+      "attributes": {},
+      "tags": [],
+      "label": "cell phone",
+      "bounding_box": [
+        0.22276346604215458,
+        0.23943750000000003,
+        0.10674473067915691,
+        0.125765625
+      ],
+      "supercategory": "electronic",
+      "iscrowd": 0
+    },
+    "roundtripped_detection": {
+      "_id": "6aa13792647b9768ce1d4d34",
+      "_cls": "Detection",
+      "attributes": {},
+      "tags": [],
+      "label": "cell phone",
+      "bounding_box": [
+        0.22276346604215458,
+        0.23943750000000003,
+        0.10674473067915691,
+        0.125765625
+      ]
+    },
+    "dry_run": {
+      "run_key": "albumentationsx-20260909T104021Z-98573806",
+      "processed_count": 1,
+      "created_count": 0,
+      "error_count": 0,
+      "execution_status": "dry_run",
+      "errors": []
+    },
+    "preview_only": {
+      "run_key": "",
+      "processed_count": 1,
+      "created_count": 0,
+      "error_count": 1,
+      "execution_status": "preview",
+      "errors": [
+        {
+          "code": "invalid_parameter",
+          "message": "height must be less than or equal to the source image dimension.",
+          "context": {
+            "transform_name": "RandomCrop",
+            "parameter_name": "height",
+            "value": 9999,
+            "image_value": 640,
+            "sample_id": "6aa1364835ca8e1d6df234f0",
+            "output_index": 0
+          }
+        }
+      ]
+    },
+    "materialized": {
+      "run_key": "albumentationsx-20260909T104026Z-73bdd245",
+      "processed_count": 1,
+      "created_count": 0,
+      "error_count": 1,
+      "execution_status": "completed",
+      "errors": [
+        {
+          "code": "invalid_parameter",
+          "message": "height must be less than or equal to the source image dimension.",
+          "context": {
+            "transform_name": "RandomCrop",
+            "parameter_name": "height",
+            "value": 9999,
+            "image_value": 640,
+            "sample_id": "6aa1364835ca8e1d6df234f0",
+            "output_index": 0
+          }
+        }
+      ]
+    },
+    "failed_cleanup": {
+      "run_key": "albumentationsx-20260909T104026Z-73bdd245",
+      "status": "ok",
+      "message": "Cleanup completed.",
+      "manifest_path": "/tmp/voxel51-coco-audit/storage/albumentationsx-coco-ux-audit-bcf642b279/albumentationsx-20260909T104026Z-73bdd245/manifest.json",
+      "fiftyone_run_key": "albumentationsx_20260909T104026Z_73bdd245",
+      "deleted_sample_count": 0,
+      "skipped_sample_count": 0,
+      "deleted_file_count": 0,
+      "skipped_file_count": 0,
+      "failed_file_count": 0,
+      "custom_run_deleted": true,
+      "custom_run_missing": false,
+      "confirmed": true,
+      "errors_json": "[]"
+    }
+  }
+}
