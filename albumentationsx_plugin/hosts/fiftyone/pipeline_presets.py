@@ -1,22 +1,27 @@
-"""Named pipeline preset helpers for FiftyOne augmentation forms."""
+"""Saved pipeline helpers for FiftyOne augmentation forms."""
 
 from __future__ import annotations
 
 import importlib.metadata
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from os import PathLike
-from typing import Final
+from typing import Any, Final
 
 import albumentationsx_plugin
+from albumentationsx_plugin.albumentations_backend.catalog import AlbuSpecCatalogProvider
 from albumentationsx_plugin.albumentations_backend.fixed import (
     build_fixed_pipeline_config,
     validate_fixed_pipeline_config,
 )
 from albumentationsx_plugin.core import PIPELINE_PRESET_SCHEMA_VERSION, InvalidParameterError, JSONDict, PipelinePreset
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
-from albumentationsx_plugin.hosts.fiftyone.presets import operator_params_from_pipeline
+from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
+    selected_annotation_fields_from_params,
+    target_and_copy_fields,
+    validate_selected_annotation_fields,
+)
 from albumentationsx_plugin.storage import FilePipelinePresetStore, build_preset_key
 
 PIPELINE_PRESET_KEY_FIELD_NAME: Final[str] = "pipeline_preset_key"
@@ -28,7 +33,7 @@ PRESET_SAVED_EXECUTION_STATUS: Final[str] = "preset_saved"
 
 @dataclass(frozen=True, slots=True)
 class PipelinePresetSaveResult:
-    """Result of saving a named pipeline preset from operator params."""
+    """Result of saving a saved pipeline from operator params."""
 
     preset: PipelinePreset
     preset_path: str
@@ -61,14 +66,14 @@ class PipelinePresetSaveResult:
 
 
 def selected_pipeline_preset_key(params: Mapping[str, object]) -> str:
-    """Return the selected named preset key, if any."""
+    """Return the selected saved pipeline key, if any."""
 
     value = params.get(PIPELINE_PRESET_KEY_FIELD_NAME)
     return value.strip() if isinstance(value, str) and value.strip() else ""
 
 
 def pipeline_preset_save_requested(params: Mapping[str, object]) -> bool:
-    """Return whether submitted params contain a named preset to persist."""
+    """Return whether submitted params contain a saved pipeline to persist."""
 
     value = params.get(SAVE_PRESET_NAME_FIELD_NAME)
     return isinstance(value, str) and bool(value.strip())
@@ -78,33 +83,18 @@ def list_pipeline_presets(
     *,
     storage_root: str | PathLike[str] | None = None,
 ) -> tuple[PipelinePreset, ...]:
-    """Return all shared named presets available to the current plugin environment."""
+    """Return all shared saved pipelines available to the current plugin environment."""
 
     return FilePipelinePresetStore(storage_root=storage_root).list_presets()
-
-
-def params_with_pipeline_preset(
-    params: Mapping[str, object],
-    *,
-    storage_root: str | PathLike[str] | None = None,
-) -> dict[str, object]:
-    """Overlay a selected named preset's pipeline params over user-provided params."""
-
-    preset_key = selected_pipeline_preset_key(params)
-    if not preset_key:
-        return dict(params)
-
-    preset = FilePipelinePresetStore(storage_root=storage_root).load_preset(preset_key)
-    validate_pipeline_preset(preset)
-    return {**params, **operator_params_from_pipeline(preset.pipeline)}
 
 
 def save_pipeline_preset_from_params(
     params: Mapping[str, object],
     *,
+    dataset: Any = None,
     storage_root: str | PathLike[str] | None = None,
 ) -> PipelinePresetSaveResult:
-    """Validate current operator params and save them as a named shared preset."""
+    """Validate current operator params and save them as a named shared saved pipeline."""
 
     preset_name = _required_preset_name(params)
     preset_key = build_preset_key(preset_name)
@@ -112,6 +102,18 @@ def save_pipeline_preset_from_params(
     store = FilePipelinePresetStore(storage_root=storage_root)
     existing = _load_existing_preset(store, preset_key)
     pipeline = build_fixed_pipeline_config(params)
+    metadata: dict[str, object] = {"source": "fiftyone_augment_form"}
+    if dataset is not None:
+        selection = selected_annotation_fields_from_params(params, dataset)
+        validate_selected_annotation_fields(selection)
+        target_fields, copy_fields = target_and_copy_fields(
+            selection=selection, pipeline=pipeline, catalog_provider=AlbuSpecCatalogProvider()
+        )
+        pipeline = replace(pipeline, target_fields=target_fields, copy_fields=copy_fields)
+        metadata["annotation_selection"] = {
+            "source_dataset": getattr(dataset, "name", None),
+            "selected_fields": [field.to_dict() for field in selection.selected_fields],
+        }
     validate_fixed_pipeline_config(pipeline)
     preset = PipelinePreset(
         key=preset_key,
@@ -126,20 +128,20 @@ def save_pipeline_preset_from_params(
         pipeline=pipeline,
         created_at=existing.created_at if existing is not None else now,
         updated_at=now,
-        metadata={"source": "fiftyone_augment_form"},
+        metadata=metadata,
     )
     store.save_preset(preset)
     return PipelinePresetSaveResult(preset=preset, preset_path=str(store.preset_path(preset.key)))
 
 
 def validate_pipeline_preset(preset: PipelinePreset) -> None:
-    """Validate a loaded preset against the current executable catalog."""
+    """Validate a loaded saved pipeline against the current executable catalog."""
 
     if preset.schema_version != PIPELINE_PRESET_SCHEMA_VERSION:
         raise InvalidParameterError(
             transform_name="<preset>",
             parameter_name="schema_version",
-            message="Pipeline preset schema version is not supported.",
+            message="Saved pipeline schema version is not supported.",
             context={
                 "schema_version": preset.schema_version,
                 "supported_schema_version": PIPELINE_PRESET_SCHEMA_VERSION,
@@ -161,7 +163,7 @@ def _required_preset_name(params: Mapping[str, object]) -> str:
         raise InvalidParameterError(
             transform_name="<preset>",
             parameter_name=SAVE_PRESET_NAME_FIELD_NAME,
-            message="Preset name is required to save a pipeline preset.",
+            message="Enter a name before saving the pipeline.",
             context={"reason_code": "missing_preset_name"},
         )
     return " ".join(value.split())
@@ -191,7 +193,6 @@ __all__ = [
     "SAVE_PRESET_ONLY_FIELD_NAME",
     "PipelinePresetSaveResult",
     "list_pipeline_presets",
-    "params_with_pipeline_preset",
     "pipeline_preset_save_requested",
     "save_pipeline_preset_from_params",
     "selected_pipeline_preset_key",

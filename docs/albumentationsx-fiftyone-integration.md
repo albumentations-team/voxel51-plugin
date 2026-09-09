@@ -82,7 +82,7 @@ The plugin registers five App operators:
 | --- | --- |
 | `Augment with AlbumentationsX` | Configure and execute an augmentation pipeline. |
 | `Show AlbumentationsX Capabilities` | Search the current transform catalog and see support reasons. |
-| `Manage AlbumentationsX Presets` | Inspect, export, import, rename, or delete named presets. |
+| `Manage AlbumentationsX Saved Pipelines` | Inspect, export, import, rename, or delete named presets. |
 | `View AlbumentationsX Run` | Inspect a saved run manifest and generated sample availability. |
 | `Delete AlbumentationsX Run` | Remove generated outputs for one selected run after confirmation. |
 
@@ -137,21 +137,19 @@ pipeline stage.
 
 General settings include:
 
-- `Named preset`: load a reusable pipeline template from shared plugin storage.
-- `Previous run`: load a saved run's pipeline config from the active dataset.
+- `Load pipeline`: choose a saved pipeline or run history, then explicitly replace the draft.
 - `Execution scope`: selected samples, current view, or entire dataset.
 - `Preview only`: render bounded selected-sample previews without persistence.
 - `Run label`: add a readable prefix to generated run keys.
 - `Outputs per sample`: generate multiple outputs for each source sample.
-- `Preset name` and `Preset description`: save the resolved pipeline as a named
+- `Saved pipeline name` and `Saved pipeline description`: save the resolved pipeline as a named
   preset.
-- `Save preset only`: validate and save a preset without running augmentation.
+- `Save pipeline only`: validate and save a preset without running augmentation.
 - `Pipeline stages`: choose how many stage slots are visible.
 
-`Named preset` and `Previous run` are mutually exclusive template sources. If
-both are selected, the form shows a validation message and blocks execution
-until one source is cleared. This avoids silently applying one saved pipeline
-over another.
+Loading creates an editable snapshot. Changing the source picker alone keeps
+unsaved edits; **Reload and replace draft** explicitly restores the saved values.
+Preview and execution use the current draft with fresh randomness.
 
 Each stage has its own transform selector, `Enabled` switch, `Execution order`,
 and catalog-backed parameter fields. Disabled stages are ignored without
@@ -262,13 +260,14 @@ It records:
 - execution scope and execution status;
 - the matching FiftyOne custom run key.
 
-`Previous run` uses the saved pipeline config as a template for a new run in the
-same dataset. It samples fresh randomness. It does not exact-replay each earlier
-sample's random parameters.
+**From run history** loads transforms, output count and compatible annotation
+selection into an editable draft. The run viewer also offers **Use pipeline
+from this run**. See [the loading contract](pipeline-presets.md) for field
+mapping, execution settings, and API migration.
 
-## Named Presets
+## Saved Pipelines
 
-Named presets are reusable pipeline templates stored outside dataset-specific
+Saved pipelines are reusable configurations stored outside dataset-specific
 run directories:
 
 ```text
@@ -280,10 +279,10 @@ version, dependency versions, and optional description. It does not store source
 sample IDs, generated sample IDs, output paths, custom run keys, or replay
 records.
 
-Use presets when you want a portable training recipe. Use previous runs when
+Use saved pipelines for a portable training recipe. Use run history when
 you want to reuse a pipeline that was already executed on the active dataset.
 
-`Manage AlbumentationsX Presets` supports:
+`Manage AlbumentationsX Saved Pipelines` supports:
 
 - inspecting stored presets;
 - exporting one preset as JSON;
@@ -407,11 +406,12 @@ Open the operator output and inspect:
 Those fields are designed to be copied into bug reports. The structured error
 usually names the field, label type, transform, stage, target, and reason.
 
-### Preset Or Previous Run Does Not Match The Form
+### Reload a saved pipeline
 
-`Named preset` and `Previous run` are both template sources. They cannot be used
-at the same time. Clear one source, reload the form, and then edit or execute
-the resolved pipeline.
+Choose one source in **Load pipeline**, then click **Replace draft with selected
+pipeline** or **Reload and replace draft**. Selecting a source alone keeps
+current edits. Missing or incompatible annotation fields are explained beside
+the editor; select replacements explicitly if needed.
 
 ## How This Differs From The Older Voxel51 Page
 

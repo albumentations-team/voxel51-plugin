@@ -114,35 +114,24 @@ files, manifests, custom runs, or dataset reloads.
 The preview output schema is shown only while `preview_only` is selected so
 normal run summaries remain compact.
 
-When a previous run is selected, the form loads that run's `manifest.json` from
-the current dataset and overlays its saved `pipeline` config over current
-pipeline form values. The same overlay is applied during operator execution, so
-submitting only the previous run key still applies the saved pipeline template to
-the new selection. Presets preserve saved stages up to the same ten-slot safety
-limit as the editor. Clear `Previous run` after loading if you want to keep
-editing the form without reapplying the saved pipeline. Replay records are not
-reused; the new run samples fresh random parameters.
-
-VOX-28 adds first-class named pipeline presets stored under the shared plugin
-storage root. A named preset can prefill the form across datasets because it
-stores only the validated pipeline config, output count, dependency versions,
-and user-facing metadata. It does not store source sample ids, output paths,
-custom run keys, or replay records. `Named preset` and `Previous run` are
-mutually exclusive template sources; selecting both renders a configuration
-warning and blocks execution instead of applying silent precedence. Filling
-`Preset name` saves the resolved pipeline during a materialized augmentation
-run; `Save preset only` validates and saves the preset without running
-augmentation.
+**Load pipeline** combines saved pipelines and run history in one source picker.
+Selecting a source preserves the current draft. **Replace draft with selected
+pipeline** opens an editable snapshot with actual nested form values populated;
+**Reload and replace draft** explicitly discards subsequent edits. Execution
+uses the current draft without overlaying saved values. Annotation selection is
+restored by name and type, and unavailable fields are explained in the form.
+See [Saved pipelines and run history](pipeline-presets.md) for the load/save
+contract and legacy API migration.
 
 VOX-50 adds shared form/execution validation for confusing configuration
 combinations. `Preview only` and `Dry run` cannot be selected together, because
-preview is already non-persistent and uses selected samples only. `Save preset
-only` requires `Preset name` and cannot be combined with `Preview only` or `Dry
-run`. Filling `Preset name` while using `Preview only` or `Dry run` is also
+preview is already non-persistent and uses selected samples only. `Save pipeline
+only` requires `Saved pipeline name` and cannot be combined with `Preview only` or `Dry
+run`. Filling `Saved pipeline name` while using `Preview only` or `Dry run` is also
 blocked, because those modes do not save presets.
 
 VOX-48 keeps preset lifecycle management out of the augmentation form. The
-separate `Manage AlbumentationsX Presets` operator handles inspect, export,
+separate `Manage AlbumentationsX Saved Pipelines` operator handles inspect, export,
 import, rename, and delete actions against the same shared preset storage.
 
 Stage headings identify the stable slot. `Execution order` provides the

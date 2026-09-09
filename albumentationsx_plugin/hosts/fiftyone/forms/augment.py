@@ -69,26 +69,16 @@ from albumentationsx_plugin.hosts.fiftyone.forms.compatibility import (
     render_inline_compatibility_preview,
 )
 from albumentationsx_plugin.hosts.fiftyone.forms.defaults import RandomCropDefaults, build_random_crop_defaults
+from albumentationsx_plugin.hosts.fiftyone.forms.pipeline_loading import render_pipeline_loader
 from albumentationsx_plugin.hosts.fiftyone.forms.renderer import (
     JSON_STRING_DEFAULT_METADATA_KEY,
     FiftyOneFormRenderer,
 )
 from albumentationsx_plugin.hosts.fiftyone.output_metadata import build_output_metadata_policy, metadata_policy_summary
 from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
-    PIPELINE_PRESET_KEY_FIELD_NAME,
     SAVE_PRESET_DESCRIPTION_FIELD_NAME,
     SAVE_PRESET_NAME_FIELD_NAME,
     SAVE_PRESET_ONLY_FIELD_NAME,
-    list_pipeline_presets,
-    params_with_pipeline_preset,
-    selected_pipeline_preset_key,
-)
-from albumentationsx_plugin.hosts.fiftyone.presets import (
-    PREVIOUS_RUN_KEY_FIELD_NAME,
-    list_previous_run_preset_keys,
-    params_with_previous_run_preset,
-    selected_previous_run_key,
-    storage_root_from_params,
 )
 from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
     MAX_PREVIEW_SAMPLES,
@@ -112,8 +102,6 @@ ANNOTATION_COMPATIBILITY_WARNING_FIELD_NAME: Final[str] = "_annotation_compatibi
 STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage"
 ADVANCED_STAGE_SECTION_FIELD_PREFIX: Final[str] = "_pipeline_stage_advanced"
 AUGMENT_VALIDATION_WARNING_FIELD_NAME: Final[str] = "_augment_validation_warning"
-PREVIOUS_RUN_WARNING_FIELD_NAME: Final[str] = "_previous_run_warning"
-PIPELINE_PRESET_WARNING_FIELD_NAME: Final[str] = "_pipeline_preset_warning"
 EXECUTION_MODE_GUIDANCE_FIELD_NAME: Final[str] = "_execution_mode_guidance"
 FIXED_SLICE_PARAMETER_NAMES: Final[dict[str, tuple[str, ...]]] = {
     "HorizontalFlip": (PROBABILITY_FIELD_NAME,),
@@ -135,28 +123,8 @@ class DynamicAugmentFormBuilder:
 
         raw_params = _ctx_params(ctx)
         dataset = getattr(ctx, "dataset", None) if ctx is not None else None
-        storage_root = storage_root_from_params(raw_params)
-        pipeline_presets = list_pipeline_presets(storage_root=storage_root)
-        selected_named_preset_key = selected_pipeline_preset_key(raw_params)
-        preset_run_keys = list_previous_run_preset_keys(dataset, storage_root=storage_root)
-        selected_preset_run_key = selected_previous_run_key(raw_params)
-        template_source_issues = validate_augment_template_sources(raw_params)
-        pipeline_preset_warning = ""
-        preset_warning = ""
         params = dict(raw_params)
-        if not template_source_issues:
-            try:
-                params = params_with_pipeline_preset(raw_params, storage_root=storage_root)
-            except Exception:
-                params = dict(raw_params)
-                pipeline_preset_warning = "Named preset could not be loaded; current form values are unchanged."
-            try:
-                params = params_with_previous_run_preset(dataset, params, storage_root=storage_root)
-            except Exception:
-                params = dict(params)
-                preset_warning = "Previous run settings could not be loaded; current form values are unchanged."
-        else:
-            params = raw_params
+        template_source_issues = validate_augment_template_sources(params)
         validation_issues = (*template_source_issues, *validate_effective_augment_params(params))
         supported_transform_names = self._executable_transform_names()
         selected_sample_ids = selected_sample_ids_from_context(ctx)
@@ -190,12 +158,7 @@ class DynamicAugmentFormBuilder:
             params,
             selected_step_count=selected_step_count,
             selected_scope=selected_scope,
-            pipeline_presets=pipeline_presets,
-            selected_named_preset_key=selected_named_preset_key,
-            pipeline_preset_warning=pipeline_preset_warning,
-            preset_run_keys=preset_run_keys,
-            selected_preset_run_key=selected_preset_run_key,
-            preset_warning=preset_warning,
+            dataset=dataset,
             validation_issues=validation_issues,
         )
         render_inline_compatibility_preview(inputs, inline_compatibility_preview)
@@ -249,12 +212,7 @@ class DynamicAugmentFormBuilder:
         *,
         selected_step_count: int,
         selected_scope: str,
-        pipeline_presets: tuple[object, ...],
-        selected_named_preset_key: str,
-        pipeline_preset_warning: str,
-        preset_run_keys: tuple[str, ...],
-        selected_preset_run_key: str,
-        preset_warning: str,
+        dataset: Any,
         validation_issues: tuple[AugmentValidationIssue, ...],
     ) -> None:
         inputs.view(
@@ -264,16 +222,7 @@ class DynamicAugmentFormBuilder:
                 description="Run settings are configured before individual augmentation stages.",
             ),
         )
-        self._render_pipeline_preset_selector(
-            inputs,
-            pipeline_presets=pipeline_presets,
-            selected_named_preset_key=selected_named_preset_key,
-        )
-        self._render_previous_run_selector(
-            inputs,
-            preset_run_keys=preset_run_keys,
-            selected_preset_run_key=selected_preset_run_key,
-        )
+        render_pipeline_loader(inputs, dataset, params)
         self._render_execution_scope_selector(inputs, selected_scope=selected_scope)
         self._render_execution_mode_guidance(inputs)
         if validation_issues:
@@ -283,16 +232,6 @@ class DynamicAugmentFormBuilder:
                     label="Configuration validation",
                     description=augment_validation_warning(validation_issues),
                 ),
-            )
-        if pipeline_preset_warning:
-            inputs.view(
-                PIPELINE_PRESET_WARNING_FIELD_NAME,
-                types.Warning(label="Named preset", description=pipeline_preset_warning),
-            )
-        if preset_warning:
-            inputs.view(
-                PREVIOUS_RUN_WARNING_FIELD_NAME,
-                types.Warning(label="Previous run", description=preset_warning),
             )
         self.renderer.render_into(
             inputs,
@@ -343,75 +282,27 @@ class DynamicAugmentFormBuilder:
                 FormFieldSchema(
                     name=SAVE_PRESET_NAME_FIELD_NAME,
                     kind=FieldKind.STRING,
-                    label="Preset name",
+                    label="Saved pipeline name",
                     required=False,
                     default=_selected_string(params.get(SAVE_PRESET_NAME_FIELD_NAME)),
-                    help_text="Optional shared preset name to save this pipeline.",
+                    help_text="Optional saved pipeline name to save this pipeline.",
                 ),
                 FormFieldSchema(
                     name=SAVE_PRESET_DESCRIPTION_FIELD_NAME,
                     kind=FieldKind.STRING,
-                    label="Preset description",
+                    label="Saved pipeline description",
                     required=False,
                     default=_selected_string(params.get(SAVE_PRESET_DESCRIPTION_FIELD_NAME)),
                 ),
                 FormFieldSchema(
                     name=SAVE_PRESET_ONLY_FIELD_NAME,
                     kind=FieldKind.BOOLEAN,
-                    label="Save preset only",
+                    label="Save pipeline only",
                     required=False,
                     default=_selected_bool(params.get(SAVE_PRESET_ONLY_FIELD_NAME), default=False),
-                    help_text="Save the current pipeline as a shared preset without running augmentation.",
+                    help_text="Save the current pipeline as a saved pipeline without running augmentation.",
                 ),
             ),
-        )
-
-    def _render_pipeline_preset_selector(
-        self,
-        inputs: types.Object,
-        *,
-        pipeline_presets: tuple[object, ...],
-        selected_named_preset_key: str,
-    ) -> None:
-        if not pipeline_presets and not selected_named_preset_key:
-            return
-
-        choices = types.AutocompleteView(label="Named preset", allow_user_input=False)
-        choices.add_choice("", label="Do not load saved preset")
-        for preset_key, preset_label in _pipeline_preset_choices(pipeline_presets, selected_named_preset_key):
-            choices.add_choice(preset_key, label=preset_label)
-        inputs.enum(
-            PIPELINE_PRESET_KEY_FIELD_NAME,
-            choices.values(),
-            label="Named preset",
-            default=selected_named_preset_key,
-            required=False,
-            description="Optionally prefill this form from a shared pipeline preset.",
-            view=choices,
-        )
-
-    def _render_previous_run_selector(
-        self,
-        inputs: types.Object,
-        *,
-        preset_run_keys: tuple[str, ...],
-        selected_preset_run_key: str,
-    ) -> None:
-        if not preset_run_keys and not selected_preset_run_key:
-            return
-
-        choices = types.AutocompleteView(label="Previous run", allow_user_input=False)
-        choices.add_choice("", label="Do not load previous settings")
-        for run_key in _preset_choice_run_keys(preset_run_keys, selected_preset_run_key):
-            choices.add_choice(run_key, label=run_key)
-        inputs.enum(
-            PREVIOUS_RUN_KEY_FIELD_NAME,
-            choices.values(),
-            label="Previous run",
-            default=selected_preset_run_key,
-            required=False,
-            description="Optionally prefill this form from a saved run in the current dataset.",
-            view=choices,
         )
 
     def _render_execution_scope_selector(self, inputs: types.Object, *, selected_scope: str) -> None:
@@ -917,27 +808,3 @@ def _parameter_label(field: FormFieldSchema) -> str:
     if field.name == PROBABILITY_FIELD_NAME:
         return "Probability"
     return field.label or field.name
-
-
-def _preset_choice_run_keys(preset_run_keys: tuple[str, ...], selected_preset_run_key: str) -> tuple[str, ...]:
-    return (
-        tuple(dict.fromkeys((*preset_run_keys, selected_preset_run_key)))
-        if selected_preset_run_key
-        else preset_run_keys
-    )
-
-
-def _pipeline_preset_choices(
-    pipeline_presets: tuple[object, ...],
-    selected_named_preset_key: str,
-) -> tuple[tuple[str, str], ...]:
-    choices: list[tuple[str, str]] = []
-    for preset in pipeline_presets:
-        preset_key = getattr(preset, "key", "")
-        if not isinstance(preset_key, str) or not preset_key:
-            continue
-        preset_name = getattr(preset, "name", preset_key)
-        choices.append((preset_key, str(preset_name or preset_key)))
-    if selected_named_preset_key and selected_named_preset_key not in {key for key, _label in choices}:
-        choices.append((selected_named_preset_key, selected_named_preset_key))
-    return tuple(choices)

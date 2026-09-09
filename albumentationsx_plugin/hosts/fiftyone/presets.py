@@ -1,9 +1,8 @@
-"""Previous-run preset helpers for FiftyOne augmentation forms."""
+"""Run history discovery and pipeline parameter conversion for FiftyOne."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
 from os import PathLike
 from typing import Final
 
@@ -19,15 +18,6 @@ from albumentationsx_plugin.storage import MANIFEST_FILENAME, FileRunStore
 
 PREVIOUS_RUN_KEY_FIELD_NAME: Final[str] = "previous_run_key"
 STORAGE_ROOT_PARAM_NAME: Final[str] = "_storage_root"
-
-
-@dataclass(frozen=True, slots=True)
-class PreviousRunPreset:
-    """Operator params derived from a saved run manifest."""
-
-    run_key: str
-    operator_params: Mapping[str, object]
-    manifest_path: str
 
 
 def selected_previous_run_key(params: Mapping[str, object]) -> str:
@@ -71,40 +61,6 @@ def list_previous_run_preset_keys(
     return tuple(run_keys)
 
 
-def load_previous_run_preset(
-    dataset: object | None,
-    run_key: str,
-    *,
-    storage_root: str | PathLike[str] | None = None,
-) -> PreviousRunPreset:
-    """Load one previous run and convert its pipeline config into operator params."""
-
-    dataset_name = _required_dataset_name(dataset)
-    store = FileRunStore(dataset_name, storage_root=storage_root)
-    manifest = store.load_manifest(run_key)
-    return PreviousRunPreset(
-        run_key=manifest.run_key,
-        operator_params=operator_params_from_pipeline(manifest.pipeline),
-        manifest_path=str(store.manifest_path(manifest.run_key)),
-    )
-
-
-def params_with_previous_run_preset(
-    dataset: object | None,
-    params: Mapping[str, object],
-    *,
-    storage_root: str | PathLike[str] | None = None,
-) -> dict[str, object]:
-    """Overlay saved pipeline params over user-provided operator params."""
-
-    run_key = selected_previous_run_key(params)
-    if not run_key:
-        return dict(params)
-
-    preset = load_previous_run_preset(dataset, run_key, storage_root=storage_root)
-    return {**params, **preset.operator_params}
-
-
 def operator_params_from_pipeline(pipeline: PipelineConfig) -> dict[str, object]:
     """Convert a persisted pipeline config back into FiftyOne operator params."""
 
@@ -127,21 +83,11 @@ def _dataset_name(dataset: object | None) -> str:
     return name.strip() if isinstance(name, str) and name.strip() else ""
 
 
-def _required_dataset_name(dataset: object | None) -> str:
-    dataset_name = _dataset_name(dataset)
-    if not dataset_name:
-        raise ValueError("A dataset with a name is required to load previous run settings.")
-    return dataset_name
-
-
 __all__ = [
     "PREVIOUS_RUN_KEY_FIELD_NAME",
     "STORAGE_ROOT_PARAM_NAME",
-    "PreviousRunPreset",
     "list_previous_run_preset_keys",
-    "load_previous_run_preset",
     "operator_params_from_pipeline",
-    "params_with_previous_run_preset",
     "selected_previous_run_key",
     "storage_root_from_params",
 ]

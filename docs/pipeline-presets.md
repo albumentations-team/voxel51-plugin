@@ -1,112 +1,103 @@
-# Pipeline Presets
+# Saved pipelines and run history
 
-VOX-28 adds named, shared augmentation pipeline presets for repeated work across
-datasets. A preset stores the reusable pipeline configuration only: transform
-names, parameter values, output count, plugin version, dependency versions, and
-optional user-facing description.
+A **pipeline** is an ordered list of transforms and their parameters. A **saved
+pipeline** is a named, reusable configuration. A **run** records one execution:
+its dataset, source scope, status, generated outputs, and sampled replay data.
+The current **draft** is the editable configuration in the Augment form.
 
-Presets do not store source sample IDs, generated sample IDs, output paths,
-custom run keys, or per-output replay records. Loading a preset produces a
-fresh augmentation run with fresh randomness.
+## Load an editable copy
 
-## Storage Layout
+In **Augment with AlbumentationsX**, use the single **Load pipeline** picker:
 
-Named presets are saved outside dataset-specific run directories:
+- **Current unsaved draft** keeps the current configuration.
+- **Saved pipeline: …** selects a named configuration from shared storage.
+- **From run history: …** selects a run from the active dataset.
 
-```text
-~/.fiftyone/albumentationsx-plugin/presets/<preset-key>.json
-```
+Selecting a source does not change the draft. Click **Replace draft with
+selected pipeline** to replace it. The editor then shows its origin and offers
+**Reload and replace draft** to explicitly discard subsequent edits and load
+that source again. Changing or clearing the picker keeps your existing edits.
+The origin is context, not an active override.
 
-The key is derived from the preset name with a path-safe slug. Saving another
-preset with the same name updates that preset while preserving its original
-`created_at` timestamp and writing a new `updated_at` timestamp.
+Preview, materialization, dry run, and saving all use the visible draft. For
+example, load `HorizontalFlip(p=1)`, change Probability to `0`, and preview or
+run: the image will not flip. Stage count, order, Enabled, transform selection,
+and all parameters remain editable. The loaded copy still executes if its
+source is later renamed or deleted, including when execution is delegated.
 
-## Form Behavior
+**View AlbumentationsX Run → Use pipeline from this run** and **Manage
+AlbumentationsX Saved Pipelines → Edit a copy of this pipeline** open the same
+editor with an independent snapshot. Every execution uses fresh randomness;
+loading a pipeline does not reproduce an earlier output's replay or seed.
 
-The `Augment with AlbumentationsX` general section can show two template
-sources:
+## What loading replaces
 
-- `Named preset`: shared pipeline templates available across datasets in the
-  same plugin storage root.
-- `Previous run`: pipeline templates loaded from a saved run manifest in the
-  active dataset.
+| Setting | Load behavior |
+| --- | --- |
+| Transforms and parameters | Replace with saved enabled transforms in execution order; old stage parameters are removed. |
+| Outputs per sample | Restore the saved count; editable afterward. |
+| Annotation selection | Restore compatible saved fields as described below. |
+| Scope, current sample selection/view | Keep the current execution context. |
+| Run label, preview/dry run/save mode | Keep current form settings. |
+| Save name and description | Keep current form settings; loading does not enable saving. |
+| Seed, replay, source IDs, output paths | Do not restore. |
 
-These template sources are mutually exclusive. If both fields are selected, the
-form shows a configuration warning and execution is blocked until one source is
-cleared. This avoids silently applying one saved pipeline over another.
+Only executable stages are saved, as before. Loading rejects pipelines above
+the ten-stage editor limit rather than silently truncating them.
 
-To save a reusable preset:
+## Annotation mapping
 
-1. Configure the pipeline stages and output count.
-2. Fill `Preset name`.
-3. Optionally fill `Preset description`.
-4. Run the operator normally to both save the preset and create outputs, or
-   enable `Save preset only` to validate and save the preset without running
-   augmentation.
+New saved pipelines record the selected field names and label types in
+`metadata.annotation_selection`, with the source dataset name. Loading restores
+both transformed and copied annotations, including an explicitly empty
+selection. Fields omitted by a run remain unchecked; adding new annotation
+fields to the dataset does not enable them in the loaded copy.
 
-`Preview only`, `Dry run`, and `Save preset only` are mutually distinct modes:
+Across datasets, only matching names **and** label types are checked. Missing,
+unsupported, changed, or unknown types are listed in **Review loaded
+annotations**. Choose replacement fields explicitly using the annotation
+checkboxes, or leave them unchecked to omit them. No approximate mapping or
+automatic inclusion of every supported field takes place.
 
-- `Preview only` renders selected-sample previews without saving presets,
-  samples, files, manifests, or custom runs.
-- `Dry run` validates the resolved pipeline without saving presets, samples, or
-  files.
-- `Save preset only` requires `Preset name`, validates and saves the preset,
-  and does not run augmentation.
+Older runs without typed metadata restore `pipeline.target_fields` and
+`pipeline.copy_fields` by name within the same dataset. Older saved pipelines
+with no annotation selection load with all fields unchecked and an explanation.
+Review those fields before executing. Checkboxes remain editable after loading.
 
-If `Preset name` is filled during `Preview only` or `Dry run`, execution is
-blocked with a validation message. Disable the non-persistent mode or enable
-`Save preset only` before saving the preset.
+## Save and manage
 
-## Contract
+Fill **Saved pipeline name** and optionally **Saved pipeline description**.
+Run normally to save the draft and materialize outputs, or enable **Save
+pipeline only**. Preview and dry run do not save pipelines; combining them with
+a save name or save-only mode produces an actionable validation error.
 
-Preset JSON uses `PipelinePreset` schema version `1`:
+Shared storage remains `~/.fiftyone/albumentationsx-plugin/presets/<preset-key>.json`.
+The key is a path-safe slug of the name. Saving the same name updates that file,
+preserves `created_at`, and updates `updated_at`. The `PipelinePreset` JSON
+schema remains version `1`; annotation selection is backward-compatible
+metadata. Imported and loaded pipelines are validated against the current
+transform catalog. Saved pipelines exclude source IDs, output IDs and paths,
+run cleanup allowlists, and per-output replay records.
 
-- `schema_version`;
-- `key`;
-- `name`;
-- `description`;
-- `tags`;
-- `plugin_version`;
-- `dependency_versions`;
-- `pipeline`;
-- `created_at`;
-- `updated_at`;
-- `metadata`.
+**Manage AlbumentationsX Saved Pipelines** provides inspect, export, import,
+rename, and delete actions. Import and rename require **Overwrite existing
+saved pipeline** for collisions. Deletion requires confirmation and removes
+only the selected configuration file. **Delete AlbumentationsX Run** remains
+the action for generated outputs and run cleanup.
 
-The saved `pipeline` is validated with the current catalog-backed pipeline
-factory before it is persisted and again before it is loaded into the form.
-This keeps old presets from silently running if future AlbumentationsX or
-albu-spec changes make the pipeline invalid.
+## Python callers and older form parameters
 
-## Current Scope
+The legacy `pipeline_preset_key` and `previous_run_key` live selectors are no
+longer accepted by execution. They return `pipeline_load_required`, or
+`preset_source_conflict` when both are supplied, with migration guidance.
+Internal storage names and serialized output keys such as `preset_key` remain
+compatible.
 
-VOX-28 provides shared storage, form loading, preset save/update, and unit
-coverage for loading a preset into the form and saving one from operator
-params.
-
-VOX-48 adds **Manage AlbumentationsX Presets**, a dedicated FiftyOne operator
-for preset lifecycle actions:
-
-- `Inspect presets`: list stored presets and show selected preset JSON.
-- `Export preset`: return one preset as formatted JSON.
-- `Import preset`: parse JSON, require schema version compatibility, require
-  the key to match the normalized preset name, validate the pipeline against the
-  current executable catalog, and save only after passing validation.
-- `Rename preset`: write the renamed preset first, preserve the reusable
-  pipeline and `created_at` timestamp, update `updated_at`, then remove the old
-  preset file.
-- `Delete preset`: remove only the selected preset JSON file after explicit
-  confirmation.
-
-Import and rename reject accidental collisions unless `Overwrite existing
-preset` is enabled. Preset deletion is deliberately separate from
-`Delete AlbumentationsX Run`: it never removes run manifests, generated
-samples, generated files, FiftyOne custom runs, source samples, or source files.
-
-## Verification
-
-Focused checks:
-
-```bash
-uv run pytest tests/unit/test_core_contracts.py tests/unit/test_pipeline_preset_store.py tests/unit/test_fiftyone_augment_operator.py tests/unit/test_fiftyone_manage_presets_operator.py
-```
+Python callers can explicitly copy a configuration with
+`hosts.fiftyone.pipeline_loading.load_pipeline_draft(dataset, source, params,
+storage_root=...)`, where `source` is `saved:<key>` or `run:<key>`. Edit the
+returned flat params and pass them to the augmentation operator. The App packs
+that snapshot into its own nested form group before opening the editor. This
+isolates it from delayed updates to a replaced prompt, so actual checkbox/input
+values match the configuration rather than relying on schema defaults. See [verification](verification.md) for the complete gate and smoke
+scenarios.

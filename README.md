@@ -71,11 +71,9 @@ selections; use delegated execution for larger views or datasets to keep the App
 responsive while progress is reported.
 
 > [!NOTE]
-> Selecting `Previous run` loads its saved pipeline as a reusable template and
-> samples fresh randomness. Clear that field before editing the loaded pipeline.
-> `Named preset` loads a shared pipeline template that can be reused across
-> datasets in the same plugin storage root. Choose only one template source at a
-> time; selecting both blocks execution with a configuration warning.
+> Use **Load pipeline** to choose a saved pipeline or run history, then explicitly
+> replace the draft. Loaded configurations stay editable; preview and execution
+> use your current values with fresh randomness. See [the loading contract](docs/pipeline-presets.md).
 
 ## Current capabilities
 
@@ -128,7 +126,7 @@ responsive while progress is reported.
 - Named pipeline presets can be saved from the augmentation form and loaded
   across datasets. They persist only the reusable pipeline config and dependency
   versions, not sample IDs, output paths, or replay records.
-- **Manage AlbumentationsX Presets** can inspect, export, import, rename, and
+- **Manage AlbumentationsX Saved Pipelines** can inspect, export, import, rename, and
   delete named presets. Import validates the preset schema and pipeline against
   the current executable catalog before saving. Deleting a preset removes only
   the preset JSON file, not runs, generated samples, output files, or sources.
@@ -153,9 +151,9 @@ responsive while progress is reported.
   heatmap values untouched by those effects.
 - `supported_with_defaults` transforms expose simple typed controls plus an
   advanced JSON section for optional complex parameters.
-- `Previous run` restores pipeline configuration; it does not reproduce each
+- `From run history` restores pipeline configuration; it does not reproduce each
   earlier sample's random parameters.
-- `Named preset` restores reusable pipeline configuration across datasets; it
+- `Saved pipeline` restores reusable pipeline configuration across datasets; it
   does not store source samples, generated outputs, or sampled replay values.
 
 ## Develop locally
@@ -198,13 +196,13 @@ available via `--suite`; see [Demo dataset](docs/demo-dataset.md).
 
 In the App, run `Augment with AlbumentationsX`, choose `Execution scope`
 (`Selected samples`, `Current view`, or `Entire dataset`), set `Pipeline stages`,
-optionally choose `Named preset` to prefill the form from a shared pipeline
-template, optionally choose `Previous run` to prefill the form from a saved run
-in this dataset, optionally set `Run label` and `Outputs per sample`, and choose
+optionally use `Load pipeline` and `Replace draft with selected pipeline` to load
+an editable copy from saved pipelines or run history, set `Run label` and
+`Outputs per sample`, and choose
 a catalog-backed transform for each visible stage slot. Each stage slot can be
-skipped with `Enabled` or moved by changing `Execution order`. Fill `Preset
+skipped with `Enabled` or moved by changing `Execution order`. Fill `Saved pipeline
 name` to save the current pipeline as a reusable named preset; enable `Save
-preset only` to save it without running augmentation. Select one to three source
+pipeline only` to save it without running augmentation. Select one to three source
 samples and enable `Preview only` to render source/augmented image previews,
 annotated before/after comparisons, sampled replay parameters, transformed
 label JSON, and annotation comparison JSON without writing files, creating
@@ -212,11 +210,8 @@ samples, or registering a run. `Dry run` validates the configuration and reports
 the resolved source scope without writing files or creating samples. Run small
 selections immediately. For larger views or full datasets, choose delegated
 execution in FiftyOne's execution dialog so the App can remain responsive and
-report live progress. Previous-run settings are used
-as a reusable pipeline template with fresh randomness, including all saved
-stages up to the current ten-slot editor limit, not as an exact replay of
-earlier sampled parameters. Clear `Previous run` after loading if you want to
-keep editing the form without reapplying the saved pipeline. New output samples
+report live progress. Loaded pipelines use fresh randomness and stay editable
+without clearing their source. New output samples
 are written under the plugin-owned storage directory and tagged with the run
 key; source samples and source files remain unchanged. Non-dry runs also save
 `manifest.json` under the run output directory and register the manifest in
@@ -226,7 +221,7 @@ manifest so they can be inspected and deleted by run.
 Then run `View AlbumentationsX Run` to inspect persisted counts, generated
 sample availability, versions, transform config, per-output replay records, and
 stale/missing manifest state. The viewer can also open the generated samples
-that still exist in the active dataset. Run `Manage AlbumentationsX Presets` to
+that still exist in the active dataset. Run `Manage AlbumentationsX Saved Pipelines` to
 inspect shared presets, export one as JSON, import validated preset JSON, rename
 presets, or delete only a preset JSON file. Run
 `Delete AlbumentationsX Run` with confirmation checked to remove generated

@@ -1,4 +1,4 @@
-"""Shared helpers for FiftyOne named preset management actions."""
+"""Shared helpers for FiftyOne saved pipeline management actions."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ PRESET_ACTIONS_REQUIRING_PRESET: Final[frozenset[str]] = frozenset(
 
 @dataclass(frozen=True, slots=True)
 class PresetManagementRow:
-    """Flat preset summary row for FiftyOne operator output."""
+    """Flat saved pipeline summary row for FiftyOne operator output."""
 
     key: str
     name: str
@@ -82,7 +82,7 @@ class PresetManagementRow:
 
 @dataclass(frozen=True, slots=True)
 class PresetManagementPayload:
-    """Result of one preset management action."""
+    """Result of one saved pipeline management action."""
 
     status: str
     message: str
@@ -118,7 +118,7 @@ class PresetManagementPayload:
 
 
 def execute_preset_management_action(params: Mapping[str, object]) -> PresetManagementPayload:
-    """Execute one preset management action from FiftyOne operator params."""
+    """Execute one saved pipeline management action from FiftyOne operator params."""
 
     action = selected_management_action(params.get(ACTION_FIELD_NAME))
     store = FilePipelinePresetStore(storage_root=storage_root_from_params(params))
@@ -130,7 +130,7 @@ def execute_preset_management_action(params: Mapping[str, object]) -> PresetMana
         return error_payload(
             store,
             action=action,
-            message=f"Install plugin requirements before importing presets: {runtime_dependency_package_name(error)}.",
+            message=f"Install plugin requirements before importing saved pipelines: {runtime_dependency_package_name(error)}.",
             reason="missing_runtime_dependency",
             exception=error,
         )
@@ -138,7 +138,7 @@ def execute_preset_management_action(params: Mapping[str, object]) -> PresetMana
         return error_payload(
             store,
             action=action,
-            message=str(error) or "Preset management action failed.",
+            message=str(error) or "Saved pipeline management action failed.",
             reason=error_reason(error),
             exception=error,
         )
@@ -152,7 +152,7 @@ def selected_management_action(raw_value: object) -> str:
 
 
 def selected_preset_key(raw_value: object, presets: tuple[PipelinePreset, ...]) -> str:
-    """Return a selected preset key, defaulting to the first available preset."""
+    """Return a selected saved pipeline key, defaulting to the first available saved pipeline."""
 
     value = string_param(raw_value)
     preset_keys = tuple(preset.key for preset in presets)
@@ -233,7 +233,7 @@ def error_payload(
 
 
 def preset_rows(store: FilePipelinePresetStore) -> tuple[PresetManagementRow, ...]:
-    """Return all readable presets as UI-ready summary rows."""
+    """Return all readable saved pipelines as UI-ready summary rows."""
 
     rows: list[PresetManagementRow] = []
     for preset in store.list_presets():
@@ -273,7 +273,7 @@ def _execute_action(
     return error_payload(
         store,
         action=action,
-        message="Unsupported preset management action.",
+        message="Unsupported saved pipeline management action.",
         reason="unsupported_action",
     )
 
@@ -303,7 +303,7 @@ def _export_preset(
     return _success_payload(
         store,
         action=ACTION_EXPORT,
-        message=f"Exported preset '{preset.name}'.",
+        message=f"Exported saved pipeline '{preset.name}'.",
         preset=preset,
         selected_preset_json=exported_json,
         exported_preset_json=exported_json,
@@ -321,7 +321,7 @@ def _import_preset(
         return error_payload(
             store,
             action=ACTION_IMPORT,
-            message=f"Preset '{preset.key}' already exists. Enable overwrite to replace it.",
+            message=f"Saved pipeline '{preset.key}' already exists. Enable overwrite to replace it.",
             reason="preset_already_exists",
             preset=preset,
         )
@@ -330,7 +330,7 @@ def _import_preset(
     return _success_payload(
         store,
         action=ACTION_IMPORT,
-        message=f"Imported preset '{preset.name}'.",
+        message=f"Imported saved pipeline '{preset.name}'.",
         preset=preset,
         selected_preset_json=_preset_json(preset),
     )
@@ -341,14 +341,14 @@ def _rename_preset(
     params: Mapping[str, object],
 ) -> PresetManagementPayload:
     preset = store.load_preset(_required_preset_key(params, store))
-    new_name = _required_text(params.get(NEW_PRESET_NAME_FIELD_NAME), "New preset name is required.")
+    new_name = _required_text(params.get(NEW_PRESET_NAME_FIELD_NAME), "New saved pipeline name is required.")
     new_key = build_preset_key(new_name)
     overwrite = bool_param(params.get(OVERWRITE_FIELD_NAME))
     if new_key != preset.key and store.preset_exists(new_key) and not overwrite:
         return error_payload(
             store,
             action=ACTION_RENAME,
-            message=f"Preset '{new_key}' already exists. Enable overwrite to replace it.",
+            message=f"Saved pipeline '{new_key}' already exists. Enable overwrite to replace it.",
             reason="preset_already_exists",
             preset=preset,
         )
@@ -367,7 +367,7 @@ def _rename_preset(
     return _success_payload(
         store,
         action=ACTION_RENAME,
-        message=f"Renamed preset '{preset.name}' to '{renamed.name}'.",
+        message=f"Renamed saved pipeline '{preset.name}' to '{renamed.name}'.",
         preset=renamed,
         selected_preset_json=_preset_json(renamed),
     )
@@ -382,7 +382,7 @@ def _delete_preset(
         return error_payload(
             store,
             action=ACTION_DELETE,
-            message="Confirm deletion before removing the selected preset.",
+            message="Confirm deletion before removing the selected saved pipeline.",
             reason="confirmation_required",
             preset=preset,
         )
@@ -392,7 +392,7 @@ def _delete_preset(
     return _success_payload(
         store,
         action=ACTION_DELETE,
-        message=f"Deleted preset '{preset.name}'.",
+        message=f"Deleted saved pipeline '{preset.name}'.",
         preset=replace(preset, metadata=normalize_json_mapping({"deleted_path": preset_path})),
     )
 
@@ -420,17 +420,17 @@ def _success_payload(
 
 
 def _preset_from_json_param(params: Mapping[str, object]) -> PipelinePreset:
-    raw_json = _required_text(params.get(PRESET_JSON_FIELD_NAME), "Preset JSON is required.")
+    raw_json = _required_text(params.get(PRESET_JSON_FIELD_NAME), "Saved pipeline JSON is required.")
     try:
         payload = json.loads(raw_json)
     except json.JSONDecodeError as error:
-        raise ValueError("Preset JSON could not be parsed.") from error
+        raise ValueError("Saved pipeline JSON could not be parsed.") from error
     if not isinstance(payload, Mapping):
-        raise TypeError("Preset JSON must be an object.")
+        raise TypeError("Saved pipeline JSON must be an object.")
     preset = PipelinePreset.from_dict(cast(Mapping[str, object], payload))
     expected_key = build_preset_key(preset.name)
     if preset.key != expected_key:
-        raise ValueError("Preset key must match the normalized preset name.")
+        raise ValueError("Saved pipeline key must match the normalized saved pipeline name.")
     return preset
 
 
@@ -447,7 +447,7 @@ def _required_preset_key(params: Mapping[str, object], store: FilePipelinePreset
     preset_keys = store.list_preset_keys()
     if preset_keys:
         return preset_keys[0]
-    raise ValueError("A preset must be selected for this action.")
+    raise ValueError("A saved pipeline must be selected for this action.")
 
 
 def _pipeline_summary(preset: PipelinePreset) -> str:
@@ -468,8 +468,8 @@ def _preset_json(preset: PipelinePreset | None) -> str:
 def _inspect_message(presets: tuple[PipelinePreset, ...]) -> str:
     count = len(presets)
     if count == 1:
-        return "Found 1 named preset."
-    return f"Found {count} named presets."
+        return "Found 1 saved pipeline."
+    return f"Found {count} saved pipelines."
 
 
 def _required_text(raw_value: object, message: str) -> str:

@@ -35,17 +35,18 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     source_selected_sample_ids,
     source_view_from_context,
 )
-from albumentationsx_plugin.hosts.fiftyone.form_params import flatten_fiftyone_form_groups
+from albumentationsx_plugin.hosts.fiftyone.form_params import (
+    DRAFT_ID,
+    draft_parameter_group_name,
+    flatten_fiftyone_form_groups,
+)
 from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
     SAVE_PRESET_ONLY_FIELD_NAME,
-    params_with_pipeline_preset,
     pipeline_preset_save_requested,
     save_pipeline_preset_from_params,
     selected_pipeline_preset_key,
 )
 from albumentationsx_plugin.hosts.fiftyone.presets import (
-    params_with_previous_run_preset,
-    selected_previous_run_key,
     storage_root_from_params,
 )
 from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
@@ -97,12 +98,19 @@ class AugmentWithAlbumentationsX(foo.Operator):
             if not _is_missing_runtime_dependency(error):
                 raise
             inputs = _missing_dependency_inputs(error)
+        draft_id = _ctx_params(ctx).get(DRAFT_ID)
+        if isinstance(draft_id, str):
+            wrapper = types.Object()
+            wrapper.define_property(draft_parameter_group_name(draft_id), inputs, view=types.View())
+            inputs = wrapper
         return types.Property(
             inputs,
             view=types.PromptView(
                 label=OPERATOR_LABEL,
                 submit_button_label="Run augmentation",
                 cancel_button_label="Close",
+                # Remount uncontrolled FiftyOne inputs only when a snapshot is explicitly loaded.
+                componentsProps={"container": {"key": str(_ctx_params(ctx).get(DRAFT_ID, "unsaved"))}},
             ),
         )
 
@@ -129,9 +137,9 @@ class AugmentWithAlbumentationsX(foo.Operator):
         _render_json_output_field(outputs, "operator_params_json", label="Operator params")
         _render_json_output_field(outputs, DEBUG_BUNDLE_FIELD_NAME, label="Debug bundle")
         outputs.int("preview_count", label="Preview results")
-        outputs.str("preset_key", label="Preset key")
-        outputs.str("preset_name", label="Preset name")
-        outputs.str("preset_path", label="Preset path")
+        outputs.str("preset_key", label="Saved pipeline key")
+        outputs.str("preset_name", label="Saved pipeline name")
+        outputs.str("preset_path", label="Saved pipeline path")
         if _preview_only_from_ctx(ctx):
             results = getattr(ctx, "results", {})
             _render_preview_output_fields(outputs, results if isinstance(results, Mapping) else {})
@@ -163,8 +171,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
             )
         if _save_preset_only_param(params):
             try:
-                preset_params = params_with_pipeline_preset(params, storage_root=storage_root)
-                preset_params = params_with_previous_run_preset(ctx.dataset, preset_params, storage_root=storage_root)
+                preset_params = dict(params)
                 validation_issues = validate_effective_augment_params(preset_params)
                 if validation_issues:
                     return _augment_validation_error_result(
@@ -172,7 +179,9 @@ class AugmentWithAlbumentationsX(foo.Operator):
                         validation_issues,
                         ctx=ctx,
                     )
-                return save_pipeline_preset_from_params(preset_params, storage_root=storage_root).to_dict()
+                return save_pipeline_preset_from_params(
+                    preset_params, dataset=ctx.dataset, storage_root=storage_root
+                ).to_dict()
             except Exception as error:
                 return _pipeline_preset_error_result(params, error, ctx=ctx)
         preview_only = _preview_only_param(params)
@@ -184,24 +193,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
             return _preview_requires_selected_samples_result(params, ctx=ctx)
         if source_scope == EXECUTION_SCOPE_SELECTED_SAMPLES and not selected_sample_ids:
             return _no_selected_samples_result(params, source_scope=source_scope, ctx=ctx)
-        try:
-            execution_params = params_with_pipeline_preset(params, storage_root=storage_root)
-        except Exception as error:
-            return _pipeline_preset_error_result(
-                params,
-                error,
-                source_scope=source_scope,
-                ctx=ctx,
-            )
-        try:
-            execution_params = params_with_previous_run_preset(ctx.dataset, execution_params, storage_root=storage_root)
-        except Exception as error:
-            return _previous_run_preset_error_result(
-                params,
-                error,
-                source_scope=source_scope,
-                ctx=ctx,
-            )
+        execution_params = dict(params)
         validation_issues = validate_effective_augment_params(execution_params)
         if validation_issues:
             return _augment_validation_error_result(
@@ -249,7 +241,9 @@ class AugmentWithAlbumentationsX(foo.Operator):
         saved_preset = None
         if pipeline_preset_save_requested(execution_params) and not _dry_run_param(execution_params):
             try:
-                saved_preset = save_pipeline_preset_from_params(execution_params, storage_root=storage_root)
+                saved_preset = save_pipeline_preset_from_params(
+                    execution_params, dataset=ctx.dataset, storage_root=storage_root
+                )
             except Exception as error:
                 return _pipeline_preset_error_result(
                     params,
@@ -527,33 +521,6 @@ def _invalid_execution_scope_result(
     return _error_result(params, errors=errors, ctx=ctx, exception=error)
 
 
-def _previous_run_preset_error_result(
-    params: object,
-    error: Exception,
-    *,
-    source_scope: str = "",
-    ctx: Any | None = None,
-) -> JSONDict:
-    errors: list[JSONDict] = [
-        {
-            "code": "previous_run_preset_unavailable",
-            "message": "Previous run settings could not be loaded; choose another run key or clear the field.",
-            "context": {
-                "previous_run_key": selected_previous_run_key(params) if isinstance(params, dict) else "",
-                "source_scope": source_scope,
-                "error_type": type(error).__name__,
-            },
-        }
-    ]
-    return _error_result(
-        params,
-        errors=errors,
-        source_scope=source_scope,
-        ctx=ctx,
-        exception=error,
-    )
-
-
 def _pipeline_preset_error_result(
     params: object,
     error: Exception,
@@ -564,7 +531,7 @@ def _pipeline_preset_error_result(
     errors: list[JSONDict] = [
         {
             "code": "pipeline_preset_unavailable",
-            "message": "Pipeline preset could not be loaded or saved; check the preset name and settings.",
+            "message": "Pipeline could not be saved; check its name, settings, and storage access.",
             "context": {
                 "pipeline_preset_key": selected_pipeline_preset_key(params) if isinstance(params, dict) else "",
                 "source_scope": source_scope,

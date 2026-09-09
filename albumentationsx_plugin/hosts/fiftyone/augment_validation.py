@@ -54,17 +54,26 @@ class AugmentValidationIssue:
 
 
 def validate_augment_template_sources(params: Mapping[str, object]) -> tuple[AugmentValidationIssue, ...]:
-    """Validate mutually exclusive template sources before applying presets."""
+    """Reject legacy live template selectors; loading now creates a draft."""
 
     named_preset_key = selected_pipeline_preset_key(params)
     previous_run_key = selected_previous_run_key(params)
-    if not named_preset_key or not previous_run_key:
+    if not named_preset_key and not previous_run_key:
         return ()
+
+    if not (named_preset_key and previous_run_key):
+        return (
+            AugmentValidationIssue(
+                code="pipeline_load_required",
+                message="Use Load pipeline and Replace draft to load an editable copy. Remove legacy pipeline_preset_key / previous_run_key parameters before execution.",
+                context={"pipeline_preset_key": named_preset_key, "previous_run_key": previous_run_key},
+            ),
+        )
 
     return (
         AugmentValidationIssue(
             code=PRESET_SOURCE_CONFLICT_CODE,
-            message="Choose either a named preset or a previous run, not both.",
+            message="Choose one source in Load pipeline: a saved pipeline or a run from history. Remove the two legacy source selectors.",
             context={
                 "reason": "mutually_exclusive_template_sources",
                 "pipeline_preset_key": named_preset_key,
@@ -75,7 +84,7 @@ def validate_augment_template_sources(params: Mapping[str, object]) -> tuple[Aug
 
 
 def validate_effective_augment_params(params: Mapping[str, object]) -> tuple[AugmentValidationIssue, ...]:
-    """Validate effective params after any selected preset has been applied."""
+    """Validate the current editable draft before saving or execution."""
 
     return (
         *validate_execution_mode_params(params),
@@ -109,7 +118,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Save preset only cannot be combined with Preview only.",
+                message="Save pipeline only cannot be combined with Preview only.",
                 context={
                     "reason": "save_preset_only_conflicts_with_preview_only",
                     SAVE_PRESET_ONLY_FIELD_NAME: True,
@@ -122,7 +131,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Save preset only cannot be combined with Dry run.",
+                message="Save pipeline only cannot be combined with Dry run.",
                 context={
                     "reason": "save_preset_only_conflicts_with_dry_run",
                     SAVE_PRESET_ONLY_FIELD_NAME: True,
@@ -135,7 +144,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Preset name is required when Save preset only is enabled.",
+                message="Saved pipeline name is required when Save pipeline only is enabled.",
                 context={
                     "reason": "save_preset_only_requires_preset_name",
                     SAVE_PRESET_ONLY_FIELD_NAME: True,
@@ -148,7 +157,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Preview only does not save named presets; disable Preview only or enable Save preset only.",
+                message="Preview only does not save pipelines; disable Preview only or enable Save pipeline only.",
                 context={
                     "reason": "preview_only_would_skip_preset_save",
                     PREVIEW_ONLY_FIELD_NAME: True,
@@ -161,7 +170,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Dry run does not save named presets; disable Dry run or enable Save preset only.",
+                message="Dry run does not save pipelines; disable Dry run or enable Save pipeline only.",
                 context={
                     "reason": "dry_run_would_skip_preset_save",
                     DRY_RUN_FIELD_NAME: True,

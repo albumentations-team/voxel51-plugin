@@ -42,7 +42,7 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_FIELD_NAME,
     EXECUTION_SCOPE_SELECTED_SAMPLES,
 )
-from albumentationsx_plugin.hosts.fiftyone.form_params import stage_parameter_group_name
+from albumentationsx_plugin.hosts.fiftyone.form_params import flatten_fiftyone_form_groups, stage_parameter_group_name
 from albumentationsx_plugin.hosts.fiftyone.forms.compatibility import (
     INLINE_COMPATIBILITY_RECOMMENDATIONS_FIELD_NAME,
     INLINE_COMPATIBILITY_SECTION_FIELD_NAME,
@@ -53,6 +53,7 @@ from albumentationsx_plugin.hosts.fiftyone.operators.augment import (
     OPERATOR_NAME,
     AugmentWithAlbumentationsX,
 )
+from albumentationsx_plugin.hosts.fiftyone.pipeline_loading import LOAD_BUTTON, LOAD_SOURCE, load_pipeline_draft
 from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
     PIPELINE_PRESET_KEY_FIELD_NAME,
     PRESET_SAVED_EXECUTION_STATUS,
@@ -189,6 +190,9 @@ def _pipeline_preset(name: str = "Training defaults") -> PipelinePreset:
 
 def _form_properties(input_json: dict[str, Any]) -> dict[str, Any]:
     properties = dict(input_json["type"]["properties"])
+    for name, prop in tuple(properties.items()):
+        if name.startswith("_pipeline_draft_"):
+            properties = dict(prop["type"]["properties"])
     group_names = [
         ANNOTATION_FIELD_GROUP_NAME,
         *(stage_parameter_group_name(step_number) for step_number in range(1, MAX_PIPELINE_STEPS + 1)),
@@ -703,17 +707,16 @@ def test_augment_operator_prefills_form_from_previous_run_manifest(tmp_path) -> 
     context = SimpleNamespace(
         dataset=SimpleNamespace(name=dataset_name),
         params={
-            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            LOAD_SOURCE: f"run:{manifest.run_key}",
             STORAGE_ROOT_PARAM_NAME: str(tmp_path),
         },
     )
 
+    initial = _form_properties(operator.resolve_input(context).to_json())
+    context.params = initial[LOAD_BUTTON]["view"]["params"]
     input_json = operator.resolve_input(context).to_json()
     input_properties = _form_properties(input_json)
 
-    assert input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["type"]["name"] == "Enum"
-    assert input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["default"] == manifest.run_key
-    assert manifest.run_key in input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["type"]["values"]
     assert input_properties["pipeline_step_count"]["default"] == 2
     assert input_properties["outputs_per_sample"]["default"] == 2
     assert input_properties["transform"]["default"] == "RandomBrightnessContrast"
@@ -737,17 +740,16 @@ def test_augment_operator_prefills_form_from_named_pipeline_preset(tmp_path) -> 
     context = SimpleNamespace(
         dataset=SimpleNamespace(name="another-dataset"),
         params={
-            PIPELINE_PRESET_KEY_FIELD_NAME: preset.key,
+            LOAD_SOURCE: f"saved:{preset.key}",
             STORAGE_ROOT_PARAM_NAME: str(tmp_path),
         },
     )
 
+    initial = _form_properties(operator.resolve_input(context).to_json())
+    context.params = initial[LOAD_BUTTON]["view"]["params"]
     input_json = operator.resolve_input(context).to_json()
     input_properties = _form_properties(input_json)
 
-    assert input_properties[PIPELINE_PRESET_KEY_FIELD_NAME]["type"]["name"] == "Enum"
-    assert input_properties[PIPELINE_PRESET_KEY_FIELD_NAME]["default"] == preset.key
-    assert preset.key in input_properties[PIPELINE_PRESET_KEY_FIELD_NAME]["type"]["values"]
     assert input_properties["pipeline_step_count"]["default"] == 2
     assert input_properties["outputs_per_sample"]["default"] == 2
     assert input_properties["transform"]["default"] == "RandomBrightnessContrast"
@@ -783,9 +785,9 @@ def test_augment_operator_warns_when_named_preset_and_previous_run_are_both_sele
 
     assert warning["view"]["name"] == "Warning"
     assert warning["view"]["label"] == "Configuration validation"
-    assert "Choose either a named preset or a previous run" in warning["view"]["description"]
-    assert input_properties[PIPELINE_PRESET_KEY_FIELD_NAME]["default"] == preset.key
-    assert input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["default"] == manifest.run_key
+    assert "Choose one source in Load pipeline" in warning["view"]["description"]
+    assert PIPELINE_PRESET_KEY_FIELD_NAME not in input_properties
+    assert PREVIOUS_RUN_KEY_FIELD_NAME not in input_properties
     assert input_properties["transform"]["default"] == "HorizontalFlip"
 
 
@@ -830,7 +832,7 @@ def test_operator_params_from_pipeline_preserves_stages_up_to_editor_limit() -> 
 
 
 @pytest.mark.unit
-def test_augment_operator_prefill_overrides_stale_submitted_form_values(tmp_path) -> None:
+def test_augment_operator_source_selection_keeps_unsaved_draft(tmp_path) -> None:
     operator = AugmentWithAlbumentationsX()
     dataset_name = "preset-stale-form-dataset"
     manifest = _preset_manifest()
@@ -839,7 +841,7 @@ def test_augment_operator_prefill_overrides_stale_submitted_form_values(tmp_path
     context = SimpleNamespace(
         dataset=SimpleNamespace(name=dataset_name),
         params={
-            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            LOAD_SOURCE: f"run:{manifest.run_key}",
             STORAGE_ROOT_PARAM_NAME: str(tmp_path),
             "pipeline_step_count": 1,
             "outputs_per_sample": 1,
@@ -851,17 +853,11 @@ def test_augment_operator_prefill_overrides_stale_submitted_form_values(tmp_path
     input_json = operator.resolve_input(context).to_json()
     input_properties = _form_properties(input_json)
 
-    assert input_properties["pipeline_step_count"]["default"] == 2
-    assert input_properties["outputs_per_sample"]["default"] == 2
-    assert input_properties["transform"]["default"] == "RandomBrightnessContrast"
-    assert input_properties["brightness_range"]["default"] == [0.1, 0.2]
-    assert input_properties["contrast_range"]["default"] == [0.3, 0.4]
-    assert input_properties["p"]["default"] == 0.8
-    assert input_properties["step_2_transform"]["default"] == "RandomCrop"
-    assert input_properties["step_2_height"]["default"] == 12
-    assert input_properties["step_2_width"]["default"] == 10
-    assert input_properties["step_2_fill"]["default"] == "[1, 2, 3]"
-    assert input_properties["step_2_fill_mask"]["default"] == "4"
+    assert input_properties["pipeline_step_count"]["default"] == 1
+    assert input_properties["outputs_per_sample"]["default"] == 1
+    assert input_properties["transform"]["default"] == "HorizontalFlip"
+    assert input_properties["p"]["default"] == 1.0
+    assert flatten_fiftyone_form_groups(input_properties[LOAD_BUTTON]["view"]["params"])["pipeline_step_count"] == 2
 
 
 @pytest.mark.unit
@@ -1787,7 +1783,7 @@ def test_augment_operator_execute_saves_named_preset_and_runs_augmentation(monke
 
 
 @pytest.mark.unit
-def test_augment_operator_execute_applies_previous_run_preset_without_submitted_defaults(
+def test_augment_operator_executes_explicitly_loaded_run_snapshot(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -1800,10 +1796,14 @@ def test_augment_operator_execute_applies_previous_run_preset_without_submitted_
         dataset = SimpleNamespace(name=dataset_name)
         view = object()
         selected = ("sample-1",)
-        params = {
+        params: dict[str, object] = {
             PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
             STORAGE_ROOT_PARAM_NAME: str(tmp_path),
         }
+
+    Context.params = load_pipeline_draft(
+        Context.dataset, f"run:{manifest.run_key}", Context.params, storage_root=tmp_path
+    )
 
     def fake_execute_fixed_augmentation(**kwargs):
         params = kwargs["params"]
@@ -1811,7 +1811,7 @@ def test_augment_operator_execute_applies_previous_run_preset_without_submitted_
         assert kwargs["view"] is Context.view
         assert kwargs["selected_sample_ids"] == ("sample-1",)
         assert kwargs["storage_root"] == str(tmp_path)
-        assert params[PREVIOUS_RUN_KEY_FIELD_NAME] == manifest.run_key
+        assert PREVIOUS_RUN_KEY_FIELD_NAME not in params
         assert params["pipeline_step_count"] == 2
         assert params["outputs_per_sample"] == 2
         assert params["transform"] == "RandomBrightnessContrast"
@@ -1841,7 +1841,7 @@ def test_augment_operator_execute_applies_previous_run_preset_without_submitted_
 
 
 @pytest.mark.unit
-def test_augment_operator_execute_previous_run_preset_overrides_submitted_defaults(
+def test_augment_operator_execute_rejects_legacy_live_source(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -1864,34 +1864,15 @@ def test_augment_operator_execute_previous_run_preset_overrides_submitted_defaul
         }
 
     def fake_execute_fixed_augmentation(**kwargs):
-        params = kwargs["params"]
-        assert params[PREVIOUS_RUN_KEY_FIELD_NAME] == manifest.run_key
-        assert params["pipeline_step_count"] == 2
-        assert params["outputs_per_sample"] == 2
-        assert params["transform"] == "RandomBrightnessContrast"
-        assert params["brightness_range"] == [0.1, 0.2]
-        assert params["contrast_range"] == [0.3, 0.4]
-        assert params["p"] == 0.8
-        assert params["step_2_transform"] == "RandomCrop"
-        assert params["step_2_height"] == 12
-        assert params["step_2_width"] == 10
-        return FixedAugmentationExecutionResult(
-            run_key="albumentationsx-20260731T120000Z-preset-copy",
-            processed_count=1,
-            created_count=0,
-            skipped_count=0,
-            error_count=0,
-            dry_run=True,
-            output_tag="albumentationsx-output",
-            output_dir="/tmp/outputs",
-        )
+        raise AssertionError("Legacy source parameters must not execute a hidden saved pipeline")
 
     monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
-
     result = operator.execute(Context())
-
-    assert result["run_key"] == "albumentationsx-20260731T120000Z-preset-copy"
-    assert result["error_count"] == 0
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first = errors[0]
+    assert isinstance(first, dict)
+    assert first["code"] == "pipeline_load_required"
 
 
 @pytest.mark.unit

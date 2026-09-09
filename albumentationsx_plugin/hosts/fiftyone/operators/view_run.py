@@ -12,6 +12,7 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
+from albumentationsx_plugin.hosts.fiftyone.forms.pipeline_loading import render_pipeline_load_button
 from albumentationsx_plugin.hosts.fiftyone.run_summary import build_run_summary, list_available_run_keys
 
 OPERATOR_NAME = "view_albumentationsx_run"
@@ -75,6 +76,16 @@ class ViewAlbumentationsXRun(foo.Operator):
                 selected_output_key=_optional_str_param(params.get(OUTPUT_KEY_FIELD_NAME)),
             )
             _add_generated_output_controls(inputs, summary)
+            inputs.view(
+                "_run_pipeline_help",
+                types.Notice(
+                    label="Pipeline from run history",
+                    description="A run records an execution, its source samples, status and outputs. Its pipeline can be edited and run again with fresh randomness; this does not replay a generated output.",
+                ),
+            )
+            render_pipeline_load_button(
+                inputs, dataset, f"run:{selected_run_key}", params, label="Use pipeline from this run"
+            )
 
         return types.Property(
             inputs,

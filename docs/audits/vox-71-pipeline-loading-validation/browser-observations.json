@@ -1,0 +1,772 @@
+[
+  {
+    "scenario": "saved-pipeline-loaded",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "1"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Saved pipeline: Editable flip baseline. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "saved-pipeline-edited-p0-preview",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": true,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "0"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Saved pipeline: Editable flip baseline. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "saved-pipeline-p0-preview-result",
+    "identicalSourceAndOutput": true,
+    "images": [
+      {
+        "alt": "Preview 1 source image",
+        "height": 640,
+        "width": 427
+      },
+      {
+        "alt": "Preview 1 augmented image",
+        "height": 640,
+        "width": 427
+      },
+      {
+        "alt": "Preview 1 annotated before and after comparison",
+        "height": 370,
+        "width": 460
+      }
+    ],
+    "text": "Run key:\n\nSource scope:\n\nselected_samples\n\nProcessed:\n\n1\n\nCreated:\n\n0\n\nSkipped:\n\n0\n\nErrors:\n\n0\n\nDry run:\n\nfalse\n\nExecution status:\n\npreview\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nExcluded label attributes: None.\n\nPreview only:\n\ntrue\n\nOutput tag:\n\nOutput directory:\n\nManifest path:\n\nFiftyOne run key:\n\nErrors\n\nNo errors added yet\n\nClick the \"Add errors\" button to add an item\n\nErrors JSON\n\n1\n\nPipeline config\n\n1\n\nOperator params\n\n1\n\nDebug bundle\n\n1\n\nPreview results:\n\n1\n\nSaved pipeline key:\n\nNo value provided\n\nSaved pipeline name:\n\nNo value provided\n\nSaved pipeline path:\n\nNo value provided\n\nPreview note\n\n​\n\nImage display\n\nImages keep their proportions and fit the available space without cropping or enlargement. Before/after panels are fitted independently, with blank padding when sizes differ. Their displayed sizes do not indicate the same pixel scale.\n\nPreview 1 source ID:\n\n6aa1364835ca8e1d6df234f0\n\nPreview 1 source file:\n\n/private/tmp/voxel51-coco-audit/zoo/coco-2017/validation/data/000000048564.jpg\n\nPreview 1 source image\n\nPreview 1 augmented image\n\nPreview 1 annotated comparison\n\nPreview 1 sampled parameters\n\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n{\n  \"__class_fullname__\": \"ReplayCompose\",\n  \"additional_targets\": {},\n  \"applied\": false,\n  \"bbox_params\": {\n    \"bbox_type\": \"hbb\",\n    \"check_each_transform\": true,\n    \"clip_after_transform\": true,\n    \"clip_bboxes_on_input\": true,\n    \"coord_format\": \"pascal_voc\",\n    \"label_fields\": [\n      \"bbox_indices\"\n    ],\n    \"max_accept_ratio\": null,\n\nPreview 1 transformed labels\n\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n{\n  \"fields\": {\n    \"detections\": {\n      \"detections\": [\n        {\n          \"attributes\": {},\n          \"bounding_box\": [\n            0.22276347875595093,\n            0.2394375056028366,\n            0.10674470663070679,\n            0.1257656067609787\n          ],\n          \"custom_fields\": {\n            \"iscrowd\": 0,\n\nPreview 1 annotation summary\n\n1\n2\n3\n{\n  \"dropped_annotations\": {}\n}\n\nPreview 1 annotation comparison\n\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n{\n  \"dropped_annotations\": {},\n  \"fields\": [\n    {\n      \"field_name\": \"detections\",\n      \"label_type\": \"detections\",\n      \"output_annotation_count\": 2,\n      \"output_geometry_count\": 2,\n      \"rendered_overlay\": true,\n      \"source_annotation_count\": 2,\n      \"source_geometry_count\": 2,\n      \"status\": \"transformed\"\n    },\n    {\nClose"
+  },
+  {
+    "scenario": "run-history-loaded",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "1"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Run history: loading-baseline-albumentationsx-20260909T125723Z-4052cd77. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "run-history-p0-before-reload",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": true,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "0"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Run history: loading-baseline-albumentationsx-20260909T125723Z-4052cd77. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "run-history-after-explicit-reload",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": true,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "1"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Run history: loading-baseline-albumentationsx-20260909T125723Z-4052cd77. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "run-history-edited-p0-preview",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": true,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "0"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Run history: loading-baseline-albumentationsx-20260909T125723Z-4052cd77. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "run-history-p0-preview-result",
+    "identicalSourceAndOutput": true,
+    "images": [
+      {
+        "alt": "Preview 1 source image",
+        "height": 640,
+        "width": 427
+      },
+      {
+        "alt": "Preview 1 augmented image",
+        "height": 640,
+        "width": 427
+      },
+      {
+        "alt": "Preview 1 annotated before and after comparison",
+        "height": 370,
+        "width": 460
+      }
+    ],
+    "text": "Run key:\n\nSource scope:\n\nselected_samples\n\nProcessed:\n\n1\n\nCreated:\n\n0\n\nSkipped:\n\n0\n\nErrors:\n\n0\n\nDry run:\n\nfalse\n\nExecution status:\n\npreview\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nExcluded label attributes: None.\n\nPreview only:\n\ntrue\n\nOutput tag:\n\nOutput directory:\n\nManifest path:\n\nFiftyOne run key:\n\nErrors\n\nNo errors added yet\n\nClick the \"Add errors\" button to add an item\n\nErrors JSON\n\n1\n\nPipeline config\n\n1\n\nOperator params\n\n1\n\nDebug bundle\n\n1\n\nPreview results:\n\n1\n\nSaved pipeline key:\n\nNo value provided\n\nSaved pipeline name:\n\nNo value provided\n\nSaved pipeline path:\n\nNo value provided\n\nPreview note\n\n​\n\nImage display\n\nImages keep their proportions and fit the available space without cropping or enlargement. Before/after panels are fitted independently, with blank padding when sizes differ. Their displayed sizes do not indicate the same pixel scale.\n\nPreview 1 source ID:\n\n6aa1364835ca8e1d6df234f0\n\nPreview 1 source file:\n\n/private/tmp/voxel51-coco-audit/zoo/coco-2017/validation/data/000000048564.jpg\n\nPreview 1 source image\n\nPreview 1 augmented image\n\nPreview 1 annotated comparison\n\nPreview 1 sampled parameters\n\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n{\n  \"__class_fullname__\": \"ReplayCompose\",\n  \"additional_targets\": {},\n  \"applied\": false,\n  \"bbox_params\": {\n    \"bbox_type\": \"hbb\",\n    \"check_each_transform\": true,\n    \"clip_after_transform\": true,\n    \"clip_bboxes_on_input\": true,\n    \"coord_format\": \"pascal_voc\",\n    \"label_fields\": [\n      \"bbox_indices\"\n    ],\n    \"max_accept_ratio\": null,\n\nPreview 1 transformed labels\n\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n{\n  \"fields\": {\n    \"detections\": {\n      \"detections\": [\n        {\n          \"attributes\": {},\n          \"bounding_box\": [\n            0.22276347875595093,\n            0.2394375056028366,\n            0.10674470663070679,\n            0.1257656067609787\n          ],\n          \"custom_fields\": {\n            \"iscrowd\": 0,\n\nPreview 1 annotation summary\n\n1\n2\n3\n{\n  \"dropped_annotations\": {}\n}\n\nPreview 1 annotation comparison\n\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n{\n  \"dropped_annotations\": {},\n  \"fields\": [\n    {\n      \"field_name\": \"detections\",\n      \"label_type\": \"detections\",\n      \"output_annotation_count\": 2,\n      \"output_geometry_count\": 2,\n      \"rendered_overlay\": true,\n      \"source_annotation_count\": 2,\n      \"source_geometry_count\": 2,\n      \"status\": \"transformed\"\n    },\n    {\nClose"
+  },
+  {
+    "scenario": "saved-pipeline-p0-materialization-input",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "0"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Saved pipeline: Editable flip baseline. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "saved-pipeline-p0-materialization-result",
+    "identicalSourceAndOutput": null,
+    "images": [],
+    "text": "Run key:\n\nvox71-saved-p0-albumentationsx-20260909T131553Z-7701c3f0\n\nSource scope:\n\nselected_samples\n\nProcessed:\n\n1\n\nCreated:\n\n1\n\nSkipped:\n\n0\n\nErrors:\n\n0\n\nDry run:\n\nfalse\n\nExecution status:\n\ncompleted\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nExcluded label attributes: None.\n\nPreview only:\n\nNo value provided\n\nOutput tag:\n\nalbumentationsx-output\n\nOutput directory:\n\n/Users/andrey/.fiftyone/albumentationsx-plugin/vox-71-pipeline-loading-validation-a620ff80b2/vox71-saved-p0-albumentationsx-20260909T131553Z-7701c3f0\n\nManifest path:\n\n/Users/andrey/.fiftyone/albumentationsx-plugin/vox-71-pipeline-loading-validation-a620ff80b2/vox71-saved-p0-albumentationsx-20260909T131553Z-7701c3f0/manifest.json\n\nFiftyOne run key:\n\nvox71_saved_p0_albumentationsx_20260909T131553Z_7701c3f0\n\nErrors\n\nNo errors added yet\n\nClick the \"Add errors\" button to add an item\n\nErrors JSON\n\n1\n\nPipeline config\n\n1\n\nOperator params\n\n1\n\nDebug bundle\n\n1\n\nPreview results:\n\nNo value provided\n\nSaved pipeline key:\n\nNo value provided\n\nSaved pipeline name:\n\nNo value provided\n\nSaved pipeline path:\n\nNo value provided\n\nClose"
+  },
+  {
+    "scenario": "run-history-edited-stage-count-order-transform-p0",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "2",
+      "1",
+      "2",
+      "0",
+      "1",
+      "0"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Run history: loading-baseline-albumentationsx-20260909T125723Z-4052cd77. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: VerticalFlip, HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nStage 2\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "run-history-edited-stages-materialization-result",
+    "identicalSourceAndOutput": null,
+    "images": [],
+    "text": "Run key:\n\nvox71-run-p0-albumentationsx-20260909T131915Z-51de04a4\n\nSource scope:\n\nselected_samples\n\nProcessed:\n\n1\n\nCreated:\n\n1\n\nSkipped:\n\n0\n\nErrors:\n\n0\n\nDry run:\n\nfalse\n\nExecution status:\n\ncompleted\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nExcluded label attributes: None.\n\nPreview only:\n\nNo value provided\n\nOutput tag:\n\nalbumentationsx-output\n\nOutput directory:\n\n/Users/andrey/.fiftyone/albumentationsx-plugin/vox-71-pipeline-loading-validation-a620ff80b2/vox71-run-p0-albumentationsx-20260909T131915Z-51de04a4\n\nManifest path:\n\n/Users/andrey/.fiftyone/albumentationsx-plugin/vox-71-pipeline-loading-validation-a620ff80b2/vox71-run-p0-albumentationsx-20260909T131915Z-51de04a4/manifest.json\n\nFiftyOne run key:\n\nvox71_run_p0_albumentationsx_20260909T131915Z_51de04a4\n\nErrors\n\nNo errors added yet\n\nClick the \"Add errors\" button to add an item\n\nErrors JSON\n\n1\n\nPipeline config\n\n1\n\nOperator params\n\n1\n\nDebug bundle\n\n1\n\nPreview results:\n\nNo value provided\n\nSaved pipeline key:\n\nNo value provided\n\nSaved pipeline name:\n\nNo value provided\n\nSaved pipeline path:\n\nNo value provided\n\nClose"
+  },
+  {
+    "scenario": "source-selection-keeps-unsaved-p0",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "renamed_masks"
+      },
+      {
+        "checked": true,
+        "label": "new_keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "0"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nCurrent unsaved pipeline. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReplace draft with selected pipeline\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Current view; source samples: 1; selected samples: 0; schema: available. Annotations: 3 selected supported field(s), 2 transform-capable, 1 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms renamed_masks, new_keypoints; copies detections.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nFor keypoints labels, filter transform capabilities by target keypoints before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nClassification labels are copied.\n\nrenamed_masks\n\nDetections labels use bboxes targets.\n\nnew_keypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, renamed_masks, new_keypoints.\n\nOmitted annotations: None. Unchecked fields are omitted.\n\nOmitted source sample fields: tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "isolated-draft-source-selection-keeps-p0",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "renamed_masks"
+      },
+      {
+        "checked": true,
+        "label": "new_keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "0"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nCurrent unsaved pipeline. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReplace draft with selected pipeline\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Current view; source samples: 1; selected samples: 0; schema: available. Annotations: 3 selected supported field(s), 2 transform-capable, 1 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms renamed_masks, new_keypoints; copies detections.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nFor keypoints labels, filter transform capabilities by target keypoints before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nClassification labels are copied.\n\nrenamed_masks\n\nDetections labels use bboxes targets.\n\nnew_keypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, renamed_masks, new_keypoints.\n\nOmitted annotations: None. Unchecked fields are omitted.\n\nOmitted source sample fields: tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "isolated-cross-dataset-loaded",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": false,
+        "label": "detections"
+      },
+      {
+        "checked": false,
+        "label": "renamed_masks"
+      },
+      {
+        "checked": false,
+        "label": "new_keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "1"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Saved pipeline: Editable flip baseline. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nReview loaded annotations\n\nNot restored at load time: detections (type changed: detections → classification); segmentations (missing or unsupported). Choose replacement fields below, or leave them unchecked to omit them. Annotations were matched by field name and label type. Other fields were left unchecked; review the selection below.\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Current view; source samples: 1; selected samples: 0; schema: available. Annotations: 0 selected supported field(s), 0 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; no annotation fields are selected.\n\nRecommendations\n\nNo supported label fields were detected; image outputs can still be augmented without annotation sync.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nClassification labels are copied.\n\nrenamed_masks\n\nDetections labels use bboxes targets.\n\nnew_keypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: None.\n\nOmitted annotations: detections, renamed_masks, new_keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "cross-dataset-manual-field-replacement",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": false,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "renamed_masks"
+      },
+      {
+        "checked": false,
+        "label": "new_keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "1"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Saved pipeline: Editable flip baseline. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nReview loaded annotations\n\nNot restored at load time: detections (type changed: detections → classification); segmentations (missing or unsupported). Choose replacement fields below, or leave them unchecked to omit them. Annotations were matched by field name and label type. Other fields were left unchecked; review the selection below.\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Current view; source samples: 1; selected samples: 0; schema: available. Annotations: 1 selected supported field(s), 1 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms renamed_masks.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nClassification labels are copied.\n\nrenamed_masks\n\nDetections labels use bboxes targets.\n\nnew_keypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: renamed_masks.\n\nOmitted annotations: detections, new_keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "opened-copy-from-pipeline-manager",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": false,
+        "label": "detections"
+      },
+      {
+        "checked": false,
+        "label": "renamed_masks"
+      },
+      {
+        "checked": false,
+        "label": "new_keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "1"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Saved pipeline: Editable flip baseline. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nReview loaded annotations\n\nNot restored at load time: detections (type changed: detections → classification); segmentations (missing or unsupported). Choose replacement fields below, or leave them unchecked to omit them. Annotations were matched by field name and label type. Other fields were left unchecked; review the selection below.\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Current view; source samples: 1; selected samples: 0; schema: available. Annotations: 0 selected supported field(s), 0 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; no annotation fields are selected.\n\nRecommendations\n\nNo supported label fields were detected; image outputs can still be augmented without annotation sync.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nClassification labels are copied.\n\nrenamed_masks\n\nDetections labels use bboxes targets.\n\nnew_keypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: None.\n\nOmitted annotations: detections, renamed_masks, new_keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "isolated-draft-opened-from-run-viewer",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "1"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Run history: loading-baseline-albumentationsx-20260909T125723Z-4052cd77. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "isolated-run-viewer-draft-edited-p0",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": true,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "0"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Run history: loading-baseline-albumentationsx-20260909T125723Z-4052cd77. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "isolated-run-viewer-p0-preview-result",
+    "identicalSourceAndOutput": true,
+    "images": [
+      {
+        "alt": "Preview 1 source image",
+        "height": 640,
+        "width": 427
+      },
+      {
+        "alt": "Preview 1 augmented image",
+        "height": 640,
+        "width": 427
+      },
+      {
+        "alt": "Preview 1 annotated before and after comparison",
+        "height": 370,
+        "width": 460
+      }
+    ],
+    "text": "Run key:\n\nSource scope:\n\nselected_samples\n\nProcessed:\n\n1\n\nCreated:\n\n0\n\nSkipped:\n\n0\n\nErrors:\n\n0\n\nDry run:\n\nfalse\n\nExecution status:\n\npreview\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nExcluded label attributes: None.\n\nPreview only:\n\ntrue\n\nOutput tag:\n\nOutput directory:\n\nManifest path:\n\nFiftyOne run key:\n\nErrors\n\nNo errors added yet\n\nClick the \"Add errors\" button to add an item\n\nErrors JSON\n\n1\n\nPipeline config\n\n1\n\nOperator params\n\n1\n\nDebug bundle\n\n1\n\nPreview results:\n\n1\n\nSaved pipeline key:\n\nNo value provided\n\nSaved pipeline name:\n\nNo value provided\n\nSaved pipeline path:\n\nNo value provided\n\nPreview note\n\n​\n\nImage display\n\nImages keep their proportions and fit the available space without cropping or enlargement. Before/after panels are fitted independently, with blank padding when sizes differ. Their displayed sizes do not indicate the same pixel scale.\n\nPreview 1 source ID:\n\n6aa1364835ca8e1d6df234f0\n\nPreview 1 source file:\n\n/private/tmp/voxel51-coco-audit/zoo/coco-2017/validation/data/000000048564.jpg\n\nPreview 1 source image\n\nPreview 1 augmented image\n\nPreview 1 annotated comparison\n\nPreview 1 sampled parameters\n\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n{\n  \"__class_fullname__\": \"ReplayCompose\",\n  \"additional_targets\": {},\n  \"applied\": false,\n  \"bbox_params\": {\n    \"bbox_type\": \"hbb\",\n    \"check_each_transform\": true,\n    \"clip_after_transform\": true,\n    \"clip_bboxes_on_input\": true,\n    \"coord_format\": \"pascal_voc\",\n    \"label_fields\": [\n      \"bbox_indices\"\n    ],\n    \"max_accept_ratio\": null,\n\nPreview 1 transformed labels\n\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n{\n  \"fields\": {\n    \"detections\": {\n      \"detections\": [\n        {\n          \"attributes\": {},\n          \"bounding_box\": [\n            0.22276347875595093,\n            0.2394375056028366,\n            0.10674470663070679,\n            0.1257656067609787\n          ],\n          \"custom_fields\": {\n            \"iscrowd\": 0,\n\nPreview 1 annotation summary\n\n1\n2\n3\n{\n  \"dropped_annotations\": {}\n}\n\nPreview 1 annotation comparison\n\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n{\n  \"dropped_annotations\": {},\n  \"fields\": [\n    {\n      \"field_name\": \"detections\",\n      \"label_type\": \"detections\",\n      \"output_annotation_count\": 2,\n      \"output_geometry_count\": 2,\n      \"rendered_overlay\": true,\n      \"source_annotation_count\": 2,\n      \"source_geometry_count\": 2,\n      \"status\": \"transformed\"\n    },\n    {\nClose"
+  },
+  {
+    "scenario": "final-isolated-saved-pipeline-loaded",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "1"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Saved pipeline: Editable flip baseline. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "final-isolated-draft-p0-materialization-input",
+    "checks": [
+      {
+        "checked": false,
+        "label": "Dry run"
+      },
+      {
+        "checked": false,
+        "label": "Preview only"
+      },
+      {
+        "checked": false,
+        "label": "Save pipeline only"
+      },
+      {
+        "checked": true,
+        "label": "detections"
+      },
+      {
+        "checked": true,
+        "label": "segmentations"
+      },
+      {
+        "checked": false,
+        "label": "keypoints"
+      },
+      {
+        "checked": true,
+        "label": "Enabled"
+      }
+    ],
+    "numbers": [
+      "1",
+      "1",
+      "1",
+      "0"
+    ],
+    "text": "Augment with AlbumentationsX\n\nGeneral\n\nRun settings are configured before individual augmentation stages.\n\nLoad pipeline\n\nChoose a source, then explicitly replace the draft. Selecting a source alone keeps your edits.\n\n​\n\nEditable draft\n\nLoaded from Saved pipeline: Editable flip baseline. Preview, run, and save use the values shown below. Every execution uses fresh randomness; loading from history does not replay an output.\n\nReload and replace draft\n\nExecution scope\n\nChoose whether to process selected samples, the current view, or the entire dataset.\n\n​\n\nExecution mode\n\nImmediate execution is best for small bounded selections. Use delegated execution for views or datasets with about 50+ source samples to keep the App responsive and track progress.\n\nPipeline stages\n\n​\n\nShow 1-10 configurable stage slots.\n\nRun label\n\n​\n\nOptional short prefix for generated run keys.\n\nOutputs per sample\n\n​\n\nDry run\n\nPreview only\n\nRender up to 3 selected samples in memory without creating samples, files, manifests, or custom runs.\n\nSaved pipeline name\n\n​\n\nOptional saved pipeline name to save this pipeline.\n\nSaved pipeline description\n\n​\n\nSave pipeline only\n\nSave the current pipeline as a saved pipeline without running augmentation.\n\nCompatibility\n\nA compact preflight view for the current source scope, selected annotations, and pipeline.\n\nDataset compatibility\n\nScope: Selected samples; source samples: 1; selected samples: 1; schema: available. Annotations: 2 selected supported field(s), 2 transform-capable, 0 copy-only, 0 unsupported/excluded. Pipeline: HorizontalFlip; transforms detections, segmentations.\n\nRecommendations\n\nFor bboxes labels, filter transform capabilities by target bboxes before building presets.\nUse Preview only on a small selection before materializing outputs for a new dataset.\n\nAnnotations\n\nChecked fields are included in generated samples. Unchecked fields are omitted.\n\ndetections\n\nDetections labels use bboxes targets.\n\nsegmentations\n\nDetections labels use bboxes targets.\n\nkeypoints\n\nKeypoints labels use keypoints targets.\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nPreview or dry run lists the exact unsupported or derived label attributes that will be omitted.\n\nStage 1\n\nTransform\n\n​\n\nEnabled\n\nSkip this stage without clearing its transform settings.\n\nExecution order\n\n​\n\nLower values run earlier; ties keep stage slot order.\n\nProbability\n\n​\n\nProbability of applying the transform.\n\nCancel\nRun augmentation"
+  },
+  {
+    "scenario": "final-isolated-draft-materialization-result",
+    "identicalSourceAndOutput": null,
+    "images": [],
+    "text": "Run key:\n\nvox71-final-p0-albumentationsx-20260909T133545Z-7a23a005\n\nSource scope:\n\nselected_samples\n\nProcessed:\n\n1\n\nCreated:\n\n1\n\nSkipped:\n\n0\n\nErrors:\n\n0\n\nDry run:\n\nfalse\n\nExecution status:\n\ncompleted\n\nOutput metadata\n\nIncluded annotations: detections, segmentations.\n\nOmitted annotations: keypoints. Unchecked fields are omitted.\n\nOmitted source sample fields: coco_id, tags (including source tags).\n\nOutputs receive new sample/label IDs, filepath, image metadata and output/run tags. Originals stay unchanged and are linked by albumentationsx_source_sample_id.\n\nLabel tags and custom scalar, list and object attributes are preserved. Per-point metadata keeps its joint indices.\n\nExcluded on transformed labels: area, bbox_area, center, centroid, mask_area, num_keypoints, perimeter, segmentation_area. Other custom fields are copied as descriptive data; recompute any additional geometry-derived values.\n\nExcluded label attributes: None.\n\nPreview only:\n\nNo value provided\n\nOutput tag:\n\nalbumentationsx-output\n\nOutput directory:\n\n/Users/andrey/.fiftyone/albumentationsx-plugin/vox-71-pipeline-loading-validation-a620ff80b2/vox71-final-p0-albumentationsx-20260909T133545Z-7a23a005\n\nManifest path:\n\n/Users/andrey/.fiftyone/albumentationsx-plugin/vox-71-pipeline-loading-validation-a620ff80b2/vox71-final-p0-albumentationsx-20260909T133545Z-7a23a005/manifest.json\n\nFiftyOne run key:\n\nvox71_final_p0_albumentationsx_20260909T133545Z_7a23a005\n\nErrors\n\nNo errors added yet\n\nClick the \"Add errors\" button to add an item\n\nErrors JSON\n\n1\n\nPipeline config\n\n1\n\nOperator params\n\n1\n\nDebug bundle\n\n1\n\nPreview results:\n\nNo value provided\n\nSaved pipeline key:\n\nNo value provided\n\nSaved pipeline name:\n\nNo value provided\n\nSaved pipeline path:\n\nNo value provided\n\nClose"
+  }
+]

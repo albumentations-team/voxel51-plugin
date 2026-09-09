@@ -34,6 +34,7 @@ from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
 from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
     ViewAlbumentationsXRun,
 )
+from albumentationsx_plugin.hosts.fiftyone.pipeline_loading import load_pipeline_draft
 from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
     PIPELINE_PRESET_KEY_FIELD_NAME,
     PRESET_SAVED_EXECUTION_STATUS,
@@ -310,6 +311,9 @@ def test_demo_user_scenario_saves_named_preset_and_reuses_previous_run(tmp_path)
                 EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
             },
         )
+        preset_context.params = load_pipeline_draft(
+            dataset, f"saved:{saved['preset_key']}", preset_context.params, storage_root=storage_root
+        )
         preset_run = operator.execute(preset_context)
 
         assert preset_run["error_count"] == 0
@@ -324,6 +328,9 @@ def test_demo_user_scenario_saves_named_preset_and_reuses_previous_run(tmp_path)
                 PREVIOUS_RUN_KEY_FIELD_NAME: str(preset_run["run_key"]),
                 EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
             },
+        )
+        previous_run_context.params = load_pipeline_draft(
+            dataset, f"run:{preset_run['run_key']}", previous_run_context.params, storage_root=storage_root
         )
         previous_run = operator.execute(previous_run_context)
 

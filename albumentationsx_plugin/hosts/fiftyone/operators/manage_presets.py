@@ -1,4 +1,4 @@
-"""FiftyOne operator for managing shared AlbumentationsX pipeline presets."""
+"""FiftyOne operator for managing shared AlbumentationsX saved pipelines."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import PipelinePreset
+from albumentationsx_plugin.hosts.fiftyone.forms.pipeline_loading import render_pipeline_load_button
 from albumentationsx_plugin.hosts.fiftyone.preset_management import (
     ACTION_DELETE,
     ACTION_EXPORT,
@@ -36,20 +37,20 @@ from albumentationsx_plugin.hosts.fiftyone.preset_management import (
 from albumentationsx_plugin.storage import FilePipelinePresetStore
 
 OPERATOR_NAME = "manage_albumentationsx_presets"
-OPERATOR_LABEL = "Manage AlbumentationsX Presets"
+OPERATOR_LABEL = "Manage AlbumentationsX Saved Pipelines"
 PRESET_STORAGE_WARNING_FIELD_NAME = "_preset_storage_warning"
 _LOGGER = logging.getLogger(__name__)
 
 
 class ManageAlbumentationsXPresets(foo.Operator):
-    """FiftyOne App operator that manages shared named augmentation presets."""
+    """FiftyOne App operator that manages saved augmentation pipelines."""
 
     @property
     def config(self) -> foo.OperatorConfig:
         return foo.OperatorConfig(
             name=OPERATOR_NAME,
             label=OPERATOR_LABEL,
-            description="Inspect, export, import, rename, and delete AlbumentationsX pipeline presets.",
+            description="Inspect, export, import, rename, and delete AlbumentationsX saved pipelines.",
             dynamic=True,
             allow_immediate_execution=True,
             allow_delegated_execution=False,
@@ -68,7 +69,7 @@ class ManageAlbumentationsXPresets(foo.Operator):
         if storage_warning:
             inputs.message(
                 PRESET_STORAGE_WARNING_FIELD_NAME,
-                label="Preset storage",
+                label="Saved pipeline storage",
                 description=storage_warning,
             )
         inputs.enum(
@@ -82,6 +83,11 @@ class ManageAlbumentationsXPresets(foo.Operator):
 
         if action in PRESET_ACTIONS_REQUIRING_PRESET:
             _add_preset_selector(inputs, params=params, presets=presets)
+        if action in {ACTION_INSPECT, ACTION_EXPORT} and presets and getattr(ctx, "dataset", None) is not None:
+            key = selected_preset_key(params.get(PRESET_KEY_FIELD_NAME), presets)
+            render_pipeline_load_button(
+                inputs, ctx.dataset, f"saved:{key}", params, label="Edit a copy of this pipeline"
+            )
         if action == ACTION_IMPORT:
             _add_import_controls(inputs, params)
         if action == ACTION_RENAME:
@@ -116,14 +122,14 @@ class ManageAlbumentationsXPresets(foo.Operator):
         outputs.str("status", label="Status")
         outputs.str("message", label="Message")
         outputs.str("action", label="Action")
-        outputs.str("preset_key", label="Preset key")
-        outputs.str("preset_name", label="Preset name")
-        outputs.str("preset_path", label="Preset path")
-        outputs.int("preset_count", label="Preset count")
-        outputs.list("presets", preset_row, label="Presets")
-        outputs.str("presets_json", label="Presets JSON")
-        outputs.str("selected_preset_json", label="Selected preset JSON")
-        outputs.str("exported_preset_json", label="Exported preset JSON")
+        outputs.str("preset_key", label="Saved pipeline key")
+        outputs.str("preset_name", label="Saved pipeline name")
+        outputs.str("preset_path", label="Saved pipeline path")
+        outputs.int("preset_count", label="Saved pipeline count")
+        outputs.list("presets", preset_row, label="Saved Pipelines")
+        outputs.str("presets_json", label="Saved Pipelines JSON")
+        outputs.str("selected_preset_json", label="Selected saved pipeline JSON")
+        outputs.str("exported_preset_json", label="Exported saved pipeline JSON")
         outputs.str("errors_json", label="Errors")
         return types.Property(outputs)
 
@@ -150,19 +156,19 @@ def _add_preset_selector(
     if not presets:
         inputs.str(
             PRESET_KEY_FIELD_NAME,
-            label="Preset",
-            description="No named AlbumentationsX presets were found.",
+            label="Saved pipeline",
+            description="No saved AlbumentationsX pipelines were found.",
         )
         return
 
     preset_keys = tuple(preset.key for preset in presets)
-    choices = types.AutocompleteView(label="Preset", allow_user_input=False)
+    choices = types.AutocompleteView(label="Saved pipeline", allow_user_input=False)
     for preset in presets:
         choices.add_choice(preset.key, label=f"{preset.name} ({preset.key})")
     inputs.enum(
         PRESET_KEY_FIELD_NAME,
         preset_keys,
-        label="Preset",
+        label="Saved pipeline",
         default=selected_preset_key(params.get(PRESET_KEY_FIELD_NAME), presets),
         required=True,
         view=choices,
@@ -172,15 +178,15 @@ def _add_preset_selector(
 def _add_import_controls(inputs: types.Object, params: Mapping[str, object]) -> None:
     inputs.str(
         PRESET_JSON_FIELD_NAME,
-        label="Preset JSON",
+        label="Saved pipeline JSON",
         default=string_param(params.get(PRESET_JSON_FIELD_NAME)),
         allow_empty=False,
         required=True,
-        view=types.FieldView(caption="Paste JSON exported from a pipeline preset."),
+        view=types.FieldView(caption="Paste JSON exported from a saved pipeline."),
     )
     inputs.bool(
         OVERWRITE_FIELD_NAME,
-        label="Overwrite existing preset",
+        label="Overwrite existing saved pipeline",
         default=bool_param(params.get(OVERWRITE_FIELD_NAME)),
         required=False,
         view=types.CheckboxView(),
@@ -190,14 +196,14 @@ def _add_import_controls(inputs: types.Object, params: Mapping[str, object]) -> 
 def _add_rename_controls(inputs: types.Object, params: Mapping[str, object]) -> None:
     inputs.str(
         NEW_PRESET_NAME_FIELD_NAME,
-        label="New preset name",
+        label="New saved pipeline name",
         default=string_param(params.get(NEW_PRESET_NAME_FIELD_NAME)),
         allow_empty=False,
         required=True,
     )
     inputs.bool(
         OVERWRITE_FIELD_NAME,
-        label="Overwrite existing preset",
+        label="Overwrite existing saved pipeline",
         default=bool_param(params.get(OVERWRITE_FIELD_NAME)),
         required=False,
         view=types.CheckboxView(),
@@ -210,7 +216,7 @@ def _add_delete_controls(inputs: types.Object, params: Mapping[str, object]) -> 
         label="Confirm deletion",
         default=bool_param(params.get(CONFIRM_DELETE_FIELD_NAME)),
         required=True,
-        description="Delete only the selected preset JSON file.",
+        description="Delete only the selected saved pipeline JSON file.",
         view=types.CheckboxView(),
     )
 
@@ -218,11 +224,11 @@ def _add_delete_controls(inputs: types.Object, params: Mapping[str, object]) -> 
 def _action_view() -> types.DropdownView:
     view = types.DropdownView()
     labels = {
-        ACTION_INSPECT: "Inspect presets",
-        ACTION_EXPORT: "Export preset",
-        ACTION_IMPORT: "Import preset",
-        ACTION_RENAME: "Rename preset",
-        ACTION_DELETE: "Delete preset",
+        ACTION_INSPECT: "Inspect saved pipelines",
+        ACTION_EXPORT: "Export saved pipeline",
+        ACTION_IMPORT: "Import saved pipeline",
+        ACTION_RENAME: "Rename saved pipeline",
+        ACTION_DELETE: "Delete saved pipeline",
     }
     for action in PRESET_MANAGEMENT_ACTIONS:
         view.add_choice(action, label=labels[action])
@@ -231,11 +237,11 @@ def _action_view() -> types.DropdownView:
 
 def _submit_label(action: str) -> str:
     return {
-        ACTION_INSPECT: "Inspect presets",
-        ACTION_EXPORT: "Export preset",
-        ACTION_IMPORT: "Import preset",
-        ACTION_RENAME: "Rename preset",
-        ACTION_DELETE: "Delete preset",
+        ACTION_INSPECT: "Inspect saved pipelines",
+        ACTION_EXPORT: "Export saved pipeline",
+        ACTION_IMPORT: "Import saved pipeline",
+        ACTION_RENAME: "Rename saved pipeline",
+        ACTION_DELETE: "Delete saved pipeline",
     }.get(action, "Run")
 
 
@@ -243,8 +249,8 @@ def _safe_list_presets(store: FilePipelinePresetStore) -> tuple[tuple[PipelinePr
     try:
         return store.list_presets(), ""
     except Exception as error:
-        _LOGGER.debug("Error while listing pipeline presets", exc_info=True)
-        return (), f"Preset storage could not be listed: {type(error).__name__}: {error}"
+        _LOGGER.debug("Error while listing saved pipelines", exc_info=True)
+        return (), f"Saved pipeline storage could not be listed: {type(error).__name__}: {error}"
 
 
 def _ctx_params(ctx: Any | None) -> Mapping[str, object]:
