@@ -83,6 +83,7 @@ from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
     preview_field_name,
 )
 from albumentationsx_plugin.hosts.fiftyone.progress import FiftyOneProgressReporter
+from albumentationsx_plugin.hosts.fiftyone.result_presentation import add_json_output, add_outcome, has_display_value
 
 OPERATOR_NAME = "augment_with_albumentationsx"
 OPERATOR_LABEL = "Augment with AlbumentationsX"
@@ -155,7 +156,6 @@ class AugmentWithAlbumentationsX(foo.Operator):
         outputs.str("output_dir", label="Output directory")
         outputs.str("manifest_path", label="Manifest path")
         outputs.str("fiftyone_run_key", label="FiftyOne run key")
-        outputs.list("errors", types.Object(), label="Errors")
         _render_json_output_field(outputs, "errors_json", label="Errors JSON")
         _render_json_output_field(outputs, "pipeline_config_json", label="Pipeline config")
         _render_json_output_field(outputs, "operator_params_json", label="Operator params")
@@ -164,9 +164,20 @@ class AugmentWithAlbumentationsX(foo.Operator):
         outputs.str("preset_key", label="Saved pipeline key")
         outputs.str("preset_name", label="Saved pipeline name")
         outputs.str("preset_path", label="Saved pipeline path")
-        if _preview_only_from_ctx(ctx):
-            results = getattr(ctx, "results", {})
+        results = getattr(ctx, "results", {})
+        if _preview_only_from_ctx(ctx) or (isinstance(results, Mapping) and results.get(PREVIEW_ONLY_FIELD_NAME)):
             _render_preview_output_fields(outputs, results if isinstance(results, Mapping) else {})
+        results = getattr(ctx, "results", None)
+        if isinstance(results, Mapping):
+            if results.get("dry_run") or results.get(PREVIEW_ONLY_FIELD_NAME):
+                for name in ("run_key", "fiftyone_run_key", "output_dir", "output_tag", "manifest_path"):
+                    outputs.properties.pop(name, None)
+            for name in list(outputs.properties):
+                if name not in {"preview_display_policy"} and not has_display_value(results.get(name)):
+                    del outputs.properties[name]
+            for name in list(outputs.properties):
+                if name.endswith("_json"):
+                    add_json_output(outputs, name, label=outputs.properties[name].view.label, value=results.get(name))
         return types.Property(_arrange_output(outputs, ctx))
 
     # pyrefly: ignore[bad-override]
@@ -196,6 +207,23 @@ class AugmentWithAlbumentationsX(foo.Operator):
             draft[RETURN_ERRORS] = "\n".join(
                 str(error.get("message", "")) for error in errors if isinstance(error, Mapping)
             )
+        if isinstance(errors, list) and errors and DEBUG_BUNDLE_FIELD_NAME not in result:
+            result.update(
+                _diagnostic_fields(
+                    effective_editor_params(_ctx_params(ctx)),
+                    cast(list[JSONDict], errors),
+                    ctx=ctx,
+                    source_scope=str(result.get("source_scope", "")),
+                    selected_sample_ids=selected_sample_ids_from_context(ctx),
+                    dry_run=result.get("dry_run") is True,
+                    preview_only=result.get(PREVIEW_ONLY_FIELD_NAME) is True,
+                )
+            )
+        bundle = result.get(DEBUG_BUNDLE_FIELD_NAME)
+        if isinstance(bundle, str):
+            diagnostic = json.loads(bundle)
+            diagnostic["execution"]["execution_status"] = result.get("execution_status")
+            result[DEBUG_BUNDLE_FIELD_NAME] = _json_dump(diagnostic)
         result[EDITOR_DRAFT] = cast(Any, draft)
         # Keep the flat execution API; nested values serve only the collapsed App report.
         result[RESULT_DETAILS] = dict(result)
@@ -418,19 +446,34 @@ def _arrange_output(fields: types.Object, ctx: Any) -> types.Object:
     results = getattr(ctx, "results", None)
     results = results if isinstance(results, Mapping) else {}
     outputs = types.Object()
-    # Useful comparisons lead; source images and technical payloads remain available below.
+    add_outcome(outputs, results)
+    # Causes and recovery precede previews, which can be taller than the viewport.
     for slot in range(1, MAX_PREVIEW_SAMPLES + 1):
         name = preview_field_name(slot, PREVIEW_FIELD_COMPARISON_IMAGE)
         if name in fields.properties:
             outputs.add_property(name, fields.properties[name])
-    errors = results.get("errors")
-    if isinstance(errors, list) and errors:
-        outputs.view(
-            "_execution_errors",
-            types.Warning(
-                label="Execution needs attention",
-                description="\n".join(str(error.get("message", "")) for error in errors if isinstance(error, Mapping)),
-            ),
+    for name in ("preview_note", "preset_name"):
+        if name in fields.properties:
+            outputs.add_property(name, fields.properties[name])
+    if results.get("manifest_path") and results.get("run_key"):
+        navigation_params = {"run_key": results["run_key"]}
+        storage_root = _ctx_params(ctx).get("_storage_root")
+        if storage_root:
+            navigation_params["_storage_root"] = storage_root
+        if results.get("created_count"):
+            outputs.btn(
+                "_open_generated_samples",
+                label="Open generated samples",
+                on_click="@albumentations/albumentationsx/view_albumentationsx_run",
+                prompt=False,
+                params={**navigation_params, "open_generated_samples": True, "reset_source_view": True},
+            )
+        outputs.btn(
+            "_view_in_history",
+            label="View in history",
+            on_click="@albumentations/albumentationsx/view_albumentationsx_run",
+            prompt=True,
+            params=navigation_params,
         )
     draft = results.get(EDITOR_DRAFT)
     if isinstance(draft, Mapping):
@@ -455,14 +498,12 @@ def _arrange_output(fields: types.Object, ctx: Any) -> types.Object:
                 description="Your configuration is preserved. Each preview or creation samples fresh randomness, so its pixels may differ. Closing this result ends this draft; use Back to editor or save the pipeline to keep it.",
             ),
         )
-    for name in ("created_count", "processed_count", "error_count", "preview_count", "preset_name"):
-        if name in results and name in fields.properties:
-            outputs.add_property(name, fields.properties[name])
     details = types.Object()
     for name, prop in fields.properties.items():
         if name not in outputs.properties:
             details.add_property(name, prop)
-    add_collapsible_section(outputs, RESULT_DETAILS, "Result details", details)
+    if details.properties:
+        add_collapsible_section(outputs, RESULT_DETAILS, "Technical details", details)
     return outputs
 
 
@@ -493,7 +534,7 @@ def _render_preview_output_fields(outputs: types.Object, results: Mapping[str, o
     outputs.str(
         "preview_note",
         label="Preview note",
-        view=types.FieldView(read_only=True),
+        view=types.MarkdownView(read_only=True),
     )
     populated_slots = [
         slot
@@ -588,11 +629,7 @@ def _render_preview_json_field(outputs: types.Object, name: str, *, label: str) 
 
 
 def _render_json_output_field(outputs: types.Object, name: str, *, label: str) -> None:
-    outputs.str(
-        name,
-        label=label,
-        view=types.CodeView(language="json", read_only=True),
-    )
+    add_json_output(outputs, name, label=label)
 
 
 def _missing_dependency_inputs(error: ModuleNotFoundError):
@@ -696,7 +733,7 @@ def _pipeline_preset_error_result(
     errors: list[JSONDict] = [
         {
             "code": "pipeline_preset_unavailable",
-            "message": "Pipeline could not be saved; check its name, settings, and storage access.",
+            "message": f"Pipeline could not be saved: {error}. Check its name, settings, and storage access.",
             "context": {
                 "pipeline_preset_key": selected_pipeline_preset_key(params) if isinstance(params, dict) else "",
                 "source_scope": source_scope,
@@ -751,6 +788,7 @@ def _unexpected_runtime_error_result(
             "message": "Unexpected augmentation error. Copy the debug bundle into a GitHub issue.",
             "context": {
                 "error_type": type(error).__name__,
+                "cause": str(error),
                 "phase": phase,
                 "source_scope": source_scope,
             },
@@ -806,7 +844,9 @@ def _error_result(
         "skipped_count": 0,
         "error_count": len(errors),
         "dry_run": dry_run_value,
-        "execution_status": "",
+        "execution_status": "cancelled"
+        if any(error.get("code") == "augmentation_cancelled" for error in errors)
+        else "failed",
         PREVIEW_ONLY_FIELD_NAME: preview_only_value,
         "output_tag": "",
         "output_dir": "",

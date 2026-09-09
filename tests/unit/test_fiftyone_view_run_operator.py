@@ -251,7 +251,7 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
 
     result = operator.execute(Context())
 
-    assert result == {
+    assert {key: value for key, value in result.items() if key != "_result_details"} == {
         "run_key": "albumentationsx-20260731T150000Z-run",
         "status": "ok",
         "message": "loaded",
@@ -265,6 +265,7 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
         "run_label_slug": "cats-crop-test",
         "source_count": 2,
         "created_count": 2,
+        "skipped_count": 0,
         "output_count": 0,
         "available_output_count": 0,
         "missing_output_count": 0,

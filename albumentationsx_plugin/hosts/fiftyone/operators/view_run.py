@@ -12,7 +12,10 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
+from albumentationsx_plugin.hosts.fiftyone.editor_draft import RESULT_DETAILS
 from albumentationsx_plugin.hosts.fiftyone.forms.pipeline_loading import render_pipeline_load_button
+from albumentationsx_plugin.hosts.fiftyone.forms.sections import add_collapsible_section
+from albumentationsx_plugin.hosts.fiftyone.result_presentation import add_json_output, add_outcome, has_display_value
 from albumentationsx_plugin.hosts.fiftyone.run_summary import build_run_summary, list_available_run_keys
 
 OPERATOR_NAME = "view_albumentationsx_run"
@@ -75,6 +78,7 @@ class ViewAlbumentationsXRun(foo.Operator):
                 storage_root=storage_root,
                 selected_output_key=_optional_str_param(params.get(OUTPUT_KEY_FIELD_NAME)),
             )
+            add_outcome(inputs, summary.to_dict())
             _add_generated_output_controls(inputs, summary)
             inputs.view(
                 "_run_pipeline_help",
@@ -96,7 +100,7 @@ class ViewAlbumentationsXRun(foo.Operator):
     def resolve_output(self, ctx: Any):
         outputs = types.Object()
         outputs.str("run_key", label="Run key")
-        outputs.str("status", label="Status")
+        outputs.str("status", label="Manifest availability")
         outputs.str("message", label="Message")
         outputs.str("manifest_path", label="Manifest path")
         outputs.str("fiftyone_run_key", label="FiftyOne run key")
@@ -108,6 +112,7 @@ class ViewAlbumentationsXRun(foo.Operator):
         outputs.str("run_label_slug", label="Run label slug")
         outputs.int("source_count", label="Sources")
         outputs.int("created_count", label="Created samples")
+        outputs.int("skipped_count", label="Skipped sources")
         outputs.int("output_count", label="Manifest outputs")
         outputs.int("available_output_count", label="Available outputs")
         outputs.int("missing_output_count", label="Missing outputs")
@@ -132,6 +137,23 @@ class ViewAlbumentationsXRun(foo.Operator):
         outputs.str("pipeline_summary", label="Transform summary")
         outputs.str("pipeline_config_json", label="Transform config")
         outputs.str("errors_json", label="Errors")
+        results = getattr(ctx, "results", None)
+        if isinstance(results, Mapping):
+            visible = types.Object()
+            add_outcome(visible, results)
+            for name in ("run_key", "message", "pipeline_summary"):
+                if has_display_value(results.get(name)):
+                    visible.add_property(name, outputs.properties[name])
+            details = types.Object()
+            for name, prop in outputs.properties.items():
+                if name not in visible.properties and has_display_value(results.get(name)):
+                    if name.endswith("_json"):
+                        add_json_output(details, name, label=prop.view.label, value=results[name])
+                    else:
+                        details.add_property(name, prop)
+            if details.properties:
+                add_collapsible_section(visible, RESULT_DETAILS, "Technical details", details)
+            return types.Property(visible)
         return types.Property(outputs)
 
     # pyrefly: ignore[bad-override]
@@ -156,8 +178,16 @@ class ViewAlbumentationsXRun(foo.Operator):
             selected_output_key=_optional_str_param(params.get(OUTPUT_KEY_FIELD_NAME)),
         )
         if _bool_param(params.get(OPEN_GENERATED_SAMPLES_FIELD_NAME)):
-            _trigger_generated_samples_view(ctx, summary.available_generated_sample_ids)
-        return summary.to_dict()
+            if _bool_param(params.get("reset_source_view")) and summary.available_generated_sample_ids:
+                # Build from the dataset so source filters cannot exclude outputs.
+                from fiftyone.operators.operations import Operations
+
+                Operations(ctx).set_view(view=ctx.dataset.select(list(summary.available_generated_sample_ids)))
+            else:
+                _trigger_generated_samples_view(ctx, summary.available_generated_sample_ids)
+        result = summary.to_dict()
+        result[RESULT_DETAILS] = dict(result)
+        return result
 
 
 def _ctx_params(ctx: Any | None) -> Mapping[str, object]:

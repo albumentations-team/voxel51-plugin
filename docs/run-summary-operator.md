@@ -95,3 +95,26 @@ uv run fiftyone app launch albumentationsx-demo
 
 Run `Augment with AlbumentationsX` with a non-dry configuration, then run
 `View AlbumentationsX Run` and select the created run key.
+
+## Outcome and result actions
+
+Augmentation results and the run viewer lead with a read-only outcome and
+counts. Errors show the available stage, transform, field, sample and cause,
+followed by a recovery action. Up to five errors are expanded; all structured
+errors remain in **Technical details**. The manifest availability status (`ok`,
+`stale`, etc.) is distinct from execution success (`completed`, `partial`,
+`failed`, `cancelled`).
+
+Preview shows only populated image slots. Empty values and empty error lists
+are omitted. JSON, sampled replay, internal FiftyOne identifiers and storage
+paths live in collapsed **Technical details**. JSON trees provide copy controls
+and download links. The public run key identifies an execution; a saved
+pipeline name identifies reusable configuration.
+
+**Open generated samples** on a materialized result opens manifest-listed
+samples from the dataset, replacing source view filters that could hide them.
+The internal `reset_source_view` navigation flag requests this behavior; legacy
+run-viewer API calls without it retain their existing view behavior.
+**View in history** opens the run viewer with this run already selected.
+**Back to editor**, **Preview again** and **Review and create samples** retain
+the editable draft and require reviewing/submitting the next action.

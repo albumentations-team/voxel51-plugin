@@ -13,6 +13,7 @@ import fiftyone as fo
 from PIL import Image
 
 from albumentationsx_plugin.core import RUN_EXECUTION_STATUS_PREVIEW, JSONDict, PluginError
+from albumentationsx_plugin.core.contracts.runs import terminal_execution_status
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import (
     AppliedOutput,
@@ -109,7 +110,9 @@ class FixedAugmentationPreviewResult:
             "skipped_count": self.skipped_count,
             "error_count": self.error_count,
             "dry_run": False,
-            "execution_status": RUN_EXECUTION_STATUS_PREVIEW,
+            "execution_status": terminal_execution_status(
+                succeeded=self.preview_count, errors=self.error_count, success_status=RUN_EXECUTION_STATUS_PREVIEW
+            ),
             "output_tag": "",
             "output_dir": "",
             "manifest_path": "",

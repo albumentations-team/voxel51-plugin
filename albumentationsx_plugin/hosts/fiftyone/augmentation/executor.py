@@ -33,6 +33,7 @@ from albumentationsx_plugin.core import (
     PluginError,
     RunManifest,
 )
+from albumentationsx_plugin.core.contracts.runs import terminal_execution_status
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import PreparedOutput, apply_output, prepare_output
 from albumentationsx_plugin.hosts.fiftyone.augmentation.runtime import build_fixed_augmentation_runtime
@@ -75,8 +76,16 @@ class FixedAugmentationExecutionResult:
     metadata_policy: JSONDict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if self.dry_run and self.execution_status == RUN_EXECUTION_STATUS_COMPLETED:
-            object.__setattr__(self, "execution_status", RUN_EXECUTION_STATUS_DRY_RUN)
+        if self.execution_status == RUN_EXECUTION_STATUS_COMPLETED:
+            object.__setattr__(
+                self,
+                "execution_status",
+                terminal_execution_status(
+                    succeeded=self.created_count,
+                    errors=self.error_count,
+                    success_status=RUN_EXECUTION_STATUS_DRY_RUN if self.dry_run else RUN_EXECUTION_STATUS_COMPLETED,
+                ),
+            )
 
     def to_dict(self) -> JSONDict:
         """Serialize the summary for FiftyOne operator output."""
@@ -426,6 +435,7 @@ def execute_fixed_augmentation(
             ),
         )
 
+    execution_status = terminal_execution_status(succeeded=len(created_sample_ids), errors=len(errors))
     final_manifest = _save_current_manifest(
         run_store=run_store,
         run_key=run_key,
@@ -443,13 +453,13 @@ def execute_fixed_augmentation(
         source_scope=source_scope,
         run_label=run_label,
         run_label_slug=run_label_slug,
-        execution_status=RUN_EXECUTION_STATUS_COMPLETED,
+        execution_status=execution_status,
     )
     manifest_path = run_store.manifest_path(run_key)
     fiftyone_run_key = register_fiftyone_run(dataset, final_manifest, manifest_path=manifest_path)
     _report_progress(
         progress_reporter,
-        stage="complete",
+        stage="complete" if execution_status == RUN_EXECUTION_STATUS_COMPLETED else execution_status,
         total_sources=source_count,
         processed_sources=source_count,
         planned_outputs=planned_outputs,
@@ -468,7 +478,7 @@ def execute_fixed_augmentation(
         dry_run=False,
         output_tag=output_tag,
         output_dir=str(run_dir),
-        execution_status=RUN_EXECUTION_STATUS_COMPLETED,
+        execution_status=execution_status,
         manifest_path=str(manifest_path),
         fiftyone_run_key=fiftyone_run_key,
         errors=tuple(errors),

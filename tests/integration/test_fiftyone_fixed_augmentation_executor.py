@@ -1187,7 +1187,7 @@ def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_pat
         assert first_error_progress.total_sources == 2
         assert first_error_progress.skipped_sources == 0
         final_progress = progress_reporter.events[-1]
-        assert final_progress.stage == "complete"
+        assert final_progress.stage == "partial"
         assert final_progress.processed_sources == 2
         assert final_progress.total_sources == 2
         assert final_progress.planned_outputs == 2

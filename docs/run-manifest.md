@@ -63,9 +63,28 @@ Preview runs also do not create output files, run directories, manifests, or
 custom runs. Preview returns in-memory images and JSON diagnostics through the
 operator output only; it is not listed by the run summary or cleanup operators.
 
-Materialized manifests include `metadata.execution_status`. Completed runs use
-`completed`, in-progress checkpoints use `running`, and controlled cancellation
-uses `cancelled` plus `metadata.cancelled_at`. A cancelled run is intentionally
+Materialized manifests include `metadata.execution_status`:
+
+- `completed`: all attempts finished without errors;
+- `partial`: at least one sample was created and at least one attempt failed;
+- `failed`: no samples were created and execution has errors;
+- `running`: an in-progress checkpoint;
+- `cancelled`: controlled cancellation, with `metadata.cancelled_at`, even if
+  some outputs were already created.
+
+The final operator result, manifest, custom run and history use the same status.
+History also classifies older `completed` manifests from their created/error
+counters without rewriting them. Preview succeeds with `preview`, validation
+with `dry_run`, and saving a pipeline with `preset_saved`. Errors use `failed`
+or, for a preview containing both outputs and errors, `partial`; mode flags
+retain whether the operation was a preview or dry run. Preflight failure writes
+no manifest. Diagnostics include the operation's execution status.
+
+`processed` and `skipped` count source samples; `created` counts generated samples
+and `errors` counts error records, so these counters need not sum to a source
+count when there are multiple outputs per source.
+
+ A cancelled run is intentionally
 retained as an inspectable partial run; generated samples and files already
 listed in the manifest can be removed with `Delete AlbumentationsX Run`.
 

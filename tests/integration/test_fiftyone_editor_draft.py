@@ -98,7 +98,7 @@ def test_preview_return_creation_preserves_order_parameters_annotations_and_outp
     schema = operator.resolve_output(SimpleNamespace(params=ctx.params, results=preview)).to_json()["type"][
         "properties"
     ]
-    assert next(iter(schema)) == "preview_1_comparison_image"
+    assert next(iter(schema)) == "_outcome"
     assert schema[RESULT_DETAILS]["view"]["componentsProps"]["grid"]["component"] == "details"
     restored = _return_params(operator, ctx, preview)
     flat = flatten_fiftyone_form_groups(restored)

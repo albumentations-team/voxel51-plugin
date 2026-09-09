@@ -308,10 +308,10 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert _form_properties(output_json)["created_count"]["type"]["name"] == "Number"
     assert _form_properties(output_json)["error_count"]["type"]["name"] == "Number"
     assert _form_properties(output_json)["execution_status"]["type"]["name"] == "String"
-    assert _form_properties(output_json)["errors_json"]["view"]["name"] == "CodeView"
-    assert _form_properties(output_json)["pipeline_config_json"]["view"]["name"] == "CodeView"
-    assert _form_properties(output_json)["operator_params_json"]["view"]["name"] == "CodeView"
-    assert _form_properties(output_json)[DEBUG_BUNDLE_FIELD_NAME]["view"]["name"] == "CodeView"
+    assert _form_properties(output_json)["errors_json"]["view"]["name"] == "JSONView"
+    assert _form_properties(output_json)["pipeline_config_json"]["view"]["name"] == "JSONView"
+    assert _form_properties(output_json)["operator_params_json"]["view"]["name"] == "JSONView"
+    assert _form_properties(output_json)[DEBUG_BUNDLE_FIELD_NAME]["view"]["name"] == "JSONView"
     assert _form_properties(output_json)[PREVIEW_ONLY_FIELD_NAME]["type"]["name"] == "Boolean"
     assert _form_properties(output_json)["preview_count"]["type"]["name"] == "Number"
     assert _form_properties(output_json)["manifest_path"]["type"]["name"] == "String"
@@ -330,6 +330,16 @@ def test_augment_operator_resolves_preview_output_fields() -> None:
         },
     )
 
+    context.results["preview_note"] = "No samples or files were created."
+    for slot in range(1, MAX_PREVIEW_SAMPLES + 1):
+        context.results[preview_field_name(slot, PREVIEW_FIELD_SOURCE_SAMPLE_ID)] = "sample-1"
+        for field in (
+            PREVIEW_FIELD_REPLAY_JSON,
+            PREVIEW_FIELD_LABELS_JSON,
+            PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON,
+            PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON,
+        ):
+            context.results[preview_field_name(slot, field)] = '{"available": true}'
     output_json = operator.resolve_output(context).to_json()
     output_properties = _form_properties(output_json)
     source_image = output_properties[preview_field_name(1, PREVIEW_FIELD_SOURCE_IMAGE)]
@@ -353,11 +363,10 @@ def test_augment_operator_resolves_preview_output_fields() -> None:
         style = prop["view"]["componentsProps"]["image"]["style"]
         assert style["objectFit"] == "contain"
         assert style["maxWidth"] == "100%"
-    assert replay_json["view"]["name"] == "CodeView"
-    assert replay_json["view"]["language"] == "json"
+    assert replay_json["view"]["name"] == "JSONView"
     assert replay_json["view"]["read_only"] is True
-    assert labels_json["view"]["name"] == "CodeView"
-    assert comparison_json["view"]["name"] == "CodeView"
+    assert labels_json["view"]["name"] == "JSONView"
+    assert comparison_json["view"]["name"] == "JSONView"
     assert preview_field_name(MAX_PREVIEW_SAMPLES, PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON) in output_properties
     assert preview_field_name(MAX_PREVIEW_SAMPLES, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON) in output_properties
 
@@ -377,7 +386,7 @@ def test_preview_schema_only_renders_populated_result_slots(populated_slots: tup
     properties = _form_properties(AugmentWithAlbumentationsX().resolve_output(ctx).to_json())
     for slot in range(1, MAX_PREVIEW_SAMPLES + 1):
         assert (preview_field_name(slot, PREVIEW_FIELD_SOURCE_IMAGE) in properties) == (slot in populated_slots)
-        assert (preview_field_name(slot, PREVIEW_FIELD_LABELS_JSON) in properties) == (slot in populated_slots)
+        assert preview_field_name(slot, PREVIEW_FIELD_LABELS_JSON) not in properties
     assert ("preview_display_policy" in properties) == bool(populated_slots)
 
 
@@ -386,7 +395,7 @@ def test_preview_schema_only_renders_populated_result_slots(populated_slots: tup
 def test_preview_schema_without_result_images_has_no_blank_image_regions(results: object) -> None:
     ctx = SimpleNamespace(params={PREVIEW_ONLY_FIELD_NAME: True}, results=results)
     properties = _form_properties(AugmentWithAlbumentationsX().resolve_output(ctx).to_json())
-    assert "preview_note" in properties
+    assert ("preview_note" in properties) == (results is None)
     assert all(prop["view"]["name"] != "ImageView" for prop in properties.values())
 
 
@@ -1354,6 +1363,7 @@ def test_augment_operator_execute_reports_reload_trigger_errors_with_debug_bundl
     assert errors_json[0]["code"] == "unexpected_runtime_error"
     assert errors_json[0]["context"] == {
         "error_type": "RuntimeError",
+        "cause": "reload_dataset failed",
         "phase": "dataset_reload",
         "source_scope": EXECUTION_SCOPE_SELECTED_SAMPLES,
     }
@@ -2054,6 +2064,9 @@ def test_augment_operator_execute_reports_unexpected_error_with_debug_bundle(mon
     assert errors_json[0]["code"] == "unexpected_runtime_error"
     assert errors_json[0]["context"]["error_type"] == "RuntimeError"
     assert debug_bundle_json["exception"] == {"type": "RuntimeError", "message": "backend exploded"}
+    fields = _form_properties(operator.resolve_output(SimpleNamespace(params=Context.params, results=result)).to_json())
+    assert "backend exploded" in fields["_error_1"]["view"]["description"]
+    assert "Next:" in fields["_error_1"]["view"]["description"]
     assert debug_bundle_json["operator_params"]["transform"] == "HorizontalFlip"
     assert debug_bundle_json["dataset"]["name"] == "unexpected-dataset"
     assert "Unexpected augmentation operator error" in caplog.text

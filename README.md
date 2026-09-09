@@ -41,6 +41,13 @@ FiftyOne registers these operators:
 @albumentations/albumentationsx/delete_albumentationsx_run
 ```
 
+Results lead with the outcome and counts: successful runs are `completed`, mixed
+results are `partial`, and runs with errors but no created samples are `failed`.
+Cancellation remains `cancelled`. Use **Open generated samples** to see outputs
+without source filters, **View in history** to inspect the run, or **Back to editor**
+to continue with the same draft. Error causes and recovery actions appear above
+collapsed **Technical details**, where JSON can be copied or downloaded.
+
 ## Run your first augmentation
 
 1. Open a FiftyOne image dataset or view. Optionally select samples if you want
