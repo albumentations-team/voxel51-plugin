@@ -10,6 +10,7 @@ from os import PathLike
 from typing import Any, Protocol
 
 from albumentationsx_plugin.core import MediaIOError, RunManifest
+from albumentationsx_plugin.core.contracts.runs import terminal_execution_status
 from albumentationsx_plugin.hosts.fiftyone.runs import FIFTYONE_RUN_METHOD
 from albumentationsx_plugin.hosts.fiftyone.samples import summarize_pipeline
 from albumentationsx_plugin.storage.manifest import MANIFEST_FILENAME, FileRunStore
@@ -46,7 +47,9 @@ class RunLibraryEntry:
 
     @property
     def choice_label(self) -> str:
-        return f"{self.display_name} | {self.created_at or 'Unknown date'} | {self.status} | {self.run_key}"
+        return (
+            f"{self.display_name} | {self.created_at or 'Unknown date'} | {self.status} | {self.output_count} outputs"
+        )
 
 
 def run_created_at(run_key: str, metadata: Mapping[str, object]) -> str:
@@ -73,16 +76,18 @@ def classify_run(manifest: RunManifest) -> str:
 
     if manifest.metadata.get("cleanup_status") == "cleaned":
         return "cleaned"
-    execution = manifest.metadata.get("execution_status", "completed")
-    if execution in ("cancelled", "running", "dry_run", "preview"):
-        return str(execution)
-    errors = manifest.counters.get("errors", len(manifest.errors))
-    outputs = manifest.counters.get("outputs", max(len(manifest.replay_records), len(manifest.created_sample_ids)))
-    if errors or execution == "failed":
-        return "partial" if outputs else "failed"
-    if execution == "partial":
-        return "partial"
-    return "completed"
+    return run_execution_status(manifest)
+
+
+def run_execution_status(manifest: RunManifest) -> str:
+    """Share VOX-74 outcome interpretation between history rows and the inspector."""
+    execution = manifest.metadata.get("execution_status")
+    if isinstance(execution, str) and execution and execution != "completed":
+        return execution
+    return terminal_execution_status(
+        succeeded=manifest.counters.get("created", len(manifest.created_sample_ids)),
+        errors=max(manifest.counters.get("errors", len(manifest.errors)), len(manifest.errors)),
+    )
 
 
 def list_run_library(

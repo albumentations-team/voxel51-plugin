@@ -59,7 +59,10 @@ def manifest(**kwargs):
     ],
 )
 def test_classification_preserves_cleanup_and_cancellation(metadata, outputs, errors, expected):
-    assert classify_run(manifest(metadata=metadata, counters={"outputs": outputs, "errors": errors})) == expected
+    assert (
+        classify_run(manifest(metadata=metadata, counters={"created": outputs, "outputs": outputs, "errors": errors}))
+        == expected
+    )
 
 
 @pytest.mark.unit
@@ -82,7 +85,7 @@ def test_library_merges_sorts_and_tolerates_invalid_records(tmp_path):
     store = FileRunStore(dataset.name, storage_root=tmp_path)
     completed = manifest(
         source_sample_ids=("source-1", "source-2"),
-        counters={"processed": 1, "outputs": 3, "errors": 1},
+        counters={"processed": 1, "created": 3, "outputs": 3, "errors": 1},
         metadata={"run_label": "Cats", "created_at": "2026-09-08T20:00:00Z", "execution_scope": "current_view"},
     )
     store.save_manifest(completed)
@@ -120,3 +123,11 @@ def test_library_merges_sorts_and_tolerates_invalid_records(tmp_path):
     assert not invalid.manifest_available
     assert corrupt.read_text() == "not json"
     assert store.load_manifest("completed") == completed
+
+
+@pytest.mark.unit
+def test_library_and_inspector_share_failed_outcome_when_only_replay_exists(tmp_path):
+    from albumentationsx_plugin.hosts.fiftyone.run_library import run_execution_status
+
+    failed = manifest(counters={"created": 0, "outputs": 1, "errors": 1}, metadata={"execution_status": "completed"})
+    assert classify_run(failed) == run_execution_status(failed) == "failed"

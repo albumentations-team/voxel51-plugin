@@ -1,13 +1,13 @@
 # Augmentation Preview
 
-VOX-29 adds a non-persistent preview path to `Augment with AlbumentationsX`.
+VOX-29 adds a non-persistent preview path to `Augment images`.
 Preview is for judging an augmentation configuration before adding generated
 samples to a FiftyOne dataset.
 
 ## User Flow
 
 1. Select one to three source samples in the FiftyOne App.
-2. Open **Augment with AlbumentationsX**.
+2. Open **Augment images**.
 3. Configure the same pipeline settings that would be used for a normal run.
 4. Enable `Preview only` and execute the operator.
 5. Inspect the source image, augmented image, annotated before/after comparison,
@@ -79,7 +79,7 @@ Manual App check:
 
 1. Create or open the demo dataset.
 2. Select one to three images.
-3. Run `Augment with AlbumentationsX` with `Preview only` enabled.
+3. Run `Augment images` with `Preview only` enabled.
 4. Confirm source, augmented, and annotated comparison preview images render.
 5. Confirm replay, transformed label JSON, and annotation comparison JSON are
    shown.

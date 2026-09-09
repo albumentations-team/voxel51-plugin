@@ -18,7 +18,7 @@ The current implementation supports the following workflow.
 
 1. Select one or more image samples in the FiftyOne App, open a filtered image
    view, or use the full image dataset.
-2. Open **Augment with AlbumentationsX**.
+2. Open **Augment images**.
 3. Configure up to ten transform stage slots, enable the stages to execute,
    and order them.
 4. Optionally load a shared named preset or a previous run's saved pipeline as
@@ -28,7 +28,7 @@ The current implementation supports the following workflow.
 6. Create one to three outputs per source sample, optionally saving the
    resolved pipeline as a named shared preset.
 7. Manage shared presets with **Manage AlbumentationsX Presets**.
-8. Inspect the new samples with **View AlbumentationsX Run**.
+8. Inspect the new samples with **Run history**.
 9. Remove generated samples and files with **Delete AlbumentationsX Run** after confirmation.
 
 The form is generated from the `albu-spec` catalog. With the locked `albumentationsx 2.3.8` and `albu-spec 0.0.6` dependencies, the catalog finds 134 transforms. The normal selector exposes 113 transforms classified as `supported` or `supported_with_defaults`; the capability report records each excluded transform and its reason. The executable set includes the reference-image transforms `FDA`, `HistogramMatching`, and `PixelDistributionAdaptation`; they use the current execution scope as a deterministic reference pool and save per-output reference source ids in replay metadata.

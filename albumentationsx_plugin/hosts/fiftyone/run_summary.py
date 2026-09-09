@@ -15,17 +15,14 @@ from albumentationsx_plugin.core import (
     RUN_CLEANUP_STATUS_METADATA_KEY,
     RUN_EXECUTION_CANCELLED_AT_METADATA_KEY,
     RUN_EXECUTION_STATUS_CANCELLED,
-    RUN_EXECUTION_STATUS_COMPLETED,
-    RUN_EXECUTION_STATUS_METADATA_KEY,
     RUN_LABEL_FIELD_NAME,
     RUN_LABEL_SLUG_METADATA_KEY,
     JSONDict,
     MediaIOError,
     RunManifest,
 )
-from albumentationsx_plugin.core.contracts.runs import terminal_execution_status
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
-from albumentationsx_plugin.hosts.fiftyone.run_library import classify_run, run_created_at
+from albumentationsx_plugin.hosts.fiftyone.run_library import classify_run, run_created_at, run_execution_status
 from albumentationsx_plugin.hosts.fiftyone.runs import FIFTYONE_RUN_METHOD, build_fiftyone_run_key
 from albumentationsx_plugin.hosts.fiftyone.samples import summarize_pipeline
 from albumentationsx_plugin.storage.manifest import (
@@ -446,7 +443,7 @@ def _manifest_summary(
     _, missing_file_count = _output_file_counts(run_dir, manifest.output_paths)
     cleanup_status = _metadata_str(manifest.metadata, RUN_CLEANUP_STATUS_METADATA_KEY)
     cleaned_at = _metadata_str(manifest.metadata, RUN_CLEANED_AT_METADATA_KEY)
-    execution_status = _execution_status(manifest)
+    execution_status = run_execution_status(manifest)
     cancelled_at = _metadata_str(manifest.metadata, RUN_EXECUTION_CANCELLED_AT_METADATA_KEY)
     status = RUN_STATUS_OK
     message = "Run manifest loaded."
@@ -702,17 +699,6 @@ def _counter(counters: Mapping[str, int], name: str, *, fallback: int) -> int:
 def _metadata_str(metadata: Mapping[str, Any], name: str) -> str:
     value = metadata.get(name, "")
     return value if isinstance(value, str) else ""
-
-
-def _execution_status(manifest: RunManifest) -> str:
-    value = _metadata_str(manifest.metadata, RUN_EXECUTION_STATUS_METADATA_KEY)
-    if value and value != RUN_EXECUTION_STATUS_COMPLETED:
-        return value
-    # Older manifests labelled all finished loops completed, including failures.
-    return terminal_execution_status(
-        succeeded=_counter(manifest.counters, "created", fallback=len(manifest.created_sample_ids)),
-        errors=max(_counter(manifest.counters, "errors", fallback=len(manifest.errors)), len(manifest.errors)),
-    )
 
 
 def _json_dump(value: object) -> str:

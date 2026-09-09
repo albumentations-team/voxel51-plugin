@@ -11,6 +11,7 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import PipelinePreset
+from albumentationsx_plugin.hosts.fiftyone.branding import ALBUMENTATIONS_ICON
 from albumentationsx_plugin.hosts.fiftyone.forms.pipeline_loading import render_pipeline_load_button
 from albumentationsx_plugin.hosts.fiftyone.preset_management import (
     ACTION_DELETE,
@@ -37,7 +38,7 @@ from albumentationsx_plugin.hosts.fiftyone.preset_management import (
 from albumentationsx_plugin.storage import FilePipelinePresetStore
 
 OPERATOR_NAME = "manage_albumentationsx_presets"
-OPERATOR_LABEL = "Manage AlbumentationsX Saved Pipelines"
+OPERATOR_LABEL = "AlbumentationsX · Saved pipelines"
 PRESET_STORAGE_WARNING_FIELD_NAME = "_preset_storage_warning"
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class ManageAlbumentationsXPresets(foo.Operator):
         return foo.OperatorConfig(
             name=OPERATOR_NAME,
             label=OPERATOR_LABEL,
+            icon=ALBUMENTATIONS_ICON,
             description="Inspect, export, import, rename, and delete AlbumentationsX saved pipelines.",
             dynamic=True,
             allow_immediate_execution=True,
@@ -135,13 +137,8 @@ class ManageAlbumentationsXPresets(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
-        return types.Placement(
-            types.Places.SAMPLES_GRID_ACTIONS,
-            types.Button(
-                label=OPERATOR_LABEL,
-                prompt=True,
-            ),
-        )
+        # The bundled App component provides the logo-and-caption placement.
+        return None
 
     def execute(self, ctx: Any):
         return execute_preset_management_action(_ctx_params(ctx)).to_dict()

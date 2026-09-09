@@ -100,7 +100,7 @@ expanded label-family support is usable in the FiftyOne App.
    ```
 
 2. In the App, select at least one demo sample and run
-   **Augment with AlbumentationsX**.
+   **Augment images**.
 3. Keep annotation fields enabled for `Classification`, `Detections`,
    `Keypoints`, `Polylines`, `Heatmap`, and `Segmentation`.
 4. Run a non-dry geometry-only pipeline, for example `HorizontalFlip` with
@@ -112,13 +112,14 @@ expanded label-family support is usable in the FiftyOne App.
    - keypoints and polyline vertices move with the image;
    - heatmap values stay spatially aligned;
    - segmentation masks preserve discrete regions.
-7. Run **View AlbumentationsX Run** for the new run key and confirm that the
+7. Run **Run history** for the new run key and confirm that the
    summary includes selected annotation fields, runtime target requirements,
    replay records, generated sample counts, and dropped annotation diagnostics.
-8. Run **Augment with AlbumentationsX** again with a selected `Heatmap` field
+8. Run **Augment images** again with a selected `Heatmap` field
    and a mixed geometry plus image-only color/intensity pipeline. Confirm the
    operator rejects the run before creating outputs.
-9. Run **Delete AlbumentationsX Run** with confirmation checked. Confirm
+9. Open **Run history → Review deletion of generated outputs**, inspect the preview,
+   and confirm deletion. Confirm
    generated samples and plugin-owned output files are removed, while source
    samples, source images, and source annotation files remain unchanged.
 

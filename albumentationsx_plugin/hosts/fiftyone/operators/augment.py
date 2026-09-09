@@ -19,6 +19,7 @@ from albumentationsx_plugin.hosts.fiftyone.augment_validation import (
     validate_effective_augment_params,
     validation_issues_to_errors,
 )
+from albumentationsx_plugin.hosts.fiftyone.branding import ALBUMENTATIONS_ICON
 from albumentationsx_plugin.hosts.fiftyone.cancellation import FiftyOneCancellationChecker
 from albumentationsx_plugin.hosts.fiftyone.dependencies import (
     is_known_runtime_dependency,
@@ -86,7 +87,7 @@ from albumentationsx_plugin.hosts.fiftyone.progress import FiftyOneProgressRepor
 from albumentationsx_plugin.hosts.fiftyone.result_presentation import add_json_output, add_outcome, has_display_value
 
 OPERATOR_NAME = "augment_with_albumentationsx"
-OPERATOR_LABEL = "Augment with AlbumentationsX"
+OPERATOR_LABEL = "AlbumentationsX · Augment images"
 NO_SELECTION_ERROR_CODE = "no_selected_samples"
 UNEXPECTED_RUNTIME_ERROR_CODE = "unexpected_runtime_error"
 _LOGGER = logging.getLogger(__name__)
@@ -100,6 +101,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
         return foo.OperatorConfig(
             name=OPERATOR_NAME,
             label=OPERATOR_LABEL,
+            icon=ALBUMENTATIONS_ICON,
             description="Build and apply AlbumentationsX augmentation pipelines to samples, views, or datasets.",
             dynamic=True,
             allow_immediate_execution=True,
@@ -188,16 +190,8 @@ class AugmentWithAlbumentationsX(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
-        disabled = not _has_image_dataset_context(ctx)
-        return types.Placement(
-            types.Places.SAMPLES_GRID_ACTIONS,
-            types.Button(
-                label=OPERATOR_LABEL,
-                prompt=True,
-                disabled=disabled,
-                title="Open an image dataset before running augmentation." if disabled else None,
-            ),
-        )
+        # The bundled App component provides the logo-and-caption placement.
+        return None
 
     def execute(self, ctx: Any) -> JSONDict:
         draft = snapshot_editor(ctx, _ctx_params(ctx))
@@ -238,6 +232,12 @@ class AugmentWithAlbumentationsX(foo.Operator):
             # modal so the completed editor can close and a fresh one can open.
             output_ctx = SimpleNamespace(params=_ctx_params(ctx), results=result)
             schema = self._result_schema(output_ctx).to_json()
+            if result.get("created_count") and result.get("manifest_path"):
+                try:
+                    _open_created_outputs(ctx, result)
+                except Exception:
+                    # Result navigation must not discard a successfully created run.
+                    _LOGGER.warning("Could not open generated samples; use the result's history link", exc_info=True)
             ctx.trigger("show_output", params={"outputs": schema, "results": dict(result)})
             result["_displayed_in_app"] = True
         return result
@@ -958,14 +958,6 @@ def _successful_result_output_fields(result: Any) -> Mapping[str, object]:
     }
 
 
-def _has_image_dataset_context(ctx: Any | None) -> bool:
-    dataset = getattr(ctx, "dataset", None) if ctx is not None else None
-    if dataset is None:
-        return False
-    media_type = getattr(dataset, "media_type", None)
-    return media_type in (None, "image")
-
-
 def _dry_run_param(params: object) -> bool:
     return isinstance(params, dict) and params.get("dry_run") is True
 
@@ -1005,3 +997,17 @@ def _missing_dependency_message(error: ModuleNotFoundError) -> str:
     return (
         f"Install the '{package_name}' package in the active FiftyOne Python environment, then reload the FiftyOne App."
     )
+
+
+def _open_created_outputs(ctx: Any, result: Mapping[str, object]) -> None:
+    from fiftyone.operators.operations import Operations
+
+    from albumentationsx_plugin.hosts.fiftyone.run_summary import build_run_summary
+
+    summary = build_run_summary(
+        ctx.dataset,
+        str(result["run_key"]),
+        storage_root=storage_root_from_params(_ctx_params(ctx)),
+    )
+    if summary.available_generated_sample_ids:
+        Operations(ctx).set_view(view=ctx.dataset.select(list(summary.available_generated_sample_ids)))

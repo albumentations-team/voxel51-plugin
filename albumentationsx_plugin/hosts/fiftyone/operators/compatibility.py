@@ -10,6 +10,7 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import JSONDict
+from albumentationsx_plugin.hosts.fiftyone.branding import ALBUMENTATIONS_ICON
 from albumentationsx_plugin.hosts.fiftyone.dataset_compatibility import (
     build_dataset_compatibility_report,
     dataset_compatibility_error_report,
@@ -38,8 +39,10 @@ class AnalyzeAlbumentationsXCompatibility(foo.Operator):
         return foo.OperatorConfig(
             name=OPERATOR_NAME,
             label=OPERATOR_LABEL,
+            icon=ALBUMENTATIONS_ICON,
             description="Inspect annotation fields and safe AlbumentationsX target families for the active dataset.",
             dynamic=True,
+            unlisted=True,
             allow_immediate_execution=True,
             allow_delegated_execution=False,
             allow_distributed_execution=False,
@@ -132,16 +135,7 @@ class AnalyzeAlbumentationsXCompatibility(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
-        disabled = not _has_image_dataset_context(ctx)
-        return types.Placement(
-            types.Places.SAMPLES_GRID_ACTIONS,
-            types.Button(
-                label=OPERATOR_LABEL,
-                prompt=True,
-                disabled=disabled,
-                title="Open an image dataset before analyzing compatibility." if disabled else None,
-            ),
-        )
+        return None
 
     def execute(self, ctx: Any) -> JSONDict:
         params = _ctx_params(ctx)
@@ -188,11 +182,6 @@ def _execution_scope_view() -> types.DropdownView:
     for choice in EXECUTION_SCOPE_CHOICES:
         view.add_choice(choice, label=EXECUTION_SCOPE_LABELS[choice])
     return view
-
-
-def _has_image_dataset_context(ctx: Any | None) -> bool:
-    dataset = getattr(ctx, "dataset", None) if ctx is not None else None
-    return dataset is not None and getattr(dataset, "media_type", "image") == "image"
 
 
 def _render_json_output_field(outputs: types.Object, name: str, *, label: str) -> None:

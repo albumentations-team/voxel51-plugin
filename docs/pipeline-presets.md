@@ -7,7 +7,7 @@ The current **draft** is the editable configuration in the Augment form.
 
 ## Load an editable copy
 
-In **Augment with AlbumentationsX**, use the single **Load pipeline** picker:
+In **Augment images**, use the single **Load pipeline** picker:
 
 - **Current unsaved draft** keeps the current configuration.
 - **Saved pipeline: …** selects a named configuration from shared storage.
@@ -25,8 +25,7 @@ run: the image will not flip. Stage count, order, Enabled, transform selection,
 and all parameters remain editable. The loaded copy still executes if its
 source is later renamed or deleted, including when execution is delegated.
 
-**View AlbumentationsX Run → Use pipeline from this run** and **Manage
-AlbumentationsX Saved Pipelines → Edit a copy of this pipeline** open the same
+**Run history → Use pipeline from this run** and **Saved pipelines → Edit a copy of this pipeline** open the same
 editor with an independent snapshot. Every execution uses fresh randomness;
 loading a pipeline does not reproduce an earlier output's replay or seed.
 
@@ -84,10 +83,10 @@ metadata. Imported and loaded pipelines are validated against the current
 transform catalog. Saved pipelines exclude source IDs, output IDs and paths,
 run cleanup allowlists, and per-output replay records.
 
-**Manage AlbumentationsX Saved Pipelines** provides inspect, export, import,
+**Saved pipelines** provides inspect, export, import,
 rename, and delete actions. Import and rename require **Overwrite existing
 saved pipeline** for collisions. Deletion requires confirmation and removes
-only the selected configuration file. **Delete AlbumentationsX Run** remains
+only the selected configuration file. **Run history → Review deletion of generated outputs** remains
 the action for generated outputs and run cleanup.
 
 ## Python callers and older form parameters

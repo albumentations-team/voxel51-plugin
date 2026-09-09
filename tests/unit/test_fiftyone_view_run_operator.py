@@ -40,7 +40,7 @@ def test_view_run_operator_config_matches_manifest() -> None:
 
     assert OPERATOR_NAME in manifest["operators"]
     assert config.name == OPERATOR_NAME
-    assert config.label == "View AlbumentationsX Run"
+    assert config.label == "AlbumentationsX · Run history"
     assert config.dynamic is True
     assert config.allow_immediate_execution is True
     assert config.allow_delegated_execution is False
@@ -101,7 +101,7 @@ def test_view_run_operator_resolves_run_selector_and_output(monkeypatch) -> None
     input_properties = input_json["type"]["properties"]
     output_properties = output_json["type"]["properties"]
 
-    assert input_json["view"]["label"] == "View AlbumentationsX Run"
+    assert input_json["view"]["label"] == "AlbumentationsX · Run history"
     assert input_properties["run_key"]["type"]["name"] == "Enum"
     assert input_properties["run_key"]["type"]["values"] == (
         "albumentationsx-20260731T150000Z-first",
@@ -109,10 +109,19 @@ def test_view_run_operator_resolves_run_selector_and_output(monkeypatch) -> None
     )
     assert input_properties["run_key"]["default"] == "albumentationsx-20260731T150000Z-first"
     assert input_properties["run_key"]["view"]["name"] == "AutocompleteView"
-    assert input_properties["output_key"]["type"]["name"] == "Enum"
-    assert input_properties["output_key"]["default"] == "0|source-1|0|images/output.png"
-    assert input_properties["open_generated_samples"]["type"]["name"] == "Boolean"
-    assert input_properties["open_generated_samples"]["view"]["name"] == "CheckboxView"
+    assert input_properties["_output_inspection"]["type"]["properties"]["output_key"]["type"]["name"] == "Enum"
+    assert (
+        input_properties["_output_inspection"]["type"]["properties"]["output_key"]["default"]
+        == "0|source-1|0|images/output.png"
+    )
+    assert (
+        input_properties["_output_inspection"]["type"]["properties"]["open_generated_samples"]["type"]["name"]
+        == "Boolean"
+    )
+    assert (
+        input_properties["_output_inspection"]["type"]["properties"]["open_generated_samples"]["view"]["name"]
+        == "CheckboxView"
+    )
     assert output_properties["status"]["type"]["name"] == "String"
     assert output_properties["cleanup_status"]["type"]["name"] == "String"
     assert output_properties["cleaned_at"]["type"]["name"] == "String"
@@ -146,12 +155,13 @@ def test_view_run_operator_resolves_empty_selector_without_dataset_runs(monkeypa
 
 
 @pytest.mark.unit
-def test_view_run_operator_falls_back_from_stale_param_run_key(monkeypatch) -> None:
+@pytest.mark.parametrize("stale_key", ["albumentationsx-20260731T150000Z-deleted", None, ""])
+def test_view_run_operator_requires_selection_after_filter_excludes_current_run(monkeypatch, stale_key) -> None:
     operator = ViewAlbumentationsXRun()
 
     class Context:
         dataset = object()
-        params = {RUN_KEY_FIELD_NAME: "albumentationsx-20260731T150000Z-deleted"}
+        params = {RUN_KEY_FIELD_NAME: stale_key}
 
     def fake_list_available_run_keys(dataset: object, **kwargs) -> tuple[str, ...]:
         return ("albumentationsx-20260731T150000Z-current",)
@@ -173,44 +183,16 @@ def test_view_run_operator_falls_back_from_stale_param_run_key(monkeypatch) -> N
     run_key_property = input_json["type"]["properties"][RUN_KEY_FIELD_NAME]
 
     assert run_key_property["type"]["name"] == "Enum"
-    assert run_key_property["default"] == "albumentationsx-20260731T150000Z-current"
+    assert run_key_property["default"] == ""
+    assert run_key_property["invalid"] is True
+    props = input_json["type"]["properties"]
+    assert "delete_run_outputs" not in props and "_load_pipeline" not in props
+    assert run_key_property["view"]["componentsProps"]["autocomplete"]["value"] is None
 
 
 @pytest.mark.unit
-def test_view_run_operator_resolves_samples_grid_placement() -> None:
-    operator = ViewAlbumentationsXRun()
-
-    placement_json = operator.resolve_placement(ctx=None).to_json()
-    view_json = placement_json["view"]
-
-    assert placement_json["place"] == "samples-grid-actions"
-    assert isinstance(view_json, dict)
-    assert view_json["name"] == "Button"
-    assert view_json["label"] == "View AlbumentationsX Run"
-    assert view_json["prompt"] is True
-    assert view_json["disabled"] is True
-
-
-@pytest.mark.unit
-def test_view_run_operator_enables_samples_grid_placement_with_dataset_runs(monkeypatch) -> None:
-    operator = ViewAlbumentationsXRun()
-
-    class Context:
-        dataset = object()
-        params = {}
-
-    monkeypatch.setattr(
-        view_run_operator_module,
-        "list_available_run_keys",
-        lambda dataset, **kwargs: ("albumentationsx-20260731T150000Z-run",),
-    )
-
-    placement_json = operator.resolve_placement(Context()).to_json()
-    view_json = placement_json["view"]
-
-    assert isinstance(view_json, dict)
-    assert view_json["disabled"] is False
-    assert view_json["title"] is None
+def test_view_run_operator_leaves_toolbar_placement_to_frontend() -> None:
+    assert ViewAlbumentationsXRun().resolve_placement(ctx=None) is None
 
 
 @pytest.mark.unit
@@ -454,21 +436,19 @@ def test_run_library_exposes_named_runs_and_safe_actions(monkeypatch, status):
     assert choice["label"].startswith("Cats |")
     assert status in choice["label"]
     assert "Sources: 5" in properties["run_details"]["view"]["description"]
-    assert properties["_copy_run_key_cats-run"]["default"] == "cats-run"
-    if status != "missing_manifest":
-        reuse = properties["reuse_pipeline"]["view"]
-        assert reuse["prompt"] is True
-        assert reuse["operator"] == "@albumentations/albumentationsx/augment_with_albumentationsx"
-        assert reuse["params"] == {"previous_run_key": "cats-run", "_storage_root": "/tmp/library"}
-        assert "fresh randomness" in properties["reuse_guidance"]["view"]["label"]
-    else:
-        assert "reuse_pipeline" not in properties
-    if status == "cleaned":
+    assert "Cats" in properties["run_details"]["view"]["label"]
+    assert "reuse_pipeline" not in properties  # Only the editable snapshot loader is used.
+    if status in {"cleaned", "missing_manifest"}:
         assert "delete_run_outputs" not in properties
     else:
         delete = properties["delete_run_outputs"]["view"]
         assert delete["prompt"] is True
-        assert delete["params"] == {"run_key": "cats-run", "confirm_delete": False, "_storage_root": "/tmp/library"}
+        assert delete["params"] == {
+            "run_key": "cats-run",
+            "confirm_delete": False,
+            "_storage_root": "/tmp/library",
+            "_history_run": True,
+        }
 
 
 @pytest.mark.unit
@@ -491,4 +471,4 @@ def test_run_library_search_and_hide_cleaned(monkeypatch):
     ctx.params["run_query"] = "Cats"
     props = ViewAlbumentationsXRun().resolve_input(ctx).to_json()["type"]["properties"]
     assert "run_details" not in props
-    assert "reuse_pipeline" not in props
+    assert "_load_pipeline" not in props

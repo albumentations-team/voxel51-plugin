@@ -48,7 +48,7 @@ def test_manage_presets_operator_config_matches_manifest() -> None:
 
     assert OPERATOR_NAME in manifest["operators"]
     assert config.name == OPERATOR_NAME
-    assert config.label == "Manage AlbumentationsX Saved Pipelines"
+    assert config.label == "AlbumentationsX · Saved pipelines"
     assert config.dynamic is True
     assert config.allow_immediate_execution is True
     assert config.allow_delegated_execution is False
@@ -73,7 +73,7 @@ def test_manage_presets_operator_resolves_export_form_and_output(tmp_path) -> No
     input_properties = input_json["type"]["properties"]
     output_properties = output_json["type"]["properties"]
 
-    assert input_json["view"]["label"] == "Manage AlbumentationsX Saved Pipelines"
+    assert input_json["view"]["label"] == "AlbumentationsX · Saved pipelines"
     assert input_json["view"]["submit_button_label"] == "Export saved pipeline"
     assert input_properties["action"]["type"]["name"] == "Enum"
     assert input_properties["action"]["default"] == ACTION_EXPORT

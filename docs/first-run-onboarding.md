@@ -30,7 +30,7 @@ values and supported label fields for repeatable checks.
 In the FiftyOne App:
 
 1. Select one sample.
-2. Open `Augment with AlbumentationsX` from the actions menu.
+2. Open `Augment images` from the actions menu.
 3. Set `Execution scope` to `Selected samples`.
 4. Enable `Preview only`.
 5. Keep `Pipeline stages` at `1`.
@@ -44,7 +44,7 @@ create samples, files, manifests, presets, or FiftyOne custom runs.
 
 ## Create The First Output
 
-Open `Augment with AlbumentationsX` again with the same selected sample:
+Open `Augment images` again with the same selected sample:
 
 1. Set `Execution scope` to `Selected samples`.
 2. Disable `Preview only`.
@@ -67,7 +67,7 @@ Source samples and source image files are left unchanged.
 
 ## Inspect The Run
 
-Run `View AlbumentationsX Run` and choose the generated run key. Check:
+Run `Run history` and choose the generated run key. Check:
 
 - processed and created counts;
 - dependency versions;
@@ -80,7 +80,7 @@ unexpectedly.
 
 ## Clean Up
 
-Run `Delete AlbumentationsX Run`:
+In **Run history**, select the run and choose **Review deletion of generated outputs**:
 
 1. Choose the same run key.
 2. Check `Confirm deletion`.

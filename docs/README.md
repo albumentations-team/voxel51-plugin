@@ -70,3 +70,5 @@ these files hold development workflow, review, and release notes.
 - Keep implementation workflow, review notes, and release process in `docs/`.
 - Update documentation in the same pull request as behavior changes.
 - Prefer short, reproducible command blocks over prose-only instructions.
+
+- [Plugin navigation and API compatibility](plugin-navigation.md) — editor, saved pipelines and run history.

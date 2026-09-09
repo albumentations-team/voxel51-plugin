@@ -209,7 +209,7 @@ def test_augment_operator_config_matches_manifest() -> None:
 
     assert OPERATOR_NAME in manifest["operators"]
     assert config.name == OPERATOR_NAME
-    assert config.label == "Augment with AlbumentationsX"
+    assert config.label == "AlbumentationsX · Augment images"
     assert (
         config.description == "Build and apply AlbumentationsX augmentation pipelines to samples, views, or datasets."
     )
@@ -240,7 +240,7 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     output_json = operator.resolve_output(ctx=None).to_json()
     input_properties = _form_properties(input_json)
 
-    assert input_json["view"]["label"] == "Augment with AlbumentationsX"
+    assert input_json["view"]["label"] == "AlbumentationsX · Augment images"
     assert input_json["view"]["name"] == "PromptView"
     assert input_json["view"]["submit_button_label"] == "Create augmented samples"
     assert input_properties["_pipeline_stage_1"]["view"]["name"] == "Header"
@@ -1162,66 +1162,8 @@ def test_augment_operator_ignores_excluded_catalog_transform_selection() -> None
 
 
 @pytest.mark.unit
-def test_augment_operator_resolves_samples_grid_placement() -> None:
-    operator = AugmentWithAlbumentationsX()
-
-    class Context:
-        dataset = SimpleNamespace(media_type="image")
-        selected = ("sample-1",)
-
-    placement_json = operator.resolve_placement(Context()).to_json()
-    view_json = placement_json["view"]
-
-    assert placement_json["place"] == "samples-grid-actions"
-    assert isinstance(view_json, dict)
-    assert view_json["name"] == "Button"
-    assert view_json["label"] == "Augment with AlbumentationsX"
-    assert view_json["prompt"] is True
-    assert view_json["disabled"] is False
-
-
-@pytest.mark.unit
-def test_augment_operator_resolves_samples_grid_placement_without_selection_for_image_dataset() -> None:
-    operator = AugmentWithAlbumentationsX()
-
-    class Context:
-        dataset = SimpleNamespace(media_type="image")
-        selected = ()
-
-    placement_json = operator.resolve_placement(Context()).to_json()
-    view_json = placement_json["view"]
-
-    assert isinstance(view_json, dict)
-    assert view_json["disabled"] is False
-    assert view_json["prompt"] is True
-
-
-@pytest.mark.unit
-def test_augment_operator_disables_samples_grid_placement_without_dataset_context() -> None:
-    operator = AugmentWithAlbumentationsX()
-
-    placement_json = operator.resolve_placement(ctx=None).to_json()
-    view_json = placement_json["view"]
-
-    assert isinstance(view_json, dict)
-    assert view_json["disabled"] is True
-    assert view_json["title"] == "Open an image dataset before running augmentation."
-
-
-@pytest.mark.unit
-def test_augment_operator_disables_samples_grid_placement_for_non_image_dataset() -> None:
-    operator = AugmentWithAlbumentationsX()
-
-    class Context:
-        dataset = SimpleNamespace(media_type="video")
-        selected = ("sample-1",)
-
-    placement_json = operator.resolve_placement(Context()).to_json()
-    view_json = placement_json["view"]
-
-    assert isinstance(view_json, dict)
-    assert view_json["disabled"] is True
-    assert view_json["title"] == "Open an image dataset before running augmentation."
+def test_augment_operator_leaves_toolbar_placement_to_frontend() -> None:
+    assert AugmentWithAlbumentationsX().resolve_placement(ctx=None) is None
 
 
 @pytest.mark.unit

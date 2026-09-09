@@ -207,6 +207,7 @@ class DynamicAugmentFormBuilder:
                 supported_transform_names=supported_transform_names,
                 selected_transform_name=selected_transform_name,
                 step_number=step_number,
+                params=params,
             )
             self._render_transform_parameters(
                 inputs,
@@ -412,11 +413,33 @@ class DynamicAugmentFormBuilder:
         supported_transform_names: tuple[str, ...],
         selected_transform_name: str,
         step_number: int,
+        params: Mapping[str, object],
     ) -> None:
+        capabilities = {cap.name: cap for cap in self.catalog_provider.list_transform_capabilities()}
+        filter_name = f"_stage_target_{step_number}"
+        target = params.get(filter_name, "all")
+        targets = ("all", *sorted({t for name in supported_transform_names for t in capabilities[name].targets}))
+        if target not in targets:
+            target = "all"
+        target_choices = types.DropdownView()
+        for value in targets:
+            target_choices.add_choice(value, label="All targets" if value == "all" else value)
+        inputs.enum(filter_name, targets, label="Filter transforms by target", default=target, view=target_choices)
+        filtered = tuple(
+            name for name in supported_transform_names if target == "all" or target in capabilities[name].targets
+        )
+        names = tuple(dict.fromkeys((*filtered, selected_transform_name)))
         label = "Transform"
         choices = types.AutocompleteView(label=label, allow_user_input=False)
-        for transform_name in supported_transform_names:
+        for transform_name in names:
             choices.add_choice(transform_name, label=transform_name)
+        capability = capabilities[selected_transform_name]
+        help_text = str(capability.metadata.get("docstring_short") or capability.message or "")
+        help_text += f" Targets: {', '.join(capability.targets)}."
+        if selected_transform_name not in filtered:
+            help_text += " The current transform is kept even though it does not match this filter."
+        help_text += " Type in Transform to search names. Target filtering does not change your draft or replace annotation compatibility checks."
+        inputs.view(f"_stage_help_{step_number}", types.Notice(label=selected_transform_name, description=help_text))
 
         inputs.enum(
             pipeline_step_field_name(step_number, TRANSFORM_FIELD_NAME),
@@ -546,7 +569,7 @@ def _arrange_editor(
         arranged.add_property(name, prop)
     for name, prop in inputs.properties.items():
         if (
-            name.startswith((STAGE_SECTION_FIELD_PREFIX + "_", "_stage_parameters_"))
+            name.startswith((STAGE_SECTION_FIELD_PREFIX + "_", "_stage_parameters_", "_stage_target_", "_stage_help_"))
             or name == "transform"
             or (name.startswith("step_") and name.endswith("_transform"))
         ):

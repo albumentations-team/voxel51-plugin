@@ -27,6 +27,9 @@ def test_build_release_artifacts_creates_plugin_zip_install_notes_and_checksums(
     assert "fiftyone.yml" in names
     assert "requirements.txt" in names
     assert "albumentationsx_plugin/__init__.py" in names
+    assert "albumentationsx_plugin/hosts/fiftyone/assets/albumentations.svg" in names
+    assert "albumentationsx_plugin/hosts/fiftyone/assets/albumentations-white.svg" in names
+    assert "albumentationsx_plugin/hosts/fiftyone/assets/toolbar.js" in names
     assert "docs/verification.md" in names
     assert not any("__pycache__" in name or name.endswith(".pyc") for name in names)
 
