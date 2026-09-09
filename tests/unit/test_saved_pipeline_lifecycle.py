@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from types import SimpleNamespace
@@ -235,18 +236,20 @@ def test_local_file_errors_and_utf8_bom(tmp_path):
         read_preset_json_file(str(file))
 
 
-@pytest.mark.skipif(os.name == "nt", reason="Symlink and FIFO fixtures require Unix")
 def test_import_rejects_symlinks_and_fifos(tmp_path):
-    path = tmp_path / "link.json"
-    path.symlink_to(tmp_path / "missing.json")
-    with pytest.raises(MediaIOError) as error:
-        read_preset_json_file(str(path))
-    assert error.value.context["reason"] == "unsafe_import_path"
-    path.unlink()
-    os.mkfifo(path)
-    with pytest.raises(MediaIOError) as error:
-        read_preset_json_file(str(path))
-    assert error.value.context["reason"] == "import_not_file"
+    if sys.platform == "win32":
+        pytest.skip("Symlink and FIFO fixtures require Unix")
+    else:
+        path = tmp_path / "link.json"
+        path.symlink_to(tmp_path / "missing.json")
+        with pytest.raises(MediaIOError) as error:
+            read_preset_json_file(str(path))
+        assert error.value.context["reason"] == "unsafe_import_path"
+        path.unlink()
+        os.mkfifo(path)
+        with pytest.raises(MediaIOError) as error:
+            read_preset_json_file(str(path))
+        assert error.value.context["reason"] == "import_not_file"
 
 
 def test_edit_rename_duplicate_keep_other_pipelines_and_old_references(tmp_path):
