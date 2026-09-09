@@ -87,3 +87,27 @@ Manual App check:
    created by preview.
 7. Disable `Preview only`, run the same configuration, and confirm persistent
    outputs are created normally.
+
+## Image Layout
+
+Source, augmented and comparison images retain their intrinsic aspect ratios.
+They use automatic width/height, fit the available result width, and are limited
+in height to the smaller of 360 CSS pixels or half the viewport. Small images
+are not enlarged, and no image content is cropped by the display. The image
+container can shrink with the operator dialog, including laptop-sized viewports.
+
+The annotated comparison retains the existing independent fit for each panel:
+up to 420 × 320 pixels, without enlargement. Panels are aligned at the top-left
+of equal-size cells, with padding to the right/bottom when dimensions differ.
+Before/after headers and overlay legends remain part of the comparison. The
+**Image display** note explains that displayed panel sizes do not represent a
+shared pixel scale when a crop or resize changes output dimensions.
+
+Only slots with complete source, output and comparison image results are shown.
+Unused slots and failed previews do not reserve blank image or diagnostic regions.
+The flat result payload retains empty slot keys for API compatibility; the App
+schema uses actual images rather than the requested selection or count.
+
+Browser verification is required for this layout: backend pixel tests cannot
+catch CSS stretching. The [VOX-70 check](audits/vox-70-preview-validation/README.md)
+includes a DOM assertion against rendered and natural image dimensions.

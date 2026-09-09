@@ -335,7 +335,14 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
 @pytest.mark.unit
 def test_augment_operator_resolves_preview_output_fields() -> None:
     operator = AugmentWithAlbumentationsX()
-    context = SimpleNamespace(params={PREVIEW_ONLY_FIELD_NAME: True})
+    context = SimpleNamespace(
+        params={PREVIEW_ONLY_FIELD_NAME: True},
+        results={
+            preview_field_name(slot, field): "data:image/png;base64,preview"
+            for slot in range(1, MAX_PREVIEW_SAMPLES + 1)
+            for field in (PREVIEW_FIELD_SOURCE_IMAGE, PREVIEW_FIELD_OUTPUT_IMAGE, PREVIEW_FIELD_COMPARISON_IMAGE)
+        },
+    )
 
     output_json = operator.resolve_output(context).to_json()
     output_properties = output_json["type"]["properties"]
@@ -350,12 +357,16 @@ def test_augment_operator_resolves_preview_output_fields() -> None:
     assert output_properties[preview_field_name(1, PREVIEW_FIELD_SOURCE_SAMPLE_ID)]["type"]["name"] == "String"
     assert source_image["type"]["name"] == "String"
     assert source_image["view"]["name"] == "ImageView"
-    assert source_image["view"]["height"] == "240px"
+    assert source_image["view"]["height"] == "auto"
     assert output_image["type"]["name"] == "String"
     assert output_image["view"]["name"] == "ImageView"
     assert comparison_image["type"]["name"] == "String"
     assert comparison_image["view"]["name"] == "ImageView"
-    assert comparison_image["view"]["width"] == "640px"
+    for prop in (source_image, output_image, comparison_image):
+        assert prop["view"]["width"] == prop["view"]["height"] == "auto"
+        style = prop["view"]["componentsProps"]["image"]["style"]
+        assert style["objectFit"] == "contain"
+        assert style["maxWidth"] == "100%"
     assert replay_json["view"]["name"] == "CodeView"
     assert replay_json["view"]["language"] == "json"
     assert replay_json["view"]["read_only"] is True
@@ -363,6 +374,34 @@ def test_augment_operator_resolves_preview_output_fields() -> None:
     assert comparison_json["view"]["name"] == "CodeView"
     assert preview_field_name(MAX_PREVIEW_SAMPLES, PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON) in output_properties
     assert preview_field_name(MAX_PREVIEW_SAMPLES, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON) in output_properties
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("populated_slots", [(), (1,), (1, 2, 3), (2,)])
+def test_preview_schema_only_renders_populated_result_slots(populated_slots: tuple[int, ...]) -> None:
+    # Result images are authoritative, including partial failures and legacy
+    # payloads that contain empty strings for unused slots.
+    results = {
+        preview_field_name(slot, field): "data:image/png;base64,preview" if slot in populated_slots else ""
+        for slot in range(1, MAX_PREVIEW_SAMPLES + 1)
+        for field in (PREVIEW_FIELD_SOURCE_IMAGE, PREVIEW_FIELD_OUTPUT_IMAGE, PREVIEW_FIELD_COMPARISON_IMAGE)
+    }
+    results["preview_count"] = "3"
+    ctx = SimpleNamespace(params={PREVIEW_ONLY_FIELD_NAME: True}, results=results)
+    properties = AugmentWithAlbumentationsX().resolve_output(ctx).to_json()["type"]["properties"]
+    for slot in range(1, MAX_PREVIEW_SAMPLES + 1):
+        assert (preview_field_name(slot, PREVIEW_FIELD_SOURCE_IMAGE) in properties) == (slot in populated_slots)
+        assert (preview_field_name(slot, PREVIEW_FIELD_LABELS_JSON) in properties) == (slot in populated_slots)
+    assert ("preview_display_policy" in properties) == bool(populated_slots)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("results", [None, {}, {"preview_count": 3}])
+def test_preview_schema_without_result_images_has_no_blank_image_regions(results: object) -> None:
+    ctx = SimpleNamespace(params={PREVIEW_ONLY_FIELD_NAME: True}, results=results)
+    properties = AugmentWithAlbumentationsX().resolve_output(ctx).to_json()["type"]["properties"]
+    assert "preview_note" in properties
+    assert all(prop["view"]["name"] != "ImageView" for prop in properties.values())
 
 
 @pytest.mark.unit

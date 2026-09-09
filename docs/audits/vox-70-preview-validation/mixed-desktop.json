@@ -1,0 +1,126 @@
+{
+  "images": [
+    {
+      "alt": "Preview 1 source image",
+      "aspectErrorPx": 0,
+      "natural": [
+        427,
+        640
+      ],
+      "objectFit": "contain",
+      "rendered": [
+        240.1875,
+        360
+      ]
+    },
+    {
+      "alt": "Preview 1 augmented image",
+      "aspectErrorPx": 0,
+      "natural": [
+        427,
+        640
+      ],
+      "objectFit": "contain",
+      "rendered": [
+        240.1875,
+        360
+      ]
+    },
+    {
+      "alt": "Preview 1 annotated before and after comparison",
+      "aspectErrorPx": 0.005067567567550668,
+      "natural": [
+        460,
+        370
+      ],
+      "objectFit": "contain",
+      "rendered": [
+        447.5625,
+        360
+      ]
+    },
+    {
+      "alt": "Preview 2 source image",
+      "aspectErrorPx": 0,
+      "natural": [
+        960,
+        320
+      ],
+      "objectFit": "contain",
+      "rendered": [
+        919.9921875,
+        306.6640625
+      ]
+    },
+    {
+      "alt": "Preview 2 augmented image",
+      "aspectErrorPx": 0,
+      "natural": [
+        960,
+        320
+      ],
+      "objectFit": "contain",
+      "rendered": [
+        919.9921875,
+        306.6640625
+      ]
+    },
+    {
+      "alt": "Preview 2 annotated before and after comparison",
+      "aspectErrorPx": 0,
+      "natural": [
+        872,
+        190
+      ],
+      "objectFit": "contain",
+      "rendered": [
+        872,
+        190
+      ]
+    },
+    {
+      "alt": "Preview 3 source image",
+      "aspectErrorPx": 0,
+      "natural": [
+        400,
+        400
+      ],
+      "objectFit": "contain",
+      "rendered": [
+        360,
+        360
+      ]
+    },
+    {
+      "alt": "Preview 3 augmented image",
+      "aspectErrorPx": 0,
+      "natural": [
+        400,
+        400
+      ],
+      "objectFit": "contain",
+      "rendered": [
+        360,
+        360
+      ]
+    },
+    {
+      "alt": "Preview 3 annotated before and after comparison",
+      "aspectErrorPx": 0.0019003378378101845,
+      "natural": [
+        672,
+        370
+      ],
+      "objectFit": "contain",
+      "rendered": [
+        653.8359375,
+        360
+      ]
+    }
+  ],
+  "slots": 3,
+  "viewport": {
+    "height": 936,
+    "width": 1920
+  }
+}

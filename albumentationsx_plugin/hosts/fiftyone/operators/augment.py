@@ -133,7 +133,8 @@ class AugmentWithAlbumentationsX(foo.Operator):
         outputs.str("preset_name", label="Preset name")
         outputs.str("preset_path", label="Preset path")
         if _preview_only_from_ctx(ctx):
-            _render_preview_output_fields(outputs)
+            results = getattr(ctx, "results", {})
+            _render_preview_output_fields(outputs, results if isinstance(results, Mapping) else {})
         return types.Property(outputs)
 
     # pyrefly: ignore[bad-override]
@@ -329,13 +330,33 @@ def _ctx_params(ctx: Any | None) -> dict[str, object]:
     return flatten_fiftyone_form_groups(params) if isinstance(params, Mapping) else {}
 
 
-def _render_preview_output_fields(outputs: types.Object) -> None:
+def _render_preview_output_fields(outputs: types.Object, results: Mapping[str, object]) -> None:
     outputs.str(
         "preview_note",
         label="Preview note",
         view=types.FieldView(read_only=True),
     )
-    for slot_number in range(1, MAX_PREVIEW_SAMPLES + 1):
+    populated_slots = [
+        slot
+        for slot in range(1, MAX_PREVIEW_SAMPLES + 1)
+        if all(
+            isinstance(results.get(preview_field_name(slot, field)), str) and results[preview_field_name(slot, field)]
+            for field in (PREVIEW_FIELD_SOURCE_IMAGE, PREVIEW_FIELD_OUTPUT_IMAGE, PREVIEW_FIELD_COMPARISON_IMAGE)
+        )
+    ]
+    if populated_slots:
+        outputs.view(
+            "preview_display_policy",
+            types.Notice(
+                label="Image display",
+                description=(
+                    "Images keep their proportions and fit the available space without cropping or enlargement. "
+                    "Before/after panels are fitted independently, with blank padding when sizes differ. "
+                    "Their displayed sizes do not indicate the same pixel scale."
+                ),
+            ),
+        )
+    for slot_number in populated_slots:
         label_prefix = f"Preview {slot_number}"
         outputs.str(preview_field_name(slot_number, PREVIEW_FIELD_SOURCE_SAMPLE_ID), label=f"{label_prefix} source ID")
         outputs.str(
@@ -346,34 +367,19 @@ def _render_preview_output_fields(outputs: types.Object) -> None:
             preview_field_name(slot_number, PREVIEW_FIELD_SOURCE_IMAGE),
             types.String(),
             label=f"{label_prefix} source image",
-            view=types.ImageView(
-                height="240px",
-                width="320px",
-                alt=f"{label_prefix} source image",
-                read_only=True,
-            ),
+            view=_preview_image_view(alt=f"{label_prefix} source image"),
         )
         outputs.define_property(
             preview_field_name(slot_number, PREVIEW_FIELD_OUTPUT_IMAGE),
             types.String(),
             label=f"{label_prefix} augmented image",
-            view=types.ImageView(
-                height="240px",
-                width="320px",
-                alt=f"{label_prefix} augmented image",
-                read_only=True,
-            ),
+            view=_preview_image_view(alt=f"{label_prefix} augmented image"),
         )
         outputs.define_property(
             preview_field_name(slot_number, PREVIEW_FIELD_COMPARISON_IMAGE),
             types.String(),
             label=f"{label_prefix} annotated comparison",
-            view=types.ImageView(
-                height="300px",
-                width="640px",
-                alt=f"{label_prefix} annotated before and after comparison",
-                read_only=True,
-            ),
+            view=_preview_image_view(alt=f"{label_prefix} annotated before and after comparison"),
         )
         _render_preview_json_field(
             outputs,
@@ -395,6 +401,27 @@ def _render_preview_output_fields(outputs: types.Object) -> None:
             preview_field_name(slot_number, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON),
             label=f"{label_prefix} annotation comparison",
         )
+
+
+def _preview_image_view(*, alt: str) -> types.ImageView:
+    return types.ImageView(
+        width="auto",
+        height="auto",
+        alt=alt,
+        read_only=True,
+        componentsProps={
+            "image": {
+                "style": {
+                    "display": "block",
+                    "maxWidth": "100%",
+                    "maxHeight": "min(360px, 50vh)",
+                    "objectFit": "contain",
+                    "objectPosition": "left top",
+                },
+            },
+            "container": {"sx": {"minWidth": 0, "maxWidth": "100%"}},
+        },
+    )
 
 
 def _render_preview_json_field(outputs: types.Object, name: str, *, label: str) -> None:

@@ -1,0 +1,126 @@
+{
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "slots": 3,
+  "images": [
+    {
+      "alt": "Preview 1 source image",
+      "natural": [
+        427,
+        640
+      ],
+      "rendered": [
+        240.1875,
+        360
+      ],
+      "objectFit": "contain",
+      "aspectErrorPx": 0
+    },
+    {
+      "alt": "Preview 1 augmented image",
+      "natural": [
+        427,
+        640
+      ],
+      "rendered": [
+        240.1875,
+        360
+      ],
+      "objectFit": "contain",
+      "aspectErrorPx": 0
+    },
+    {
+      "alt": "Preview 1 annotated before and after comparison",
+      "natural": [
+        460,
+        370
+      ],
+      "rendered": [
+        447.5625,
+        360
+      ],
+      "objectFit": "contain",
+      "aspectErrorPx": 0.005067567567550668
+    },
+    {
+      "alt": "Preview 2 source image",
+      "natural": [
+        960,
+        320
+      ],
+      "rendered": [
+        642.984375,
+        214.328125
+      ],
+      "objectFit": "contain",
+      "aspectErrorPx": 0
+    },
+    {
+      "alt": "Preview 2 augmented image",
+      "natural": [
+        960,
+        320
+      ],
+      "rendered": [
+        642.984375,
+        214.328125
+      ],
+      "objectFit": "contain",
+      "aspectErrorPx": 0
+    },
+    {
+      "alt": "Preview 2 annotated before and after comparison",
+      "natural": [
+        872,
+        190
+      ],
+      "rendered": [
+        642.9921875,
+        140.1015625
+      ],
+      "objectFit": "contain",
+      "aspectErrorPx": 0.00024671052631219936
+    },
+    {
+      "alt": "Preview 3 source image",
+      "natural": [
+        400,
+        400
+      ],
+      "rendered": [
+        360,
+        360
+      ],
+      "objectFit": "contain",
+      "aspectErrorPx": 0
+    },
+    {
+      "alt": "Preview 3 augmented image",
+      "natural": [
+        400,
+        400
+      ],
+      "rendered": [
+        360,
+        360
+      ],
+      "objectFit": "contain",
+      "aspectErrorPx": 0
+    },
+    {
+      "alt": "Preview 3 annotated before and after comparison",
+      "natural": [
+        672,
+        370
+      ],
+      "rendered": [
+        642.9921875,
+        354.03125
+      ],
+      "objectFit": "contain",
+      "aspectErrorPx": 0.005109797297336627
+    }
+  ]
+}
