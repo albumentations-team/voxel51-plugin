@@ -188,7 +188,7 @@ Work is ordered by release risk and user impact. Each item has an observable com
 
 | Work | Prerequisite | Completion condition |
 |---|---|---|
-| External-reference transforms and multi-image samples | A safe way to select, validate, and record reference media. | The UI exposes each required input, the manifest records its provenance, and an integration test proves sources and reference files remain unchanged. |
+| Additional external-data variants and multi-image samples | Reference-image support for FDA, HistogramMatching and PixelDistributionAdaptation is already implemented; new variants need their own input and resource policy. | Each additional input has explicit selection, validation and provenance, with tests proving source/reference files remain unchanged. |
 | Preview-safe tensor and normalized outputs | A display policy for non-`uint8` model inputs. | The plugin either renders a documented display conversion or labels the result as model-only; it never silently writes misleading PNG or JPEG data. |
 | Video and 3D media | Media-specific sample adapters and a target-synchronization model. | Each media type has a separate design note, deterministic fixtures, temporal or volumetric alignment tests, and an App acceptance scenario. |
 

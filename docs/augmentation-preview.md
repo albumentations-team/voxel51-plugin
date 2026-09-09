@@ -109,5 +109,6 @@ The flat result payload retains empty slot keys for API compatibility; the App
 schema uses actual images rather than the requested selection or count.
 
 Browser verification is required for this layout: backend pixel tests cannot
-catch CSS stretching. The [VOX-70 check](audits/vox-70-preview-validation/README.md)
-includes a DOM assertion against rendered and natural image dimensions.
+catch CSS stretching. Run the [live DOM assertion](https://github.com/albumentations-team/voxel51-plugin/blob/dev/tests/manual/assert-preview-layout.js)
+in the current App preview to compare rendered and natural image dimensions.
+Historical captured JSON and screenshots do not verify the current UI.

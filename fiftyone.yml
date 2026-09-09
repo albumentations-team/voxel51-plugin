@@ -1,7 +1,7 @@
 name: "@albumentations/albumentationsx"
 type: plugin
 author: Albumentations Team
-version: 0.1.0
+version: 0.1.2
 url: https://github.com/albumentations-team/voxel51-plugin
 license: AGPL-3.0-only
 description: Build and apply AlbumentationsX augmentation pipelines on FiftyOne datasets.

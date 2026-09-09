@@ -1,4 +1,4 @@
-"""Fixed Albumentations transform pipeline used by the MVP vertical slice."""
+"""Compatibility exports for catalog-backed pipelines and editor constants."""
 
 from albumentationsx_plugin.albumentations_backend.fixed.pipeline import (
     FixedImagePipeline,

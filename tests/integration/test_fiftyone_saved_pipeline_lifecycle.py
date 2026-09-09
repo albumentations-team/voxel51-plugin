@@ -30,7 +30,7 @@ def test_editor_saved_pipeline_lifecycle_preserves_source_and_rejects_unconfirme
         operator = AugmentWithAlbumentationsX()
         store = FilePipelinePresetStore(tmp_path / "storage")
         saved = []
-        for name, p in [("Поворот", 1.0), ("Яркость", 0.0)]:
+        for name, p in [("Flip ↔", 1.0), ("Brightness ☀", 0.0)]:
             ctx.params = pipeline_draft_prompt_params(
                 {
                     "_pipeline_draft_id": uuid4().hex,
@@ -58,7 +58,7 @@ def test_editor_saved_pipeline_lifecycle_preserves_source_and_rejects_unconfirme
                 "_storage_root": str(store.storage_root),
                 "save_preset_mode": "update",
                 "save_preset_target": saved[0].key,
-                "save_preset_name": "Поворот исправленный",
+                "save_preset_name": "Edited flip ↔",
                 "p": 0.0,
             }
         )
@@ -72,7 +72,7 @@ def test_editor_saved_pipeline_lifecycle_preserves_source_and_rejects_unconfirme
         ctx.params = pipeline_draft_prompt_params(draft)
         result = cast(dict[str, Any], operator.execute(ctx))
         assert outcome_summary(result)[0] == "Pipeline updated"
-        assert "Поворот исправленный" in outcome_summary(result)[1]
+        assert "Edited flip ↔" in outcome_summary(result)[1]
         assert store.load_preset(saved[0].key).pipeline.transforms[0].params["p"] == 0.0
         assert store.load_preset(saved[1].key) == saved[1]
 

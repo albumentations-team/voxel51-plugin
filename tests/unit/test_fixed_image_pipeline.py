@@ -128,12 +128,24 @@ def test_fixed_pipeline_builds_ordered_transform_chain() -> None:
         TransformConfig(
             name="RandomBrightnessContrast",
             params={
+                "brightness_by_max": False,
+                "ensure_safe_output": False,
                 "p": 0.5,
                 "brightness_range": [-0.1, 0.1],
                 "contrast_range": [-0.2, 0.2],
             },
         ),
-        TransformConfig(name="RandomCrop", params={"p": 1.0, "height": 4, "width": 5}),
+        TransformConfig(
+            name="RandomCrop",
+            params={
+                "pad_if_needed": False,
+                "pad_position": "center",
+                "border_mode": 0,
+                "p": 1.0,
+                "height": 4,
+                "width": 5,
+            },
+        ),
     )
 
 
@@ -179,6 +191,8 @@ def test_random_brightness_contrast_config_uses_albumentationsx_range_params() -
         TransformConfig(
             name="RandomBrightnessContrast",
             params={
+                "brightness_by_max": False,
+                "ensure_safe_output": False,
                 "p": 1.0,
                 "brightness_range": [-0.1, 0.3],
                 "contrast_range": [-0.4, 0.2],
@@ -261,6 +275,9 @@ def test_fixed_pipeline_parses_advanced_json_fallback_parameters_before_config()
         TransformConfig(
             name="RandomCrop",
             params={
+                "pad_if_needed": False,
+                "pad_position": "center",
+                "border_mode": 0,
                 "height": 4,
                 "width": 5,
                 "fill": [1, 2, 3],

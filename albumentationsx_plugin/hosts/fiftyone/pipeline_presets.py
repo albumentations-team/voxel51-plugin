@@ -11,10 +11,7 @@ from typing import Any, Final
 
 import albumentationsx_plugin
 from albumentationsx_plugin.albumentations_backend.catalog import AlbuSpecCatalogProvider
-from albumentationsx_plugin.albumentations_backend.fixed import (
-    build_fixed_pipeline_config,
-    validate_fixed_pipeline_config,
-)
+from albumentationsx_plugin.albumentations_backend.image_pipeline import validate_fixed_pipeline_config
 from albumentationsx_plugin.core import PIPELINE_PRESET_SCHEMA_VERSION, InvalidParameterError, JSONDict, PipelinePreset
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
@@ -23,6 +20,7 @@ from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
     validate_annotation_pipeline_compatibility,
     validate_selected_annotation_fields,
 )
+from albumentationsx_plugin.hosts.fiftyone.pipeline_compiler import build_fixed_pipeline_config
 from albumentationsx_plugin.storage import FilePipelinePresetStore, new_preset_key
 
 PIPELINE_PRESET_KEY_FIELD_NAME: Final[str] = "pipeline_preset_key"

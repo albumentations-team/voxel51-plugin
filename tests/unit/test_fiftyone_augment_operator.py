@@ -421,8 +421,8 @@ def test_augment_operator_resolves_ordered_pipeline_steps() -> None:
     assert input_properties["step_2_brightness_range"]["type"]["name"] == "Tuple"
     assert input_properties["step_2_contrast_range"]["type"]["name"] == "Tuple"
     assert input_properties["step_2_p"]["default"] == 1.0
-    assert "step_2_brightness_by_max" not in input_properties
-    assert "step_2_ensure_safe_output" not in input_properties
+    assert input_properties["step_2_brightness_by_max"]["type"]["name"] == "Boolean"
+    assert input_properties["step_2_ensure_safe_output"]["type"]["name"] == "Boolean"
     assert "step_3_transform" not in input_properties
 
 
@@ -871,8 +871,8 @@ def test_augment_operator_resolves_later_step_random_crop_defaults() -> None:
     assert input_properties["step_3_width"]["required"] is False
     assert input_properties["step_3_width"]["default"] == 32
     assert input_properties["step_3_p"]["default"] == 1.0
-    assert "step_3_pad_if_needed" not in input_properties
-    assert "step_3_border_mode" not in input_properties
+    assert input_properties["step_3_pad_if_needed"]["type"]["name"] == "Boolean"
+    assert input_properties["step_3_border_mode"]["type"]["name"] == "Enum"
 
 
 @pytest.mark.unit
@@ -906,8 +906,8 @@ def test_augment_operator_resolves_selected_transform_parameter_schema() -> None
     assert input_properties["contrast_range"]["type"]["name"] == "Tuple"
     assert input_properties["contrast_range"]["default"] == [-0.2, 0.2]
     assert input_properties["p"]["default"] == 1.0
-    assert "brightness_by_max" not in input_properties
-    assert "ensure_safe_output" not in input_properties
+    assert input_properties["brightness_by_max"]["type"]["name"] == "Boolean"
+    assert input_properties["ensure_safe_output"]["type"]["name"] == "Boolean"
     assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["default"] == EXECUTION_SCOPE_CURRENT_VIEW
 
 
@@ -931,9 +931,9 @@ def test_augment_operator_resolves_random_crop_without_initial_required_errors()
     assert input_properties["fill"]["default"] == "0.0"
     assert input_properties["fill_mask"]["type"]["name"] == "String"
     assert input_properties["fill_mask"]["default"] == "0.0"
-    assert "pad_if_needed" not in input_properties
-    assert "pad_position" not in input_properties
-    assert "border_mode" not in input_properties
+    assert input_properties["pad_if_needed"]["type"]["name"] == "Boolean"
+    assert input_properties["pad_position"]["type"]["name"] == "Enum"
+    assert input_properties["border_mode"]["type"]["name"] == "Enum"
 
 
 @pytest.mark.unit
@@ -1725,7 +1725,19 @@ def test_augment_operator_execute_saves_named_preset_and_runs_augmentation(monke
     preset = FilePipelinePresetStore(storage_root=tmp_path).load_preset(preset_key)
     assert preset.description == "Crop baseline for multiple datasets."
     assert preset.pipeline == PipelineConfig(
-        transforms=(TransformConfig(name="RandomCrop", params={"height": 32, "width": 24, "p": 1.0}),),
+        transforms=(
+            TransformConfig(
+                name="RandomCrop",
+                params={
+                    "pad_if_needed": False,
+                    "pad_position": "center",
+                    "border_mode": 0,
+                    "height": 32,
+                    "width": 24,
+                    "p": 1.0,
+                },
+            ),
+        ),
         outputs_per_sample=1,
         options={"source": "catalog_mvp_pipeline"},
     )

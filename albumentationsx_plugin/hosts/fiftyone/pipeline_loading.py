@@ -8,7 +8,7 @@ from os import PathLike
 from typing import Any, Final
 from uuid import uuid4
 
-from albumentationsx_plugin.albumentations_backend.fixed import validate_fixed_pipeline_config
+from albumentationsx_plugin.albumentations_backend.image_pipeline import validate_fixed_pipeline_config
 from albumentationsx_plugin.albumentations_backend.parameters import AlbuSpecParameterSchemaProvider
 from albumentationsx_plugin.core import (
     MAX_PIPELINE_STEPS,

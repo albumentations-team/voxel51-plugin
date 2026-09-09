@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import sys
 from dataclasses import dataclass
@@ -20,6 +21,8 @@ class ReleaseMetadata:
 
     project_version: str
     plugin_version: str
+    runtime_version: str
+    lock_project_version: str
     project_requires_python: str
     lock_requires_python: str
 
@@ -55,8 +58,24 @@ def release_metadata(root: Path = ROOT) -> ReleaseMetadata:
     if not isinstance(lock_requires_python, str):
         raise ValueError("uv.lock must declare requires-python")
 
+    runtime_tree = ast.parse((root / "albumentationsx_plugin/_version.py").read_text(encoding="utf-8"))
+    runtime_versions = [
+        node.value.value
+        for node in runtime_tree.body
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Constant)
+        and any(isinstance(target, ast.Name) and target.id == "__version__" for target in node.targets)
+    ]
+    if len(runtime_versions) != 1 or not isinstance(runtime_versions[0], str):
+        raise ValueError("_version.py must declare a literal __version__")
+    locked = [entry["version"] for entry in lockfile.get("package", []) if entry.get("name") == project.get("name")]
+    if len(locked) != 1:
+        raise ValueError("uv.lock must contain exactly one root project version")
+
     return ReleaseMetadata(
         project_version=project["version"],
+        runtime_version=runtime_versions[0],
+        lock_project_version=locked[0],
         plugin_version=match.group("version"),
         project_requires_python=project["requires-python"],
         lock_requires_python=lock_requires_python,
@@ -76,6 +95,8 @@ def verify_release_tag(tag: str, root: Path = ROOT) -> str:
     declared = {
         "pyproject.toml": metadata.project_version,
         "fiftyone.yml": metadata.plugin_version,
+        "_version.py": metadata.runtime_version,
+        "uv.lock": metadata.lock_project_version,
     }
     mismatches = {name: version for name, version in declared.items() if version != expected_version}
     if mismatches:

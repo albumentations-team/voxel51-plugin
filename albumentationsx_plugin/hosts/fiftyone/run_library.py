@@ -165,3 +165,33 @@ def list_run_library(
 def _text(metadata: Mapping[str, object], name: str) -> str:
     value = metadata.get(name)
     return value if isinstance(value, str) else ""
+
+
+def list_previous_run_preset_keys(
+    dataset: object | None,
+    *,
+    storage_root: str | PathLike[str] | None = None,
+) -> tuple[str, ...]:
+    """Return manifest-backed run keys that can be reused as form presets."""
+
+    dataset_name = _dataset_name(dataset)
+    if not dataset_name:
+        return ()
+
+    store = FileRunStore(dataset_name, storage_root=storage_root)
+    if not store.dataset_dir.exists():
+        return ()
+
+    run_keys: list[str] = []
+    for manifest_path in sorted(store.dataset_dir.glob(f"*/{MANIFEST_FILENAME}")):
+        try:
+            manifest = store.load_manifest(manifest_path.parent.name)
+        except Exception:
+            continue
+        run_keys.append(manifest.run_key)
+    return tuple(run_keys)
+
+
+def _dataset_name(dataset: object | None) -> str:
+    name = getattr(dataset, "name", "") if dataset is not None else ""
+    return name.strip() if isinstance(name, str) and name.strip() else ""

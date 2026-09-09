@@ -108,7 +108,7 @@ Allowed dependencies:
 - `storage` may import `core`, standard filesystem/JSON helpers, NumPy, and
   Pillow for image IO.
 - `hosts/fiftyone` may import `core`, `storage`,
-  `albumentations_backend.interfaces`, and `fiftyone`.
+  backend providers/runtime services, and `fiftyone`.
 - Operator modules may compose services, but should not own catalog parsing,
   pipeline construction, or cleanup path validation.
 
@@ -117,7 +117,8 @@ Forbidden dependencies:
 - `core` must not import `fiftyone`, `albumentations`, or `albu-spec`.
 - `albumentations_backend` must not import `fiftyone`.
 - `storage` must not import `fiftyone` UI/operator modules.
-- Form rendering must not instantiate AlbumentationsX transform classes.
+- Forms may validate constructors through the backend factory to surface invalid settings.
+  Rendering must not execute transforms on image data or persist outputs.
 - Pipeline creation must not call `eval` or instantiate classes from unchecked
   user-provided names.
 - Cleanup must not use broad globs or delete files outside the plugin-owned run
@@ -125,9 +126,7 @@ Forbidden dependencies:
 
 ## Boundary Enforcement
 
-Dependency rules should be checked as soon as the corresponding packages exist.
-Start with small unit tests that import modules and assert forbidden dependencies
-are not loaded by neutral layers:
+Boundary tests check forbidden imports in neutral layers:
 
 - importing `albumentationsx_plugin.core` must not import `fiftyone`,
   `albumentations`, or `albu-spec`;
@@ -142,11 +141,8 @@ inside the complete local gate documented in `docs/verification.md`.
 
 ## Core Contracts
 
-The MVP should introduce explicit DTOs before adding heavier behavior. The exact
-implementation can use dataclasses, typed dictionaries, or another local pattern,
-but the objects should remain JSON-serializable.
+The core uses immutable dataclass contracts with JSON serialization:
 
-Planned contracts:
 
 - `PipelineConfig`: ordered transform list, output count, selected targets, and
   execution options.
@@ -177,8 +173,12 @@ DTOs plus standard-library types. They are grouped by boundary:
 
 `albumentationsx_plugin/albumentations_backend/interfaces.py` re-exports the
 backend-facing protocols implemented by concrete albu-spec and AlbumentationsX
-modules. Host adapters may import this module when they need a backend service,
-but they should not import concrete backend modules directly.
+modules. Host composition points (`pipeline_compiler`, augmentation runtime, and
+form builders) select concrete providers and accept protocol implementations
+where injection is useful. Operators delegate compilation to these services.
+The legacy `fixed.pipeline.build_fixed_pipeline_config` wrapper lazily forwards
+to the host compiler for import compatibility; neutral runtime modules never use
+that wrapper.
 
 Concrete implementations should live in their owning packages:
 
@@ -189,16 +189,24 @@ Concrete implementations should live in their owning packages:
   `hosts/fiftyone`;
 - manifest persistence, output writes, and cleanup in `storage`.
 
-The VOX-10 fixed-transform slice is documented in
-`docs/fixed-transform-slice.md`. It is intentionally small and should be
-replaced by catalog-driven backend services rather than expanded as a handwritten
-catalog.
+The normal execution path is catalog-backed. The historical `fixed` names remain
+as compatibility exports; they no longer restrict the first three transforms.
+`hosts/fiftyone/pipeline_compiler.py` decodes stage slots and form values;
+`parameter_policy.py` defines the fields shared by compilation and rendering.
+`albumentations_backend/image_pipeline.py` constructs a reusable runner and
+checks dimensions per input without rebuilding catalog metadata.
 
-For VOX-10, `hosts/fiftyone/augmentation/executor.py` is the temporary
-composition point that wires the FiftyOne sample adapter, storage helpers, and
-fixed AlbumentationsX backend together. Later catalog work should replace this
-with explicit backend service injection so host operators depend on backend
-interfaces instead of concrete fixed-slice modules.
+Annotation serialization belongs to `annotations/label_codec.py`, array IO to
+`annotations/arrays.py`, and coordinate operations to `annotations/geometry.py`.
+`annotations/conversion.py` owns target alignment and reconstruction. Editor
+layout, inline validation and stage fields live in dedicated `forms` modules.
+`operators/augment.py` owns lifecycle and dispatch; its result, error and
+navigation modules own presentation. `augmentation/checkpoints.py` owns mutable
+run state, manifest snapshots and sample rollback; the executor coordinates
+progress, cancellation and output preparation. Saved-pipeline loading belongs to
+`pipeline_loading.py`, saving to `pipeline_presets.py`, metadata management to
+`preset_management.py`, and run discovery to `run_library.py`. Conversion back
+to editor fields lives beside compilation; `presets.py` preserves legacy imports.
 
 The VOX-11 albu-spec catalog is documented in `docs/albu-spec-catalog.md`. It
 is the source for normal transform choices, capability reports, and version

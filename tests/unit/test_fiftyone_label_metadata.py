@@ -50,7 +50,7 @@ def test_supported_label_families_preserve_dynamic_and_container_metadata(kind: 
     }
     label = labels[kind]
     label["source"] = "manual"
-    label["review"] = {"approved": True, "scores": [1, 2.5, None], "notes": {"text": "проверено"}}
+    label["review"] = {"approved": True, "scores": [1, 2.5, None], "notes": {"text": "reviewed ✓"}}
     label["measurements"] = np.asarray([0.5, 1.0], dtype=np.float32)
     label["type"] = "user-type"
     label["custom_fields"] = {"user": "value"}

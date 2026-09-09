@@ -9,12 +9,11 @@ from typing import Any
 import fiftyone as fo
 
 from albumentationsx_plugin.albumentations_backend.catalog import AlbuSpecCatalogProvider
-from albumentationsx_plugin.albumentations_backend.fixed import (
+from albumentationsx_plugin.albumentations_backend.image_pipeline import (
     FixedImagePipeline,
-    build_fixed_pipeline_config,
     create_fixed_image_pipeline,
+    validate_pipeline_image_shape,
 )
-from albumentationsx_plugin.albumentations_backend.fixed.pipeline import validate_pipeline_image_shape
 from albumentationsx_plugin.core import AugmentationInput, HostAdapterError, JSONDict, PipelineConfig, PluginError
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.annotations import (
@@ -37,13 +36,14 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     selected_execution_scope,
 )
 from albumentationsx_plugin.hosts.fiftyone.output_metadata import OUTPUT_METADATA_POLICY, build_output_metadata_policy
+from albumentationsx_plugin.hosts.fiftyone.pipeline_compiler import build_fixed_pipeline_config
 from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, FiftyOneSampleAdapter
 from albumentationsx_plugin.storage.images import load_rgb_image
 
 
 @dataclass(frozen=True, slots=True)
 class FixedAugmentationRuntime:
-    """Prepared fixed-pipeline runtime shared by materialized and preview runs."""
+    """Prepared catalog-backed runtime shared by materialized and preview runs."""
 
     config: PipelineConfig
     pipeline: FixedImagePipeline

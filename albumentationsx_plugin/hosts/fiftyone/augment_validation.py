@@ -7,18 +7,20 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Final
 
-from albumentationsx_plugin.albumentations_backend.fixed import build_fixed_pipeline_config
 from albumentationsx_plugin.core import (
     FIXED_TRANSFORM_NAMES,
     MAX_PIPELINE_STEPS,
     PIPELINE_STEP_COUNT_FIELD_NAME,
     JSONDict,
+    ParameterSchemaProvider,
     PluginError,
+    TransformCatalogProvider,
     pipeline_stage_enabled_field_name,
     pipeline_stage_order_field_name,
     pipeline_step_field_name,
 )
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
+from albumentationsx_plugin.hosts.fiftyone.pipeline_compiler import build_fixed_pipeline_config
 from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
     SAVE_PRESET_NAME_FIELD_NAME,
     SAVE_PRESET_ONLY_FIELD_NAME,
@@ -88,7 +90,12 @@ def validate_augment_template_sources(params: Mapping[str, object]) -> tuple[Aug
     )
 
 
-def validate_effective_augment_params(params: Mapping[str, object]) -> tuple[AugmentValidationIssue, ...]:
+def validate_effective_augment_params(
+    params: Mapping[str, object],
+    *,
+    catalog_provider: TransformCatalogProvider | None = None,
+    parameter_schema_provider: ParameterSchemaProvider | None = None,
+) -> tuple[AugmentValidationIssue, ...]:
     """Validate the current editable draft before saving or execution."""
 
     issues = (
@@ -98,7 +105,11 @@ def validate_effective_augment_params(params: Mapping[str, object]) -> tuple[Aug
     if issues:
         return issues
     try:
-        build_fixed_pipeline_config(params)
+        build_fixed_pipeline_config(
+            params,
+            catalog_provider=catalog_provider,
+            parameter_schema_provider=parameter_schema_provider,
+        )
     except PluginError as error:
         parameter = str(error.context.get("parameter_name", "transform"))
         stage = error.context.get("stage_number")

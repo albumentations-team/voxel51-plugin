@@ -1,5 +1,11 @@
 # Executable Transform Slice
 
+> Historical compatibility reference. The runtime is now catalog-backed;
+> the three original transforms do not have a restricted parameter whitelist.
+> Supported fields, including crop padding, are shared by the editor and compiler.
+> See [Architecture](architecture.md) and [Pipeline factory](pipeline-factory.md)
+> for current ownership and execution behavior.
+
 VOX-10 implemented the first executable augmentation path with a deliberately
 small transform allowlist. VOX-25 keeps the same end-to-end FiftyOne execution
 path, but replaces the normal transform choices with albu-spec catalog-backed

@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from albumentationsx_plugin.albumentations_backend.fixed import FixedImagePipeline
+from albumentationsx_plugin.albumentations_backend.image_pipeline import FixedImagePipeline
 from albumentationsx_plugin.core import AugmentationInput, AugmentationResult, JSONDict, PipelineConfig
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.annotations import (

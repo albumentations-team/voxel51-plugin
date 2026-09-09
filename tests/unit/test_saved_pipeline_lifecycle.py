@@ -20,12 +20,12 @@ from albumentationsx_plugin.storage.preset_import import MAX_IMPORT_BYTES, read_
 pytestmark = pytest.mark.unit
 
 
-def _preset(key="legacy-flip", name="Поворот"):
+def _preset(key="legacy-flip", name="Flip ↔"):
     return PipelinePreset(
         key=key,
         name=name,
         description="Keep  two spaces\nand a new line",
-        tags=("geometry", "обучение"),
+        tags=("geometry", "training ✓"),
         pipeline=PipelineConfig(transforms=(TransformConfig(name="HorizontalFlip", params={"p": 1.0}),)),
         plugin_version="0.1.0",
         dependency_versions={},
@@ -41,13 +41,13 @@ def _manage(root, action, **params):
 @pytest.mark.parametrize(
     "names",
     [
-        ("Поворот", "Яркость"),
+        ("Flip ↔", "Brightness ☀"),
         ("Flip", "Flip"),
         ("Flip!", "Flip?"),
         ("Flip", "flip"),
         ("A B", "A  B"),
         ("A" * 100 + "1", "A" * 100 + "2"),
-        ("中文", "日本語"),
+        ("↔", "☀"),
     ],
 )
 def test_create_preserves_colliding_names_as_independently_loadable_pipelines(tmp_path, names):
@@ -73,7 +73,7 @@ def test_update_requires_exact_target_and_confirmation_and_preserves_legacy_iden
     store.save_preset(original)
     path = store.preset_path(original.key)
     before = path.read_bytes()
-    params = {"save_preset_name": "Новое имя", "transform": "HorizontalFlip", "p": 0.0, "save_preset_mode": "update"}
+    params = {"save_preset_name": "New name ↔", "transform": "HorizontalFlip", "p": 0.0, "save_preset_mode": "update"}
     for delta in [
         {},
         {"save_preset_target": original.key},
@@ -132,7 +132,7 @@ def test_import_export_roundtrip_and_explicit_overwrite(tmp_path, mode):
     source.save_preset(original)
     exported = _manage(tmp_path / "source", "export", preset_key=original.key).to_dict()
     copyable = str(exported["importable_preset_json"])
-    assert "Поворот" in copyable
+    assert "Flip ↔" in copyable
     assert json.loads(copyable) == original.to_dict()
     file = tmp_path / "export.json"
     file.write_text(copyable, encoding="utf-8")
@@ -266,14 +266,14 @@ def test_edit_rename_duplicate_keep_other_pipelines_and_old_references(tmp_path)
             group: {
                 "name": "改名",
                 "description": "Changed\nmetadata",
-                "tags": ["中文"],
+                "tags": ["↔"],
                 "metadata_json": '{"note": "two  spaces"}',
             }
         },
     )
     assert edited.status == "ok"
     preset = store.load_preset(original.key)
-    assert preset.name == "改名" and preset.tags == ("中文",)
+    assert preset.name == "改名" and preset.tags == ("↔",)
     assert preset.pipeline == original.pipeline and preset.created_at == original.created_at
     assert preset.metadata == {"note": "two  spaces"}
     before = store.preset_path(original.key).read_bytes()
@@ -357,7 +357,7 @@ def test_update_form_blocks_unconfirmed_replacement(tmp_path):
     inputs = types.Object()
     render_preset_save_controls(inputs, params)
     assert inputs.properties["save_preset_confirm_update"].type.properties["legacy-flip"].invalid is True
-    assert "Поворот" in inputs.properties["save_preset_confirm_update"].type.properties["legacy-flip"].error_message
+    assert "Flip ↔" in inputs.properties["save_preset_confirm_update"].type.properties["legacy-flip"].error_message
     params["save_preset_confirm_update"] = {"legacy-flip": True}
     inputs = types.Object()
     render_preset_save_controls(inputs, params)
