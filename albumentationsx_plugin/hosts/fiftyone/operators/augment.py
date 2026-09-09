@@ -344,6 +344,16 @@ class AugmentWithAlbumentationsX(foo.Operator):
         saved_preset = None
         if pipeline_preset_save_requested(execution_params) and not _dry_run_param(execution_params):
             try:
+                # Legacy callers can save and create in one request. Preflight
+                # before persisting the preset as well as before run creation.
+                from albumentationsx_plugin.hosts.fiftyone.augmentation.runtime import build_fixed_augmentation_runtime
+
+                build_fixed_augmentation_runtime(
+                    dataset=ctx.dataset,
+                    view=source_view_from_context(ctx, source_scope),
+                    selected_sample_ids=source_selected_sample_ids(selected_sample_ids, source_scope),
+                    params=execution_params,
+                )
                 saved_preset = save_pipeline_preset_from_params(
                     execution_params, dataset=ctx.dataset, storage_root=storage_root
                 )

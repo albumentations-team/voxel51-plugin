@@ -87,9 +87,15 @@ and similar) for compatibility. Later slots use prefixed field names such as
 Each visible slot also has `pipeline_stage_enabled`/`step_N_pipeline_stage_enabled`
 and `pipeline_stage_order`/`step_N_pipeline_stage_order` controls. Disabled
 slots are skipped without clearing their transform settings. Enabled slots must
-use unique execution-order values; duplicate orders render a configuration
-warning and are rejected before preview, dry-run, save-only, or materialized
-execution starts.
+use unique execution-order values. Duplicate orders list the conflicting stage
+numbers, mark their order fields invalid, and disable submission until corrected.
+Configuration errors use the same validator in the form and server execution.
+No-selection preview and missing save names also block submission at their fields.
+Known crop dimensions are checked against available selected-image metadata in
+the editor and against actual images in server preflight before any run is
+created. Disabled stages retain their raw values but hide inactive parameter
+controls so they cannot block submission. Errors expand their containing section
+and focus the first invalid text or number field.
 
 VOX-27 groups the prompt into a general settings section followed by one
 visible section for each configured augmentation stage slot. General settings

@@ -14,13 +14,15 @@ from albumentationsx_plugin.albumentations_backend.fixed import (
     build_fixed_pipeline_config,
     create_fixed_image_pipeline,
 )
-from albumentationsx_plugin.core import AugmentationInput, JSONDict, PipelineConfig
+from albumentationsx_plugin.albumentations_backend.fixed.pipeline import validate_pipeline_image_shape
+from albumentationsx_plugin.core import AugmentationInput, HostAdapterError, JSONDict, PipelineConfig, PluginError
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.annotations import (
     annotation_run_metadata,
     annotation_target_requirements_from_inputs,
     selected_annotation_fields_from_params,
     target_and_copy_fields,
+    target_data_from_annotation_payload,
     validate_annotation_pipeline_compatibility,
     validate_selected_annotation_fields,
 )
@@ -28,12 +30,15 @@ from albumentationsx_plugin.hosts.fiftyone.augmentation.external_data import (
     ExternalInputBundle,
     build_external_input_bundle,
 )
+from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import annotation_payload_for_source
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_ENTIRE_DATASET,
+    EXECUTION_SCOPE_SELECTED_SAMPLES,
     selected_execution_scope,
 )
 from albumentationsx_plugin.hosts.fiftyone.output_metadata import OUTPUT_METADATA_POLICY, build_output_metadata_policy
 from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, FiftyOneSampleAdapter
+from albumentationsx_plugin.storage.images import load_rgb_image
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +80,8 @@ def build_fixed_augmentation_runtime(
     )
     config = replace(config, target_fields=target_fields, copy_fields=copy_fields)
     source_scope = selected_execution_scope(params, selected_sample_ids=selected_sample_ids)
+    if source_scope == EXECUTION_SCOPE_SELECTED_SAMPLES and not selected_sample_ids:
+        raise HostAdapterError("fiftyone", "Select at least one image before using Selected samples.")
     adapter = FiftyOneSampleAdapter(
         dataset=dataset,
         view=None if source_scope == EXECUTION_SCOPE_ENTIRE_DATASET else view,
@@ -84,6 +91,22 @@ def build_fixed_augmentation_runtime(
         output_tag=output_tag,
     )
     source_inputs = tuple(adapter.iter_inputs())
+    if not source_inputs:
+        raise HostAdapterError("fiftyone", "This scope contains no images. Select images or choose a non-empty scope.")
+    # Validate every source before the executor can create a manifest or output.
+    for source in source_inputs:
+        try:
+            image = load_rgb_image(source.filepath)
+            validate_pipeline_image_shape(config, image_shape=image.data.shape)
+            target_data_from_annotation_payload(
+                annotation_payload_for_source(source), image.data.shape, label_fields=config.target_fields
+            )
+        except PluginError as error:
+            raise PluginError(
+                error.code,
+                f"Sample {source.sample_id}: {error.message}",
+                {**error.context, "sample_id": source.sample_id, "filepath": source.filepath},
+            ) from error
     external_inputs = build_external_input_bundle(
         config=config,
         catalog_provider=catalog_provider,

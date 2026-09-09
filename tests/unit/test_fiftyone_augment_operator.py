@@ -259,7 +259,7 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["pipeline_stage_order"]["type"]["name"] == "Number"
     assert input_properties["pipeline_stage_order"]["default"] == 1
     assert input_properties["pipeline_stage_order"]["view"]["caption"] == (
-        "Lower values run earlier; ties keep stage slot order."
+        "Lower values run earlier. Each enabled stage must have a different order."
     )
     transform_values = input_properties["transform"]["type"]["values"]
     assert input_properties["transform"]["type"]["name"] == "Enum"
@@ -1706,6 +1706,17 @@ def test_augment_operator_execute_rejects_save_preset_only_without_name(monkeypa
 @pytest.mark.unit
 def test_augment_operator_execute_saves_named_preset_and_runs_augmentation(monkeypatch, tmp_path) -> None:
     operator = AugmentWithAlbumentationsX()
+    from albumentationsx_plugin.hosts.fiftyone.augmentation import runtime
+
+    preflight_calls = []
+
+    def fake_preflight(**kwargs):
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["selected_sample_ids"] == ("sample-1",)
+        assert not FilePipelinePresetStore(storage_root=tmp_path).list_presets()
+        preflight_calls.append(kwargs)
+
+    monkeypatch.setattr(runtime, "build_fixed_augmentation_runtime", fake_preflight)
 
     class Context:
         dataset = SimpleNamespace(name="save-preset-and-run-dataset")
@@ -1750,6 +1761,7 @@ def test_augment_operator_execute_saves_named_preset_and_runs_augmentation(monke
 
     result = operator.execute(Context())
 
+    assert len(preflight_calls) == 1
     assert result["run_key"] == "albumentationsx-20260731T120000Z-reusable-crop"
     assert result["preset_key"] == "reusable-crop"
     assert result["preset_name"] == "Reusable crop"

@@ -420,3 +420,39 @@ def test_fixed_pipeline_rejects_unknown_transform_and_invalid_parameters() -> No
     assert range_error.value.context["parameter_name"] == "brightness_range"
     assert direct_probability_error.value.context["parameter_name"] == "p"
     assert unknown_param_error.value.context["unknown_parameters"] == ["legacy"]
+
+
+@pytest.mark.unit
+def test_crop_dimension_validation_follows_stage_order_and_ignores_zero_probability():
+    enlarged = build_fixed_pipeline_config(
+        {
+            "pipeline_step_count": 2,
+            "transform": "Resize",
+            "height": 12,
+            "width": 14,
+            "p": 1.0,
+            "step_2_transform": "RandomCrop",
+            "step_2_height": 10,
+            "step_2_width": 10,
+            "step_2_p": 1.0,
+        }
+    )
+    validate_fixed_pipeline_config(enlarged, image_shape=(4, 5, 3))
+    result = create_fixed_image_pipeline(enlarged).apply(np.zeros((4, 5, 3), dtype=np.uint8))
+    assert result.image.shape == (10, 10, 3)
+    skipped = build_fixed_pipeline_config({"transform": "RandomCrop", "height": 9999, "width": 9999, "p": 0.0})
+    assert create_fixed_image_pipeline(skipped).apply(np.zeros((4, 5, 3), dtype=np.uint8)).image.shape == (4, 5, 3)
+    with pytest.raises(InvalidParameterError):
+        build_fixed_pipeline_config(
+            {
+                "pipeline_step_count": 2,
+                "transform": "RandomCrop",
+                "height": 4,
+                "width": 4,
+                "p": 1.0,
+                "step_2_transform": "RandomCrop",
+                "step_2_height": 8,
+                "step_2_width": 8,
+                "step_2_p": 1.0,
+            }
+        )

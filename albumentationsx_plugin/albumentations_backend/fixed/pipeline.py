@@ -106,18 +106,27 @@ def build_fixed_pipeline_config(
         transform_name="<pipeline>",
     )
     stage_selections = _selected_pipeline_stages(params)
-    transforms = tuple(
-        _step_transform_config(
-            params,
-            stage.step_number,
-            catalog_provider=catalog_provider,
-            parameter_schema_provider=parameter_schema_provider,
-        )
-        for stage in stage_selections
-    )
+    transforms = []
+    for stage in stage_selections:
+        try:
+            transforms.append(
+                _step_transform_config(
+                    params,
+                    stage.step_number,
+                    catalog_provider=catalog_provider,
+                    parameter_schema_provider=parameter_schema_provider,
+                )
+            )
+        except InvalidParameterError as error:
+            raise InvalidParameterError(
+                transform_name=str(error.context.get("transform_name", "<pipeline>")),
+                parameter_name=str(error.context.get("parameter_name", "transform")),
+                message=f"Stage {stage.step_number}: {error.message}",
+                context={**error.context, "stage_number": stage.step_number},
+            ) from error
 
     config = PipelineConfig(
-        transforms=transforms,
+        transforms=tuple(transforms),
         outputs_per_sample=outputs_per_sample,
         use_replay=True,
         options={"source": "catalog_mvp_pipeline"},
@@ -160,8 +169,38 @@ def validate_fixed_pipeline_config(config: PipelineConfig, *, image_shape: _Imag
         )
 
     build_default_pipeline_factory().validate(config)
-    for transform in config.transforms:
-        _validate_image_shape_constraints(transform, image_shape=image_shape)
+    validate_pipeline_image_shape(config, image_shape=image_shape)
+
+
+def validate_pipeline_image_shape(config: PipelineConfig, *, image_shape: _ImageShape | None) -> None:
+    """Check known dimensions in execution order, without sampling transforms.
+
+    Unknown geometry ends static inference. Dry run still executes the entire
+    pipeline in memory, including those stages and their annotation targets.
+    """
+    shape = image_shape
+    for index, transform in enumerate(config.transforms, start=1):
+        probability = transform.params.get("p", 1.0)
+        if probability == 0:
+            continue
+        try:
+            _validate_image_shape_constraints(transform, image_shape=shape)
+        except InvalidParameterError as error:
+            raise InvalidParameterError(
+                transform_name=transform.name,
+                parameter_name=str(error.context["parameter_name"]),
+                message=f"Execution stage {index} ({transform.name}): {error.message}",
+                context={**error.context, "execution_stage": index},
+            ) from error
+        if transform.name in {"RandomCrop", "Resize"}:
+            height = _positive_int_config_param(transform, "height")
+            width = _positive_int_config_param(transform, "width")
+            if probability == 1:
+                shape = (height, width, 3)
+            elif shape is not None:
+                shape = (min(shape[0], height), min(shape[1], width), 3)
+        elif transform.name not in {"HorizontalFlip", "VerticalFlip", "RandomBrightnessContrast", "NoOp"}:
+            shape = None
 
 
 def _step_transform_config(
@@ -597,6 +636,6 @@ def _raise_crop_size_error(
     raise InvalidParameterError(
         transform_name=transform.name,
         parameter_name=parameter_name,
-        message=f"{parameter_name} must be less than or equal to the source image dimension.",
+        message=f"{parameter_name}={value} exceeds the image dimension {image_value}. Reduce {parameter_name} to {image_value} or less, or resize before this crop.",
         context={"value": value, "image_value": image_value},
     )

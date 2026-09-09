@@ -34,7 +34,7 @@ from albumentationsx_plugin.core import (
     RunManifest,
 )
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
-from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import PreparedOutput, prepare_output
+from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import PreparedOutput, apply_output, prepare_output
 from albumentationsx_plugin.hosts.fiftyone.augmentation.runtime import build_fixed_augmentation_runtime
 from albumentationsx_plugin.hosts.fiftyone.cancellation import CancellationChecker, NoOpCancellationChecker
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import EXECUTION_SCOPE_FIELD_NAME
@@ -147,6 +147,24 @@ def execute_fixed_augmentation(
         errors=0,
     )
     if dry_run:
+        for source in source_inputs:
+            for output_index in range(config.outputs_per_sample):
+                _raise_if_cancelled(cancellation_checker)
+                try:
+                    apply_output(
+                        source=source,
+                        pipeline=pipeline,
+                        config=config,
+                        output_index=output_index,
+                        external_targets=external_inputs.targets_for_source(source.sample_id),
+                        external_input_metadata=external_inputs.metadata_for_source(source.sample_id),
+                    )
+                except PluginError as error:
+                    raise PluginError(
+                        error.code,
+                        f"Sample {source.sample_id}: {error.message}",
+                        {**error.context, "sample_id": source.sample_id, "output_index": output_index},
+                    ) from error
         _report_progress(
             progress_reporter,
             stage="dry_run_complete",

@@ -7,12 +7,16 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Final
 
+from albumentationsx_plugin.albumentations_backend.fixed import build_fixed_pipeline_config
 from albumentationsx_plugin.core import (
+    FIXED_TRANSFORM_NAMES,
     MAX_PIPELINE_STEPS,
     PIPELINE_STEP_COUNT_FIELD_NAME,
     JSONDict,
+    PluginError,
     pipeline_stage_enabled_field_name,
     pipeline_stage_order_field_name,
+    pipeline_step_field_name,
 )
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
@@ -40,6 +44,7 @@ class AugmentValidationIssue:
     code: str
     message: str
     context: Mapping[str, object] = field(default_factory=dict)
+    fields: tuple[str, ...] = ()
 
     def to_dict(self) -> JSONDict:
         """Serialize this issue for operator outputs."""
@@ -86,10 +91,55 @@ def validate_augment_template_sources(params: Mapping[str, object]) -> tuple[Aug
 def validate_effective_augment_params(params: Mapping[str, object]) -> tuple[AugmentValidationIssue, ...]:
     """Validate the current editable draft before saving or execution."""
 
-    return (
+    issues = (
         *validate_execution_mode_params(params),
         *validate_pipeline_stage_orders(params),
     )
+    if issues:
+        return issues
+    try:
+        build_fixed_pipeline_config(params)
+    except PluginError as error:
+        parameter = str(error.context.get("parameter_name", "transform"))
+        stage = error.context.get("stage_number")
+        stages = sorted(
+            (
+                _int_param(
+                    params,
+                    pipeline_stage_order_field_name(number),
+                    default=number,
+                    min_value=1,
+                    max_value=MAX_PIPELINE_STEPS,
+                ),
+                number,
+            )
+            for number in range(1, _pipeline_step_count(params) + 1)
+            if params.get(pipeline_stage_enabled_field_name(number)) is not False
+        )
+        position = error.context.get("execution_stage")
+        if isinstance(position, int) and 0 < position <= len(stages):
+            stage = stages[position - 1][1]
+        if parameter.startswith("<"):
+            parameter = "transform"
+        field_name = pipeline_step_field_name(stage, parameter) if isinstance(stage, int) else parameter
+        if parameter in {"transforms", "pipeline_stages"}:
+            field_name = PIPELINE_STEP_COUNT_FIELD_NAME
+        fields = (field_name,)
+        if stage is None and error.context.get("transform_name") not in {None, "<pipeline>", "<operator>"}:
+            fields = (
+                tuple(
+                    pipeline_step_field_name(number, parameter)
+                    for _, number in stages
+                    if params.get(
+                        pipeline_step_field_name(number, "transform"),
+                        FIXED_TRANSFORM_NAMES[number - 1] if number <= len(FIXED_TRANSFORM_NAMES) else "HorizontalFlip",
+                    )
+                    == error.context["transform_name"]
+                )
+                or fields
+            )
+        return (AugmentValidationIssue(error.code.value, error.message, error.context, fields),)
+    return ()
 
 
 def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[AugmentValidationIssue, ...]:
@@ -214,12 +264,22 @@ def validate_pipeline_stage_orders(params: Mapping[str, object]) -> tuple[Augmen
     return (
         AugmentValidationIssue(
             code=DUPLICATE_STAGE_ORDER_CODE,
-            message="Each enabled pipeline stage must have a unique execution order.",
+            message="Each enabled pipeline stage must have a unique execution order. "
+            + " ".join(
+                f"Stages {', '.join(map(str, item['stage_numbers']))} use order {item['execution_order']}; change one of these orders."
+                for item in duplicates
+            ),
             context={
                 "reason": "duplicate_execution_order",
                 "duplicates": duplicates,
                 "visible_step_count": visible_step_count,
             },
+            fields=tuple(
+                pipeline_stage_order_field_name(number)
+                for numbers in grouped.values()
+                if len(numbers) > 1
+                for number in numbers
+            ),
         ),
     )
 

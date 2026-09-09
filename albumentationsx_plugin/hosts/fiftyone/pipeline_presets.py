@@ -20,6 +20,7 @@ from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
     selected_annotation_fields_from_params,
     target_and_copy_fields,
+    validate_annotation_pipeline_compatibility,
     validate_selected_annotation_fields,
 )
 from albumentationsx_plugin.storage import FilePipelinePresetStore, build_preset_key
@@ -106,6 +107,9 @@ def save_pipeline_preset_from_params(
     if dataset is not None:
         selection = selected_annotation_fields_from_params(params, dataset)
         validate_selected_annotation_fields(selection)
+        validate_annotation_pipeline_compatibility(
+            selection=selection, pipeline=pipeline, catalog_provider=AlbuSpecCatalogProvider()
+        )
         target_fields, copy_fields = target_and_copy_fields(
             selection=selection, pipeline=pipeline, catalog_provider=AlbuSpecCatalogProvider()
         )
