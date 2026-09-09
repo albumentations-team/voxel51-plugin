@@ -13,6 +13,7 @@ import fiftyone as fo
 import pytest
 import yaml
 
+import albumentationsx_plugin.hosts.fiftyone.forms.compatibility as form_compatibility_module
 import albumentationsx_plugin.hosts.fiftyone.operators.augment as augment_operator_module
 from albumentationsx_plugin.core import (
     MAX_PIPELINE_STEPS,
@@ -512,6 +513,58 @@ def test_augment_operator_inline_compatibility_reflects_source_scope_counts(
 
     assert f"source samples: {expected_count}" in description
     assert "selected samples: 2" in description
+
+
+@pytest.mark.unit
+def test_augment_operator_inline_compatibility_reports_report_builder_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    def broken_report_builder(**_kwargs: Any) -> object:
+        raise RuntimeError("catalog provider failed")
+
+    monkeypatch.setattr(form_compatibility_module, "build_dataset_compatibility_report", broken_report_builder)
+
+    class Context:
+        dataset = _FieldSchemaDataset({"detections": _field(fo.Detections)})
+        params: dict[str, object] = {}
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    summary = input_properties[INLINE_COMPATIBILITY_SUMMARY_FIELD_NAME]["view"]["description"]
+    warning = input_properties[INLINE_COMPATIBILITY_WARNING_FIELD_NAME]["view"]["description"]
+
+    assert "compatibility report could not be built" in summary
+    assert "Compatibility report could not be built: RuntimeError: catalog provider failed" in warning
+    assert "Annotation field choices could not be resolved" not in warning
+
+
+@pytest.mark.unit
+def test_augment_operator_inline_compatibility_handles_selection_fallback_report_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    def broken_selection(*_args: Any, **_kwargs: Any) -> object:
+        raise RuntimeError("annotation selection failed")
+
+    def broken_report_builder(**_kwargs: Any) -> object:
+        raise RuntimeError("source count failed")
+
+    monkeypatch.setattr(form_compatibility_module, "selected_annotation_fields_from_params", broken_selection)
+    monkeypatch.setattr(form_compatibility_module, "build_dataset_compatibility_report", broken_report_builder)
+
+    class Context:
+        dataset = _FieldSchemaDataset({"detections": _field(fo.Detections)})
+        params: dict[str, object] = {}
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    summary = input_properties[INLINE_COMPATIBILITY_SUMMARY_FIELD_NAME]["view"]["description"]
+    warning = input_properties[INLINE_COMPATIBILITY_WARNING_FIELD_NAME]["view"]["description"]
+
+    assert "compatibility report could not be built" in summary
+    assert "Annotation field choices could not be resolved: RuntimeError: annotation selection failed" in warning
+    assert "Compatibility report could not be built: RuntimeError: source count failed" in warning
 
 
 @pytest.mark.unit

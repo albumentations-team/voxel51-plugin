@@ -62,12 +62,28 @@ def build_inline_compatibility_preview(
 
     try:
         selection = selected_annotation_fields_from_params(params, dataset)
-        report = build_dataset_compatibility_report(
+    except ModuleNotFoundError as error:
+        if not is_known_runtime_dependency(error):
+            raise
+        return _missing_dependency_preview(error)
+    except Exception as error:
+        return _annotation_selection_error_preview(
+            error,
+            ctx=ctx,
             dataset=dataset,
-            view=source_view_from_context(ctx, source_scope),
             selected_sample_ids=selected_sample_ids,
             source_scope=source_scope,
-            provider=catalog_provider,
+            pipeline=pipeline,
+            catalog_provider=catalog_provider,
+        )
+
+    try:
+        report = _build_report(
+            ctx=ctx,
+            dataset=dataset,
+            selected_sample_ids=selected_sample_ids,
+            source_scope=source_scope,
+            catalog_provider=catalog_provider,
             annotation_selection=selection,
         )
     except ModuleNotFoundError as error:
@@ -75,18 +91,7 @@ def build_inline_compatibility_preview(
             raise
         return _missing_dependency_preview(error)
     except Exception as error:
-        report = build_dataset_compatibility_report(
-            dataset=dataset,
-            view=source_view_from_context(ctx, source_scope),
-            selected_sample_ids=selected_sample_ids,
-            source_scope=source_scope,
-            provider=catalog_provider,
-        )
-        return InlineCompatibilityPreview(
-            summary=_report_summary(report, selection=None, pipeline=pipeline, catalog_provider=catalog_provider),
-            warning=f"Annotation field choices could not be resolved: {type(error).__name__}: {error}",
-            recommendations=_visible_recommendations(report),
-        )
+        return _report_error_preview(error)
 
     conflicts = annotation_pipeline_compatibility_conflicts(
         selection=selection,
@@ -222,6 +227,70 @@ def _missing_dependency_preview(error: ModuleNotFoundError) -> InlineCompatibili
             f"Install the '{package_name}' package in the active FiftyOne Python environment, "
             "then reload the FiftyOne App."
         ),
+    )
+
+
+def _annotation_selection_error_preview(
+    error: Exception,
+    *,
+    ctx: Any | None,
+    dataset: Any,
+    selected_sample_ids: Sequence[str],
+    source_scope: str,
+    pipeline: PipelineConfig,
+    catalog_provider: Any,
+) -> InlineCompatibilityPreview:
+    try:
+        report = _build_report(
+            ctx=ctx,
+            dataset=dataset,
+            selected_sample_ids=selected_sample_ids,
+            source_scope=source_scope,
+            catalog_provider=catalog_provider,
+            annotation_selection=None,
+        )
+    except ModuleNotFoundError as report_error:
+        if not is_known_runtime_dependency(report_error):
+            raise
+        return _missing_dependency_preview(report_error)
+    except Exception as report_error:
+        return _report_error_preview(
+            report_error,
+            warning_prefix=f"Annotation field choices could not be resolved: {type(error).__name__}: {error}",
+        )
+
+    return InlineCompatibilityPreview(
+        summary=_report_summary(report, selection=None, pipeline=pipeline, catalog_provider=catalog_provider),
+        warning=f"Annotation field choices could not be resolved: {type(error).__name__}: {error}",
+        recommendations=_visible_recommendations(report),
+    )
+
+
+def _report_error_preview(error: Exception, *, warning_prefix: str = "") -> InlineCompatibilityPreview:
+    report_warning = f"Compatibility report could not be built: {type(error).__name__}: {error}"
+    warning = f"{warning_prefix}\n{report_warning}" if warning_prefix else report_warning
+    return InlineCompatibilityPreview(
+        summary="Compatibility preview is unavailable because the compatibility report could not be built.",
+        warning=warning,
+    )
+
+
+def _build_report(
+    *,
+    ctx: Any | None,
+    dataset: Any,
+    selected_sample_ids: Sequence[str],
+    source_scope: str,
+    catalog_provider: Any,
+    annotation_selection: AnnotationFieldSelection | None,
+) -> DatasetCompatibilityReport:
+    return build_dataset_compatibility_report(
+        dataset=dataset,
+        view=source_view_from_context(ctx, source_scope),
+        selected_sample_ids=selected_sample_ids,
+        source_scope=source_scope,
+        provider=catalog_provider,
+        annotation_selection=annotation_selection,
     )
 
 
