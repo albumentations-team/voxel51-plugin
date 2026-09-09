@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.metadata
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from os import PathLike
 from pathlib import Path
@@ -38,6 +38,10 @@ from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import PreparedO
 from albumentationsx_plugin.hosts.fiftyone.augmentation.runtime import build_fixed_augmentation_runtime
 from albumentationsx_plugin.hosts.fiftyone.cancellation import CancellationChecker, NoOpCancellationChecker
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import EXECUTION_SCOPE_FIELD_NAME
+from albumentationsx_plugin.hosts.fiftyone.output_metadata import (
+    metadata_policy_output_fields,
+    policy_from_annotation_metadata,
+)
 from albumentationsx_plugin.hosts.fiftyone.progress import (
     AugmentationProgress,
     NoOpProgressReporter,
@@ -68,6 +72,7 @@ class FixedAugmentationExecutionResult:
     manifest_path: str = ""
     fiftyone_run_key: str = ""
     errors: tuple[JSONDict, ...] = ()
+    metadata_policy: JSONDict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.dry_run and self.execution_status == RUN_EXECUTION_STATUS_COMPLETED:
@@ -90,6 +95,7 @@ class FixedAugmentationExecutionResult:
             "manifest_path": self.manifest_path,
             "fiftyone_run_key": self.fiftyone_run_key,
             "errors": [dict(error) for error in self.errors],
+            **metadata_policy_output_fields(self.metadata_policy),
         }
 
 
@@ -164,6 +170,7 @@ def execute_fixed_augmentation(
             output_dir=str(run_dir),
             execution_status=RUN_EXECUTION_STATUS_DRY_RUN,
             fiftyone_run_key=build_fiftyone_run_key(run_key),
+            metadata_policy=policy_from_annotation_metadata(annotation_metadata),
         )
 
     created_sample_ids: list[str] = []
@@ -447,6 +454,7 @@ def execute_fixed_augmentation(
         manifest_path=str(manifest_path),
         fiftyone_run_key=fiftyone_run_key,
         errors=tuple(errors),
+        metadata_policy=policy_from_annotation_metadata(annotation_metadata),
     )
 
 
@@ -799,6 +807,7 @@ def _cancelled_result(
         manifest_path=str(manifest_path),
         fiftyone_run_key=fiftyone_run_key,
         errors=tuple(errors),
+        metadata_policy=policy_from_annotation_metadata(annotation_metadata),
     )
 
 

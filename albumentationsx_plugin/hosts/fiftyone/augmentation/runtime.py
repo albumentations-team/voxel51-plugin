@@ -32,6 +32,7 @@ from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_ENTIRE_DATASET,
     selected_execution_scope,
 )
+from albumentationsx_plugin.hosts.fiftyone.output_metadata import OUTPUT_METADATA_POLICY, build_output_metadata_policy
 from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, FiftyOneSampleAdapter
 
 
@@ -111,6 +112,9 @@ def build_fixed_augmentation_runtime(
             catalog_provider=catalog_provider,
             runtime_target_requirements=runtime_target_requirements,
         )
+    )
+    annotation_metadata[OUTPUT_METADATA_POLICY] = build_output_metadata_policy(
+        dataset, annotation_selection, sources=source_inputs, transformed_fields=target_fields
     )
     return FixedAugmentationRuntime(
         config=config,

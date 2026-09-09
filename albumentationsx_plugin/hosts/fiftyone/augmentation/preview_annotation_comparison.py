@@ -70,6 +70,8 @@ def build_preview_annotation_comparison(
             }
         )
 
+    output_metadata = output_payload.get("metadata")
+    dropped_attributes = output_metadata.get("dropped_attributes", []) if isinstance(output_metadata, Mapping) else []
     return normalize_json_mapping(
         {
             "fields": rows,
@@ -80,6 +82,7 @@ def build_preview_annotation_comparison(
                 "output_geometry": output_geometry_total,
             },
             "dropped_annotations": dropped_annotations(output_payload),
+            **({"dropped_attributes": dropped_attributes} if dropped_attributes else {}),
         }
     )
 

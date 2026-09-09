@@ -122,6 +122,9 @@ responsive while progress is reported.
   metadata.
 - Every non-dry run stores its pipeline configuration and sampled replay
   metadata. Generated samples and files can be inspected and cleaned up by run.
+- Label tags and JSON-safe dynamic/legacy attributes are preserved. The form
+  and execution results explain omitted fields, derived attributes and source
+  provenance; see the [output metadata policy](docs/annotation-aware-execution.md#output-metadata-policy).
 - Named pipeline presets can be saved from the augmentation form and loaded
   across datasets. They persist only the reusable pipeline config and dependency
   versions, not sample IDs, output paths, or replay records.

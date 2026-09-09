@@ -1,0 +1,26 @@
+{
+  "source": "COCO 2017 validation instances, annotation 321878 (segmentation omitted)",
+  "image": {
+    "id": 48564,
+    "width": 427,
+    "height": 640
+  },
+  "category": {
+    "supercategory": "electronic",
+    "id": 77,
+    "name": "cell phone"
+  },
+  "annotation": {
+    "area": 1412.2089999999992,
+    "iscrowd": 0,
+    "image_id": 48564,
+    "bbox": [
+      95.12,
+      153.24,
+      45.58,
+      80.49
+    ],
+    "category_id": 77,
+    "id": 321878
+  }
+}

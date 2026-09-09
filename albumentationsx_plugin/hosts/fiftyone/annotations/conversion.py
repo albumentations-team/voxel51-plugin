@@ -22,6 +22,13 @@ from albumentationsx_plugin.hosts.fiftyone.annotations.fields import (
     FIELD_TYPE_POLYLINES,
     FIELD_TYPE_SEGMENTATION,
 )
+from albumentationsx_plugin.hosts.fiftyone.annotations.metadata import (
+    capture_label_metadata,
+    excluded_label_metadata,
+    metadata_fields,
+    remove_geometry_metadata,
+    restore_label_metadata,
+)
 
 _TYPE_FIELD: Final[str] = "type"
 _CLASSIFICATION_TYPE: Final[str] = FIELD_TYPE_CLASSIFICATION
@@ -203,6 +210,12 @@ def transformed_annotation_payload(
 
     output_height, output_width, _channels = output_shape
     copied_field_names = set(str(field_name) for field_name in copy_label_fields)
+    transformed_fields = tuple(
+        name
+        for name, field in _payload_fields(source_payload).items()
+        if name not in copied_field_names and _payload_type(field) != _CLASSIFICATION_TYPE
+    )
+    excluded_metadata = excluded_label_metadata(_payload_fields(source_payload), transformed_fields=transformed_fields)
     fields: dict[str, object] = {**_copy_static_fields(source_payload, copy_label_fields=copy_label_fields)}
     dropped = {
         "detections": len(target_data.bbox_refs),
@@ -222,7 +235,7 @@ def transformed_annotation_payload(
             continue
         field_type = _payload_type(field_payload)
         if field_type == _DETECTIONS_TYPE:
-            fields[field_name] = {_TYPE_FIELD: _DETECTIONS_TYPE, "detections": []}
+            fields[field_name] = {**metadata_fields(field_payload), _TYPE_FIELD: _DETECTIONS_TYPE, "detections": []}
         elif field_type == _HEATMAP_TYPE:
             fields[field_name] = _empty_heatmap_payload(field_payload)
         elif field_type == _KEYPOINTS_TYPE:
@@ -270,6 +283,7 @@ def transformed_annotation_payload(
         if _payload_type(source_field) != _HEATMAP_TYPE:
             continue
         heatmap_payload: dict[str, object] = {
+            **metadata_fields(source_field),
             _TYPE_FIELD: _HEATMAP_TYPE,
             _HEATMAP_MAP_FIELD: _heatmap_to_json(_heatmap_output_array(raw_heatmap)),
             "tags": _str_list(source_field.get("tags")),
@@ -323,6 +337,7 @@ def transformed_annotation_payload(
         if _payload_type(source_field) != _SEGMENTATION_TYPE:
             continue
         segmentation_payload: dict[str, object] = {
+            **metadata_fields(source_field),
             _TYPE_FIELD: _SEGMENTATION_TYPE,
             _MASK_FIELD: _mask_to_json(raw_mask),
             "tags": _str_list(source_field.get("tags")),
@@ -335,11 +350,12 @@ def transformed_annotation_payload(
         fields[ref.field_name] = normalize_json_mapping(segmentation_payload)
         dropped["masks"] -= 1
 
+    metadata: JSONDict = {"dropped_annotations": {name: count for name, count in dropped.items() if count > 0}}
+    if excluded_metadata:
+        metadata["dropped_attributes"] = normalize_json_value(excluded_metadata)
     return {
-        "fields": normalize_json_mapping(fields),
-        "metadata": {
-            "dropped_annotations": {name: count for name, count in dropped.items() if count > 0},
-        },
+        "fields": remove_geometry_metadata(normalize_json_mapping(fields), transformed_fields),
+        "metadata": metadata,
     }
 
 
@@ -361,22 +377,24 @@ def labels_from_annotation_payload(payload: Mapping[str, object]) -> dict[str, f
             labels[field_name] = _polylines_from_payload(field_payload)
         elif field_type == _SEGMENTATION_TYPE:
             labels[field_name] = _segmentation_from_payload(field_payload)
-    return labels
+    return {name: restore_label_metadata(label, _payload_fields(payload)[name]) for name, label in labels.items()}
 
 
 def _field_payload(label: object) -> JSONDict | None:
     if isinstance(label, fo.Classification):
-        return _classification_payload(label)
+        return capture_label_metadata(label, _classification_payload(label))
     if isinstance(label, fo.Detections):
-        return _detections_payload(label)
+        return capture_label_metadata(label, _detections_payload(label))
     if isinstance(label, fo.Heatmap):
-        return _heatmap_payload(label)
+        payload = _heatmap_payload(label)
+        return capture_label_metadata(label, payload) if payload is not None else None
     if isinstance(label, fo.Keypoints):
-        return _keypoints_payload(label)
+        return capture_label_metadata(label, _keypoints_payload(label))
     if isinstance(label, fo.Polylines):
-        return _polylines_payload(label)
+        return capture_label_metadata(label, _polylines_payload(label))
     if isinstance(label, fo.Segmentation):
-        return _segmentation_payload(label)
+        payload = _segmentation_payload(label)
+        return capture_label_metadata(label, payload) if payload is not None else None
     return None
 
 
@@ -402,7 +420,6 @@ def _detection_payload(detection: fo.Detection) -> JSONDict:
         {
             "bounding_box": _float_sequence(getattr(detection, "bounding_box", None)),
             "tags": _str_list(getattr(detection, "tags", None)),
-            "attributes": _json_mapping_or_empty(detection.attributes),
         }
     )
     _set_optional(payload, "label", detection.label)
@@ -411,7 +428,7 @@ def _detection_payload(detection: fo.Detection) -> JSONDict:
     mask = _detection_mask(detection)
     if mask is not None:
         payload[_MASK_FIELD] = _mask_to_json(_instance_mask_array(mask))
-    return payload
+    return capture_label_metadata(detection, payload)
 
 
 def _heatmap_payload(label: fo.Heatmap) -> JSONDict | None:
@@ -446,7 +463,6 @@ def _keypoint_payload(keypoint: fo.Keypoint) -> JSONDict:
         {
             "points": points,
             "tags": _str_list(getattr(keypoint, "tags", None)),
-            "attributes": _json_mapping_or_empty(keypoint.attributes),
         }
     )
     _set_optional(payload, "label", keypoint.label)
@@ -454,7 +470,7 @@ def _keypoint_payload(keypoint: fo.Keypoint) -> JSONDict:
         values = _keypoint_values(getattr(keypoint, name, None), name=name, point_count=len(points))
         _set_optional(payload, name, values)
     _set_optional(payload, "index", keypoint.index)
-    return payload
+    return capture_label_metadata(keypoint, payload)
 
 
 def _keypoint_point(value: object, index: int) -> list[float] | None:
@@ -498,7 +514,6 @@ def _polyline_payload(polyline: fo.Polyline) -> JSONDict:
         {
             "points": _polyline_points(polyline),
             "tags": _str_list(getattr(polyline, "tags", None)),
-            "attributes": _json_mapping_or_empty(polyline.attributes),
             "closed": bool(getattr(polyline, "closed", False)),
             "filled": bool(getattr(polyline, "filled", False)),
         }
@@ -506,7 +521,7 @@ def _polyline_payload(polyline: fo.Polyline) -> JSONDict:
     _set_optional(payload, "label", polyline.label)
     _set_optional(payload, "confidence", polyline.confidence)
     _set_optional(payload, "index", polyline.index)
-    return payload
+    return capture_label_metadata(polyline, payload)
 
 
 def _segmentation_payload(label: fo.Segmentation) -> JSONDict | None:
@@ -543,12 +558,11 @@ def _detection_from_payload(payload: Mapping[str, object]) -> fo.Detection:
         mask=None if mask is None else np.asarray(mask),
         confidence=_optional_float(payload.get("confidence")),
         tags=_str_list(payload.get("tags")),
-        attributes=_attributes_from_payload(payload.get("attributes")),
     )
     index = payload.get("index")
     if isinstance(index, int) and not isinstance(index, bool):
         detection.index = index
-    return detection
+    return restore_label_metadata(detection, payload)
 
 
 def _heatmap_from_payload(payload: Mapping[str, object]) -> fo.Heatmap:
@@ -578,14 +592,13 @@ def _keypoint_from_payload(payload: Mapping[str, object]) -> fo.Keypoint:
         ],
         confidence=None if payload.get("confidence") is None else _payload_sequence(payload, "confidence"),
         tags=_str_list(payload.get("tags")),
-        attributes=_attributes_from_payload(payload.get("attributes")),
     )
     index = payload.get("index")
     if isinstance(index, int) and not isinstance(index, bool):
         keypoint.index = index
     if "visible" in payload:
         keypoint["visible"] = _payload_sequence(payload, "visible")
-    return keypoint
+    return restore_label_metadata(keypoint, payload)
 
 
 def _polylines_from_payload(payload: Mapping[str, object]) -> fo.Polylines:
@@ -599,14 +612,13 @@ def _polyline_from_payload(payload: Mapping[str, object]) -> fo.Polyline:
         points=_polyline_shapes(payload),
         confidence=_optional_float(payload.get("confidence")),
         tags=_str_list(payload.get("tags")),
-        attributes=_attributes_from_payload(payload.get("attributes")),
         closed=_optional_bool(payload.get("closed"), default=False),
         filled=_optional_bool(payload.get("filled"), default=False),
     )
     index = payload.get("index")
     if isinstance(index, int) and not isinstance(index, bool):
         polyline.index = index
-    return polyline
+    return restore_label_metadata(polyline, payload)
 
 
 def _segmentation_from_payload(payload: Mapping[str, object]) -> fo.Segmentation:
@@ -637,6 +649,7 @@ def _copy_static_fields(
 
 def _empty_heatmap_payload(field_payload: Mapping[str, object]) -> JSONDict:
     payload: dict[str, object] = {
+        **metadata_fields(field_payload),
         _TYPE_FIELD: _HEATMAP_TYPE,
         "tags": _str_list(field_payload.get("tags")),
     }
@@ -658,7 +671,9 @@ def _empty_keypoints_payload(field_payload: Mapping[str, object]) -> JSONDict:
         if "visible" in keypoint:
             keypoint["visible"] = [0] * point_count
         keypoints.append(normalize_json_mapping(keypoint))
-    return normalize_json_mapping({_TYPE_FIELD: _KEYPOINTS_TYPE, "keypoints": keypoints})
+    return normalize_json_mapping(
+        {**metadata_fields(field_payload), _TYPE_FIELD: _KEYPOINTS_TYPE, "keypoints": keypoints}
+    )
 
 
 def _empty_polylines_payload(field_payload: Mapping[str, object]) -> JSONDict:
@@ -667,7 +682,9 @@ def _empty_polylines_payload(field_payload: Mapping[str, object]) -> JSONDict:
         polyline = dict(source_polyline)
         polyline["points"] = [[] for _shape in _payload_sequence(source_polyline, "points")]
         polylines.append(normalize_json_mapping(polyline))
-    return normalize_json_mapping({_TYPE_FIELD: _POLYLINES_TYPE, "polylines": polylines})
+    return normalize_json_mapping(
+        {**metadata_fields(field_payload), _TYPE_FIELD: _POLYLINES_TYPE, "polylines": polylines}
+    )
 
 
 def _drop_empty_polylines(fields: Mapping[str, object]) -> tuple[dict[str, object], int]:
@@ -690,7 +707,7 @@ def _drop_empty_polylines(fields: Mapping[str, object]) -> tuple[dict[str, objec
             polyline = dict(source_polyline)
             polyline["points"] = shapes
             polylines.append(normalize_json_mapping(polyline))
-        updated[field_name] = {_TYPE_FIELD: _POLYLINES_TYPE, "polylines": polylines}
+        updated[field_name] = {**metadata_fields(field_payload), _TYPE_FIELD: _POLYLINES_TYPE, "polylines": polylines}
     return updated, dropped_shapes
 
 
@@ -1132,39 +1149,6 @@ def _str_list(value: object) -> list[str]:
 
 def _mapping(value: object) -> Mapping[str, JSONValue]:
     return value if isinstance(value, Mapping) else {}
-
-
-def _json_mapping_or_empty(value: object) -> JSONDict:
-    if not isinstance(value, Mapping):
-        return {}
-    normalized: dict[str, JSONValue] = {}
-    for key, item in value.items():
-        if not isinstance(key, str):
-            continue
-        raw_value = getattr(item, "value", item)
-        try:
-            normalized[key] = normalize_json_value(raw_value)
-        except TypeError:
-            normalized[key] = str(raw_value)
-    return normalized
-
-
-def _attributes_from_payload(value: object) -> dict[str, fo.Attribute]:
-    attributes: dict[str, fo.Attribute] = {}
-    if not isinstance(value, Mapping):
-        return attributes
-    for key, item in value.items():
-        if not isinstance(key, str):
-            continue
-        if isinstance(item, bool):
-            attributes[key] = fo.BooleanAttribute(value=item)
-        elif isinstance(item, int | float) and not isinstance(item, bool):
-            attributes[key] = fo.NumericAttribute(value=float(item))
-        elif isinstance(item, str):
-            attributes[key] = fo.CategoricalAttribute(value=item)
-        else:
-            attributes[key] = fo.CategoricalAttribute(value=str(item))
-    return attributes
 
 
 def _set_optional(payload: dict[str, Any], key: str, value: object) -> None:

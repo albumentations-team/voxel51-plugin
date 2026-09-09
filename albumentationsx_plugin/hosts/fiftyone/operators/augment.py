@@ -117,6 +117,7 @@ class AugmentWithAlbumentationsX(foo.Operator):
         outputs.int("error_count", label="Errors")
         outputs.bool("dry_run", label="Dry run")
         outputs.str("execution_status", label="Execution status")
+        outputs.str("metadata_policy_summary", label="Output metadata", view=types.MarkdownView())
         outputs.bool(PREVIEW_ONLY_FIELD_NAME, label="Preview only")
         outputs.str("output_tag", label="Output tag")
         outputs.str("output_dir", label="Output directory")

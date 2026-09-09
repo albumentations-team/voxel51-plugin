@@ -73,6 +73,7 @@ from albumentationsx_plugin.hosts.fiftyone.forms.renderer import (
     JSON_STRING_DEFAULT_METADATA_KEY,
     FiftyOneFormRenderer,
 )
+from albumentationsx_plugin.hosts.fiftyone.output_metadata import build_output_metadata_policy, metadata_policy_summary
 from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
     PIPELINE_PRESET_KEY_FIELD_NAME,
     SAVE_PRESET_DESCRIPTION_FIELD_NAME,
@@ -203,6 +204,14 @@ class DynamicAugmentFormBuilder:
             params,
             annotation_fields=annotation_fields,
             compatibility_conflicts=annotation_compatibility_conflicts,
+        )
+        selection = selected_annotation_fields_from_params(params, dataset)
+        inputs.view(
+            "_output_metadata_policy",
+            types.Notice(
+                label="Output metadata",
+                description=metadata_policy_summary(build_output_metadata_policy(dataset, selection)),
+            ),
         )
         for step_number in range(1, selected_step_count + 1):
             self._render_stage_header(inputs, step_number)
@@ -446,6 +455,7 @@ class DynamicAugmentFormBuilder:
             ANNOTATION_SECTION_FIELD_NAME,
             types.Header(
                 label="Annotations",
+                description="Checked fields are included in generated samples. Unchecked fields are omitted.",
             ),
         )
         if compatibility_conflicts:

@@ -1,0 +1,71 @@
+{
+  "dataset": "vox-69-label-metadata-validation",
+  "source_id": "6aa1364835ca8e1d6df234f0",
+  "source_coco_id": 48564,
+  "output_id": "6aa14d0e1dd7feb4e6eee0d3",
+  "run_key": "vox-69-verification-albumentationsx-20260909T121157Z-292d92bb",
+  "output_detection": {
+    "label": "cell phone",
+    "iscrowd": 0,
+    "supercategory": "electronic"
+  },
+  "source_sample_fields_omitted": [
+    "coco_id",
+    "tags"
+  ],
+  "unchecked_annotation_fields_omitted": [
+    "segmentations"
+  ],
+  "keypoint_slots": 17,
+  "missing_keypoint_slots": 7,
+  "pixels_match_horizontal_flip": true,
+  "original_samples_unchanged": 12,
+  "preview_errors": 0,
+  "dry_run_processed": 12,
+  "dry_run_errors": 0,
+  "metadata_policy": {
+    "selected_annotation_fields": [
+      "detections",
+      "keypoints"
+    ],
+    "excluded_annotation_fields": [
+      "segmentations"
+    ],
+    "excluded_sample_fields": [
+      "coco_id",
+      "tags"
+    ],
+    "regenerated_sample_fields": [
+      "id",
+      "filepath",
+      "metadata",
+      "created_at",
+      "last_modified_at",
+      "albumentationsx_source_sample_id",
+      "albumentationsx_run_key",
+      "albumentationsx_transform_summary",
+      "albumentationsx_output_tag"
+    ],
+    "source_sample_id_field": "albumentationsx_source_sample_id",
+    "source_tags_copied": false,
+    "label_ids_preserved": false,
+    "geometry_attributes_excluded_when_transformed": [
+      "area",
+      "bbox_area",
+      "center",
+      "centroid",
+      "mask_area",
+      "num_keypoints",
+      "perimeter",
+      "segmentation_area"
+    ],
+    "attributes_inspected": true,
+    "excluded_label_attributes": [
+      {
+        "sample_id": "6aa1364835ca8e1d6df234f0",
+        "field_path": "keypoints.keypoints[0].num_keypoints",
+        "reason": "geometry_dependent"
+      }
+    ]
+  }
+}
