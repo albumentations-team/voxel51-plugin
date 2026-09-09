@@ -401,7 +401,10 @@ class DynamicAugmentFormBuilder:
             label="Previous run",
             default=selected_preset_run_key,
             required=False,
-            description="Optionally prefill this form from a saved run in the current dataset.",
+            description=(
+                "Prefill the pipeline from a saved run with fresh randomness. "
+                "This does not replay its previous outputs exactly."
+            ),
             view=choices,
         )
 

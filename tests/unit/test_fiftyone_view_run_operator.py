@@ -17,6 +17,7 @@ from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
     STORAGE_ROOT_PARAM_NAME,
     ViewAlbumentationsXRun,
 )
+from albumentationsx_plugin.hosts.fiftyone.run_library import RunLibraryEntry
 from albumentationsx_plugin.hosts.fiftyone.run_summary import RunOutputSummary, RunSummary
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -86,7 +87,13 @@ def test_view_run_operator_resolves_run_selector_and_output(monkeypatch) -> None
             generated_outputs=(output,),
         )
 
-    monkeypatch.setattr(view_run_operator_module, "list_available_run_keys", fake_list_available_run_keys)
+    monkeypatch.setattr(
+        view_run_operator_module,
+        "list_run_library",
+        lambda dataset, **kwargs: tuple(
+            RunLibraryEntry(run_key=key) for key in fake_list_available_run_keys(dataset, **kwargs)
+        ),
+    )
     monkeypatch.setattr(view_run_operator_module, "build_run_summary", fake_build_run_summary)
 
     input_json = operator.resolve_input(Context()).to_json()
@@ -129,7 +136,7 @@ def test_view_run_operator_resolves_empty_selector_without_dataset_runs(monkeypa
         dataset = object()
         params = {}
 
-    monkeypatch.setattr(view_run_operator_module, "list_available_run_keys", lambda dataset, **kwargs: ())
+    monkeypatch.setattr(view_run_operator_module, "list_run_library", lambda dataset, **kwargs: ())
 
     input_json = operator.resolve_input(Context()).to_json()
     run_key_property = input_json["type"]["properties"]["run_key"]
@@ -153,7 +160,13 @@ def test_view_run_operator_falls_back_from_stale_param_run_key(monkeypatch) -> N
         assert run_key == "albumentationsx-20260731T150000Z-current"
         return RunSummary(run_key=run_key, status="ok", message="loaded")
 
-    monkeypatch.setattr(view_run_operator_module, "list_available_run_keys", fake_list_available_run_keys)
+    monkeypatch.setattr(
+        view_run_operator_module,
+        "list_run_library",
+        lambda dataset, **kwargs: tuple(
+            RunLibraryEntry(run_key=key) for key in fake_list_available_run_keys(dataset, **kwargs)
+        ),
+    )
     monkeypatch.setattr(view_run_operator_module, "build_run_summary", fake_build_run_summary)
 
     input_json = operator.resolve_input(Context()).to_json()
@@ -252,6 +265,10 @@ def test_view_run_operator_execute_delegates_to_summary_service(monkeypatch) -> 
     result = operator.execute(Context())
 
     assert result == {
+        "created_at": "",
+        "execution_scope": "",
+        "library_status": "ok",
+        "manifest_json": "",
         "run_key": "albumentationsx-20260731T150000Z-run",
         "status": "ok",
         "message": "loaded",
@@ -406,3 +423,71 @@ def test_view_run_operator_logs_generated_sample_view_trigger_errors(monkeypatch
     assert result["available_generated_sample_ids_json"] == '["created-1"]'
     assert "Error while opening generated samples through ctx.ops.show_samples" in caplog.text
     assert "Error while triggering generated sample view" in caplog.text
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("status", ["completed", "failed", "partial", "cancelled", "cleaned", "missing_manifest"])
+def test_run_library_exposes_named_runs_and_safe_actions(monkeypatch, status):
+    from types import SimpleNamespace
+
+    entry = RunLibraryEntry(
+        run_key="cats-run",
+        run_label="Cats",
+        status=status,
+        created_at="2026-09-09T12:00:00+00:00",
+        source_count=5,
+        output_count=3,
+        error_count=2,
+        execution_scope="current_view",
+        manifest_available=status != "missing_manifest",
+    )
+    monkeypatch.setattr(view_run_operator_module, "list_run_library", lambda *args, **kwargs: (entry,))
+    monkeypatch.setattr(
+        view_run_operator_module,
+        "build_run_summary",
+        lambda *args, **kwargs: RunSummary(run_key=entry.run_key, status="ok", message="loaded"),
+    )
+    ctx = SimpleNamespace(dataset=object(), params={"_storage_root": "/tmp/library"})
+    properties = ViewAlbumentationsXRun().resolve_input(ctx).to_json()["type"]["properties"]
+    choice = properties["run_key"]["view"]["choices"][0]
+    assert choice["label"].startswith("Cats |")
+    assert status in choice["label"]
+    assert "Sources: 5" in properties["run_details"]["view"]["description"]
+    assert properties["_copy_run_key_cats-run"]["default"] == "cats-run"
+    if status != "missing_manifest":
+        reuse = properties["reuse_pipeline"]["view"]
+        assert reuse["prompt"] is True
+        assert reuse["operator"] == "@albumentations/albumentationsx/augment_with_albumentationsx"
+        assert reuse["params"] == {"previous_run_key": "cats-run", "_storage_root": "/tmp/library"}
+        assert "fresh randomness" in properties["reuse_guidance"]["view"]["label"]
+    else:
+        assert "reuse_pipeline" not in properties
+    if status == "cleaned":
+        assert "delete_run_outputs" not in properties
+    else:
+        delete = properties["delete_run_outputs"]["view"]
+        assert delete["prompt"] is True
+        assert delete["params"] == {"run_key": "cats-run", "confirm_delete": False, "_storage_root": "/tmp/library"}
+
+
+@pytest.mark.unit
+def test_run_library_search_and_hide_cleaned(monkeypatch):
+    from types import SimpleNamespace
+
+    entries = (
+        RunLibraryEntry(run_key="cleaned", run_label="Cats", status="cleaned"),
+        RunLibraryEntry(run_key="active", run_label="Dogs", status="completed", pipeline_summary="HorizontalFlip"),
+    )
+    monkeypatch.setattr(view_run_operator_module, "list_run_library", lambda *args, **kwargs: entries)
+    monkeypatch.setattr(
+        view_run_operator_module,
+        "build_run_summary",
+        lambda dataset, key, **kwargs: RunSummary(run_key=key, status="ok", message="loaded"),
+    )
+    ctx = SimpleNamespace(dataset=object(), params={"show_cleaned": False, "run_query": "FLIP"})
+    props = ViewAlbumentationsXRun().resolve_input(ctx).to_json()["type"]["properties"]
+    assert props["run_key"]["type"]["values"] == ("active",)
+    ctx.params["run_query"] = "Cats"
+    props = ViewAlbumentationsXRun().resolve_input(ctx).to_json()["type"]["properties"]
+    assert "run_details" not in props
+    assert "reuse_pipeline" not in props

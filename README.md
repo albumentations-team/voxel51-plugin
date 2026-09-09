@@ -122,6 +122,12 @@ responsive while progress is reported.
   metadata.
 - Every non-dry run stores its pipeline configuration and sampled replay
   metadata. Generated samples and files can be inspected and cleaned up by run.
+- **View AlbumentationsX Run** provides searchable run history, newest first,
+  with run labels, timestamps, outcomes, scope, counters, and pipeline versions.
+  Select a run to inspect its manifest and errors, open generated samples,
+  reuse its pipeline with fresh randomness, or open the cleanup confirmation.
+  **Include cleaned runs** shows retained audit records; cleaned runs have no
+  delete action in the library.
 - Named pipeline presets can be saved from the augmentation form and loaded
   across datasets. They persist only the reusable pipeline config and dependency
   versions, not sample IDs, output paths, or replay records.

@@ -24,6 +24,7 @@ from albumentationsx_plugin.core import (
     RunManifest,
 )
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
+from albumentationsx_plugin.hosts.fiftyone.run_library import classify_run, run_created_at
 from albumentationsx_plugin.hosts.fiftyone.runs import FIFTYONE_RUN_METHOD, build_fiftyone_run_key
 from albumentationsx_plugin.hosts.fiftyone.samples import summarize_pipeline
 from albumentationsx_plugin.storage.manifest import (
@@ -141,6 +142,10 @@ class RunSummary:
     errors_json: str = ""
     generated_outputs: tuple[RunOutputSummary, ...] = ()
     selected_output_key: str = ""
+    created_at: str = ""
+    execution_scope: str = ""
+    library_status: str = ""
+    manifest_json: str = ""
 
     def to_dict(self) -> JSONDict:
         """Serialize the summary for FiftyOne operator output."""
@@ -148,6 +153,10 @@ class RunSummary:
         selected_output = self.selected_output
         return {
             "run_key": self.run_key,
+            "created_at": self.created_at,
+            "execution_scope": self.execution_scope,
+            "library_status": self.library_status or self.status,
+            "manifest_json": self.manifest_json,
             "status": self.status,
             "message": self.message,
             "manifest_path": self.manifest_path,
@@ -456,6 +465,10 @@ def _manifest_summary(
     )
     return RunSummary(
         run_key=manifest.run_key,
+        created_at=run_created_at(manifest.run_key, manifest.metadata),
+        execution_scope=_metadata_str(manifest.metadata, "execution_scope"),
+        library_status=classify_run(manifest),
+        manifest_json=json.dumps(manifest.to_dict(), sort_keys=True, ensure_ascii=True, indent=2),
         status=status,
         message=message,
         manifest_path=str(manifest_path),
