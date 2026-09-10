@@ -17,31 +17,7 @@ from scripts.verify_release_tag import verify_release_tag
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "albumentations-team/voxel51-plugin"
-PLUGIN_ARCHIVE_ROOTS = (
-    "albumentationsx_plugin",
-    "docs",
-    "sample_data",
-)
-PLUGIN_ARCHIVE_FILES = (
-    "__init__.py",
-    "fiftyone.yml",
-    "requirements.txt",
-    "README.md",
-    "LICENSE",
-)
-EXCLUDED_PARTS = frozenset(
-    {
-        "__pycache__",
-        ".coverage",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".venv",
-        "build",
-        "dist",
-        "htmlcov",
-    }
-)
+PLUGIN_FILE_INVENTORY = "scripts/plugin-files.txt"
 
 
 @dataclass(frozen=True)
@@ -80,7 +56,7 @@ def build_release_artifacts(
     _write_plugin_zip(plugin_zip, _iter_plugin_files(root), root=root)
 
     install_notes = output_dir / install_notes_name(version)
-    install_notes.write_text(_build_install_notes(version), encoding="utf-8")
+    install_notes.write_text(_build_install_notes(version, release_tag=tag.strip()), encoding="utf-8")
 
     checksums = output_dir / "SHA256SUMS"
     checksummed_files = _write_checksums(output_dir, checksums)
@@ -95,22 +71,19 @@ def build_release_artifacts(
 
 
 def _iter_plugin_files(root: Path) -> Iterable[Path]:
-    for relative_file in PLUGIN_ARCHIVE_FILES:
-        path = root / relative_file
-        if path.is_file():
-            yield path
-
-    for relative_root in PLUGIN_ARCHIVE_ROOTS:
-        directory = root / relative_root
-        if not directory.is_dir():
-            continue
-        for path in sorted(directory.rglob("*")):
-            if path.is_file() and not _is_excluded(path.relative_to(root)):
-                yield path
-
-
-def _is_excluded(relative_path: Path) -> bool:
-    return relative_path.suffix == ".pyc" or any(part in EXCLUDED_PARTS for part in relative_path.parts)
+    """Use a reviewed inventory so local files cannot leak into a release."""
+    inventory = (root / PLUGIN_FILE_INVENTORY).read_text(encoding="utf-8").splitlines()
+    names = [line.strip() for line in inventory if line.strip() and not line.startswith("#")]
+    if not names or len(names) != len(set(names)):
+        raise ValueError("Plugin file inventory must be nonempty and contain no duplicates")
+    for name in names:
+        relative_path = Path(name)
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            raise ValueError(f"Invalid plugin inventory path: {name}")
+        path = root / relative_path
+        if not path.is_file() or path.resolve() != root.resolve() / relative_path:
+            raise ValueError(f"Required plugin file is missing or is a symlink: {name}")
+        yield path
 
 
 def _write_plugin_zip(path: Path, files: Iterable[Path], *, root: Path) -> None:
@@ -119,8 +92,7 @@ def _write_plugin_zip(path: Path, files: Iterable[Path], *, root: Path) -> None:
             archive.write(file_path, file_path.relative_to(root).as_posix())
 
 
-def _build_install_notes(version: str) -> str:
-    release_tag = f"v{version}"
+def _build_install_notes(version: str, *, release_tag: str) -> str:
     archive_name = plugin_archive_name(version)
     return f"""# AlbumentationsX for FiftyOne {release_tag} install artifact
 

@@ -5,7 +5,7 @@ inspecting previous AlbumentationsX plugin runs.
 
 ## Behavior
 
-VOX-56 extends the viewer into a run library. Open **View AlbumentationsX Run**
+VOX-56 extends the viewer into a run library. Open **Run history**
 from the samples grid, then search by label, run key, outcome, or transform.
 The selector shows labels first, followed by UTC creation time, outcome, and a
 unique key to distinguish runs with the same label. Runs are ordered newest
@@ -18,13 +18,14 @@ albu-spec capability metadata version), and cleanup status before submission.
 The history is metadata-only; file and sample availability checks are limited
 to the selected run. **Include cleaned runs** defaults on for audit browsing.
 
-- **Reuse pipeline** opens Augment with the selected previous run. It prefills
-  pipeline configuration with fresh randomness; it is not exact replay.
-- **Delete run outputs** opens the existing cleanup form with confirmation
-  unchecked. It is omitted for cleaned audit records.
-- The read-only run-key field supports selection and keyboard copying.
-- Submit the viewer to read the full manifest, structured errors, and selected
-  output replay. **Open generated samples** also opens the retained samples.
+- **Use pipeline from this run** opens an independent editable snapshot with
+  fresh randomness. It does not replay the original outputs.
+- **Review deletion of generated outputs** opens a run-bound deletion preview
+  and confirmation. It is omitted for cleaned or unavailable audit records.
+- Raw run keys and manifests are available in the inspector's technical details.
+- **Open generated samples** and **Open failed source samples** navigate directly
+  from the selected run, clearing source filters. Submit **Inspect run** for
+  full details and select individual replays under **Output replay details**.
 
 The `library_status` outcome is separate from the detailed availability
 `status`: `completed`, `failed` (errors without outputs), `partial` (errors with
@@ -121,5 +122,28 @@ uv run python scripts/create_demo_dataset.py create --overwrite
 uv run fiftyone app launch albumentationsx-demo
 ```
 
-Run `Augment with AlbumentationsX` with a non-dry configuration, then run
-`View AlbumentationsX Run` and select the created run key.
+Run `Augment images` with a non-dry configuration, then run
+`Run history` and select the created run key.
+
+## Outcome and result actions
+
+Augmentation results and the run viewer lead with a read-only outcome and
+counts. Errors show the available stage, transform, field, sample and cause,
+followed by a recovery action. Up to five errors are expanded; all structured
+errors remain in **Technical details**. The manifest availability status (`ok`,
+`stale`, etc.) is distinct from execution success (`completed`, `partial`,
+`failed`, `cancelled`).
+
+Preview shows only populated image slots. Empty values and empty error lists
+are omitted. JSON, sampled replay, internal FiftyOne identifiers and storage
+paths live in collapsed **Technical details**. JSON trees provide copy controls
+and download links. The public run key identifies an execution; a saved
+pipeline name identifies reusable configuration.
+
+**Open generated samples** on a materialized result opens manifest-listed
+samples from the dataset, replacing source view filters that could hide them.
+The internal `reset_source_view` navigation flag requests this behavior; legacy
+run-viewer API calls without it retain their existing view behavior.
+**View in history** opens the run viewer with this run already selected.
+**Back to editor**, **Preview again** and **Review and create samples** retain
+the editable draft and require reviewing/submitting the next action.

@@ -581,7 +581,7 @@ def _recommendations(
         recommendations.append("Select one or more samples before running a selected-samples augmentation.")
     if not field_rows:
         recommendations.append(
-            "No supported label fields were detected; image outputs can still be augmented without annotation sync."
+            "No supported annotation fields are selected; image outputs can still be augmented without annotation sync."
         )
     if any(row.support_status == "unsupported" for row in field_rows):
         recommendations.append(
@@ -595,7 +595,7 @@ def _recommendations(
     for target in _ordered_targets(spatial_targets):
         if _target_row(target_rows, target) is not None:
             recommendations.append(
-                f"For `{target}` labels, filter transform capabilities by target `{target}` before building presets."
+                f"For `{target}` labels, filter transform capabilities by target `{target}` before building pipelines."
             )
     recommendations.append("Use Preview only on a small selection before materializing outputs for a new dataset.")
     return tuple(dict.fromkeys(recommendations))

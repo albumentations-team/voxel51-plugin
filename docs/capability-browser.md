@@ -4,7 +4,9 @@ VOX-44 adds the read-only `Show AlbumentationsX Capabilities` operator. It uses
 the same `AlbuSpecCatalogProvider` and capability classification rules as the
 augmentation form and `scripts/report_transform_capabilities.py`.
 
-The operator is available without selected samples. It shows:
+Normal App users search and filter transforms inside **Augment images**.
+The full report remains available by the existing operator URI, without selected
+samples; it is unlisted in the general picker and has no toolbar action. It shows:
 
 - plugin, FiftyOne, AlbumentationsX, and albu-spec versions;
 - the capability version key;

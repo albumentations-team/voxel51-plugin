@@ -343,15 +343,8 @@ def test_capability_operator_execute_missing_runtime_dependency(
 def test_capability_operator_resolves_samples_grid_placement() -> None:
     operator = ShowAlbumentationsXCapabilities()
 
-    placement_json = operator.resolve_placement(ctx=None).to_json()
-    view_json = placement_json["view"]
-
-    assert placement_json["place"] == "samples-grid-actions"
-    assert isinstance(view_json, dict)
-    assert view_json["name"] == "Button"
-    assert view_json["label"] == "Show AlbumentationsX Capabilities"
-    assert view_json["prompt"] is True
-    assert "disabled" not in view_json
+    assert operator.resolve_placement(ctx=None) is None
+    assert operator.config.unlisted is True
 
 
 def _load_manifest() -> dict[str, Any]:

@@ -69,3 +69,18 @@ checksum manifest, and uploads them to the GitHub Release for the tag.
 
 Manual FiftyOne App validation remains a release gate because CI cannot fully
 prove the browser App interaction path.
+
+## Distribution inventory
+
+`scripts/plugin-files.txt` is the reviewed list of ZIP inputs. Add every new
+runtime module or intended documentation asset to that list. The builder fails
+if any listed file is absent or is a symlink. Files created locally under package,
+documentation or sample-data directories cannot enter the archive implicitly.
+Historical audits, generated demo images, caches and the upstream RST draft are
+excluded. `DESIGN.md` is included so bundled documentation links resolve.
+
+Both bare and `v`-prefixed tags are accepted. Artifact filenames use the normalized
+version; install URLs retain the exact publication tag. Update all four version
+sources together: project metadata, FiftyOne manifest, runtime `_version.py`, and
+the root package entry in `uv.lock`. Extracted ZIP tests run with Python site
+packages disabled so installed development metadata cannot mask a missing version.

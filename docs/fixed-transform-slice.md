@@ -1,5 +1,11 @@
 # Executable Transform Slice
 
+> Historical compatibility reference. The runtime is now catalog-backed;
+> the three original transforms do not have a restricted parameter whitelist.
+> Supported fields, including crop padding, are shared by the editor and compiler.
+> See [Architecture](architecture.md) and [Pipeline factory](pipeline-factory.md)
+> for current ownership and execution behavior.
+
 VOX-10 implemented the first executable augmentation path with a deliberately
 small transform allowlist. VOX-25 keeps the same end-to-end FiftyOne execution
 path, but replaces the normal transform choices with albu-spec catalog-backed
@@ -66,8 +72,12 @@ VOX-25.
   are unprefixed, such as `brightness_range`, `height`, `width`, and `method`.
 - Later-slot transform parameters use the same names with the step prefix, such
   as `step_2_brightness_range`, `step_2_height`, and `step_10_method`.
-- `dry_run`: validates selection and parameters without writing output files or
-  creating samples.
+- `dry_run`: reads every source image and selected annotation, checks known
+  dimensions in stage order, and executes every planned output in memory. It
+  writes no files, samples, manifests, or custom runs. Stochastic branches may
+  differ on a later execution; output write permissions and future source
+  changes are not checked. Saving a pipeline checks configuration and annotation
+  compatibility only; validate it against images separately before creation.
 - `preview_only`: renders up to three selected source samples in memory without
   writing output files, creating samples, saving manifests, or registering
   custom runs.

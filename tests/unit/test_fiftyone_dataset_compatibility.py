@@ -301,10 +301,9 @@ def test_compatibility_operator_resolves_input_output_and_placement() -> None:
 
     input_json = cast(dict[str, Any], operator.resolve_input(context).to_json())
     output_json = cast(dict[str, Any], operator.resolve_output(ctx=None).to_json())
-    placement_json = cast(dict[str, Any], operator.resolve_placement(context).to_json())
+    assert operator.resolve_placement(context) is None
     input_properties = input_json["type"]["properties"]
     output_properties = output_json["type"]["properties"]
-    placement_view = cast(dict[str, Any], placement_json["view"])
 
     assert input_json["view"]["label"] == "Analyze AlbumentationsX Compatibility"
     assert input_json["view"]["submit_button_label"] == "Analyze compatibility"
@@ -313,19 +312,14 @@ def test_compatibility_operator_resolves_input_output_and_placement() -> None:
     assert output_properties["annotation_fields"]["type"]["name"] == "List"
     assert output_properties["target_families"]["type"]["name"] == "List"
     assert output_properties["report_json"]["view"]["name"] == "CodeView"
-    assert placement_json["place"] == "samples-grid-actions"
-    assert placement_view["disabled"] is False
+    assert operator.config.unlisted is True
 
 
 @pytest.mark.unit
 def test_compatibility_operator_disables_placement_without_image_dataset() -> None:
     operator = AnalyzeAlbumentationsXCompatibility()
 
-    placement_json = cast(dict[str, Any], operator.resolve_placement(SimpleNamespace(dataset=None)).to_json())
-    placement_view = cast(dict[str, Any], placement_json["view"])
-
-    assert placement_view["disabled"] is True
-    assert "Open an image dataset" in placement_view["title"]
+    assert operator.resolve_placement(SimpleNamespace(dataset=None)) is None
 
 
 @pytest.mark.unit

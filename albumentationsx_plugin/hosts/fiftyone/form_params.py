@@ -9,6 +9,23 @@ from albumentationsx_plugin.core import MAX_PIPELINE_STEPS
 
 STAGE_PARAMETER_GROUP_PREFIX: Final[str] = "_stage_parameters"
 ANNOTATION_FIELD_GROUP_NAME: Final[str] = "_annotation_fields"
+DRAFT_ID: Final[str] = "_pipeline_draft_id"
+EDITOR_SECTION_FIELDS: Final[dict[str, tuple[str, ...]]] = {
+    "_pipeline_library": ("pipeline_load_source",),
+    "_run_options": ("run_label",),
+    "_save_options": (
+        "save_preset_name",
+        "save_preset_description",
+        "save_preset_mode",
+        "save_preset_target",
+        "save_preset_confirm_update",
+    ),
+}
+
+
+def draft_parameter_group_name(draft_id: str) -> str:
+    """Give each explicitly loaded draft its own form data paths."""
+    return f"_pipeline_draft_{draft_id}"
 
 
 def stage_parameter_group_name(step_number: int) -> str:
@@ -33,7 +50,17 @@ def flatten_stage_parameter_groups(params: Mapping[str, object]) -> dict[str, ob
 def flatten_fiftyone_form_groups(params: Mapping[str, object]) -> dict[str, object]:
     """Return form params with host-specific nested groups flattened."""
 
+    draft_id = params.get(DRAFT_ID)
+    if isinstance(draft_id, str):
+        draft = params.get(draft_parameter_group_name(draft_id))
+        if isinstance(draft, Mapping):
+            # Ignore delayed updates from the replaced prompt's old field paths.
+            params = draft
     flattened = flatten_stage_parameter_groups(params)
+    for name in EDITOR_SECTION_FIELDS:
+        group = flattened.pop(name, None)
+        if isinstance(group, Mapping):
+            flattened.update(group)
     annotation_group = flattened.pop(ANNOTATION_FIELD_GROUP_NAME, None)
     if isinstance(annotation_group, Mapping):
         flattened.update(annotation_group)

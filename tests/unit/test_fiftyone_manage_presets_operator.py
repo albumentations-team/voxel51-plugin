@@ -48,7 +48,7 @@ def test_manage_presets_operator_config_matches_manifest() -> None:
 
     assert OPERATOR_NAME in manifest["operators"]
     assert config.name == OPERATOR_NAME
-    assert config.label == "Manage AlbumentationsX Presets"
+    assert config.label == "AlbumentationsX · Saved pipelines"
     assert config.dynamic is True
     assert config.allow_immediate_execution is True
     assert config.allow_delegated_execution is False
@@ -73,14 +73,15 @@ def test_manage_presets_operator_resolves_export_form_and_output(tmp_path) -> No
     input_properties = input_json["type"]["properties"]
     output_properties = output_json["type"]["properties"]
 
-    assert input_json["view"]["label"] == "Manage AlbumentationsX Presets"
-    assert input_json["view"]["submit_button_label"] == "Export preset"
+    assert input_json["view"]["label"] == "AlbumentationsX · Saved pipelines"
+    assert input_json["view"]["submit_button_label"] == "Export saved pipeline"
     assert input_properties["action"]["type"]["name"] == "Enum"
     assert input_properties["action"]["default"] == ACTION_EXPORT
     assert input_properties["preset_key"]["type"]["name"] == "Enum"
     assert input_properties["preset_key"]["default"] == preset.key
     assert output_properties["presets"]["type"]["name"] == "List"
-    assert output_properties["exported_preset_json"]["type"]["name"] == "String"
+    assert output_properties["importable_preset_json"]["type"]["name"] == "String"
+    assert {"presets_json", "selected_preset_json", "exported_preset_json"}.isdisjoint(output_properties)
     assert output_properties["errors_json"]["type"]["name"] == "String"
 
 
@@ -98,7 +99,7 @@ def test_manage_presets_operator_resolves_import_form(tmp_path) -> None:
     input_json = operator.resolve_input(Context()).to_json()
     input_properties = input_json["type"]["properties"]
 
-    assert input_json["view"]["submit_button_label"] == "Import preset"
+    assert input_json["view"]["submit_button_label"] == "Import saved pipeline"
     assert input_properties["preset_json"]["type"]["name"] == "String"
     assert input_properties["overwrite"]["type"]["name"] == "Boolean"
     assert "preset_key" not in input_properties
@@ -127,11 +128,11 @@ def test_manage_presets_operator_resolves_form_when_preset_storage_cannot_be_lis
     input_json = operator.resolve_input(Context()).to_json()
     input_properties = input_json["type"]["properties"]
 
-    assert input_properties[PRESET_STORAGE_WARNING_FIELD_NAME]["view"]["label"] == "Preset storage"
+    assert input_properties[PRESET_STORAGE_WARNING_FIELD_NAME]["view"]["label"] == "Saved pipeline storage"
     assert "RuntimeError" in input_properties[PRESET_STORAGE_WARNING_FIELD_NAME]["view"]["description"]
     assert input_properties[PRESET_KEY_FIELD_NAME]["type"]["name"] == "String"
-    assert "No named AlbumentationsX presets" in input_properties[PRESET_KEY_FIELD_NAME]["view"]["description"]
-    assert "Error while listing pipeline presets" in caplog.text
+    assert "No saved AlbumentationsX pipelines" in input_properties[PRESET_KEY_FIELD_NAME]["view"]["description"]
+    assert "Error while listing saved pipelines" in caplog.text
 
 
 @pytest.mark.unit
@@ -201,7 +202,7 @@ def test_manage_presets_operator_rejects_import_overwrite_without_confirmation(t
 
 
 @pytest.mark.unit
-def test_manage_presets_operator_renames_preset_and_removes_old_file(tmp_path) -> None:
+def test_manage_presets_operator_renames_preset_without_changing_identity(tmp_path) -> None:
     preset = _save_preset(tmp_path, "Training defaults")
     operator = ManageAlbumentationsXPresets()
 
@@ -215,17 +216,17 @@ def test_manage_presets_operator_renames_preset_and_removes_old_file(tmp_path) -
 
     result = operator.execute(Context())
     store = FilePipelinePresetStore(storage_root=tmp_path)
-    renamed_key = build_preset_key("Validation defaults")
+    renamed_key = preset.key
     renamed = store.load_preset(renamed_key)
 
     assert result["status"] == "ok"
     assert result["preset_key"] == renamed_key
-    assert not store.preset_exists(preset.key)
+    assert store.preset_exists(preset.key)
     assert renamed.name == "Validation defaults"
     assert renamed.pipeline == preset.pipeline
     assert renamed.created_at == preset.created_at
     assert renamed.updated_at is not None
-    assert renamed.metadata["renamed_from"] == preset.key
+    assert renamed.metadata == preset.metadata
 
 
 @pytest.mark.unit

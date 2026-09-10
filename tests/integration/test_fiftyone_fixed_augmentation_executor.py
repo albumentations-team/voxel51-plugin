@@ -1124,7 +1124,7 @@ def test_fixed_augmentation_executor_rejects_invalid_params_before_writing(tmp_p
 
 
 @pytest.mark.integration
-def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_path) -> None:
+def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_path, monkeypatch) -> None:
     dataset_name = _dataset_name()
     try:
         dataset = fo.Dataset(dataset_name)
@@ -1136,13 +1136,25 @@ def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_pat
         )
         progress_reporter = _RecordingProgressReporter()
 
+        from albumentationsx_plugin.hosts.fiftyone.augmentation import executor
+
+        prepare = executor._prepare_one_output
+
+        def fail_second_sample(**kwargs):
+            if kwargs["source"].sample_id == small_id:
+                # Runtime failures can still happen after successful preflight.
+                raise InvalidParameterError("RandomCrop", "height", "Sampled runtime failure")
+            return prepare(**kwargs)
+
+        monkeypatch.setattr(executor, "_prepare_one_output", fail_second_sample)
+
         result = execute_fixed_augmentation(
             dataset=dataset,
             selected_sample_ids=(large_id, small_id),
             params={
                 "transform": "RandomCrop",
-                "crop_width": 8,
-                "crop_height": 8,
+                "crop_width": 4,
+                "crop_height": 4,
             },
             storage_root=tmp_path / "plugin-storage",
             progress_reporter=progress_reporter,
@@ -1175,7 +1187,7 @@ def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_pat
         assert first_error_progress.total_sources == 2
         assert first_error_progress.skipped_sources == 0
         final_progress = progress_reporter.events[-1]
-        assert final_progress.stage == "complete"
+        assert final_progress.stage == "partial"
         assert final_progress.processed_sources == 2
         assert final_progress.total_sources == 2
         assert final_progress.planned_outputs == 2

@@ -1,6 +1,6 @@
 [project]
 name = "fiftyone-albumentationsx-plugin"
-version = "0.1.0"
+version = "0.1.2"
 description = "FiftyOne plugin for building and applying AlbumentationsX augmentation pipelines."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -53,6 +53,9 @@ markers = [
 [tool.setuptools.packages.find]
 include = ["albumentationsx_plugin*"]
 exclude = ["docs*", "sample_data*", "scripts*", "tests*"]
+
+[tool.setuptools.package-data]
+"albumentationsx_plugin.hosts.fiftyone" = ["assets/*.svg", "assets/*.js"]
 
 [tool.coverage.run]
 branch = true

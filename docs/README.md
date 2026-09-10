@@ -1,72 +1,37 @@
 # Project documentation
 
-This directory contains project documentation that is expected to grow with the
-plugin implementation. The root `README.md` remains the user-facing entrypoint;
-these files hold development workflow, review, and release notes.
+## User workflows
 
-## Documents
+- [Installation and overview](../README.md)
+- [Integration guide](albumentationsx-fiftyone-integration.md)
+- [First run](first-run-onboarding.md) and [demo datasets](demo-dataset.md)
+- [Navigation](plugin-navigation.md)
+- [Pipeline loading, saving and management](pipeline-presets.md)
+- [Preview](augmentation-preview.md) and [annotation-aware execution](annotation-aware-execution.md)
+- [Dataset compatibility](dataset-compatibility-report.md) and [capability browser](capability-browser.md)
+- [External-data transforms](external-data-transforms.md)
+- [Run history](run-summary-operator.md), [cleanup](run-cleanup-operator.md), and [cancellation](cancellation.md)
 
-- [Design and roadmap](../DESIGN.md): current MVP boundary, durable design
-  decisions, completed work, and the remaining plan.
-- [Gitflow](gitflow.md): branch model and merge flow for MVP work.
-- [Architecture](architecture.md): layered code boundaries and extension points.
-- [Demo dataset](demo-dataset.md): deterministic local dataset workflow.
-- [AlbumentationsX and FiftyOne integration](albumentationsx-fiftyone-integration.md):
-  public guide for installation, App workflows, annotations, presets,
-  reproducibility, cleanup, and migration from the older Albumentations plugin.
-- [Voxel51 RST integration template](voxel51-albumentationsx-integration-template.rst):
-  Sphinx/reStructuredText draft matching the older Voxel51 integration page
-  structure.
-- [First-run onboarding](first-run-onboarding.md): guided starter path from
-  demo dataset creation to preview, augmentation, run inspection, and cleanup.
-- [Fixed transform slice](fixed-transform-slice.md): executable
-  catalog-backed transform choices and output behavior.
-- [Annotation-aware execution](annotation-aware-execution.md): supported
-  FiftyOne label conversion through Albumentations targets.
-- [Augmentation preview](augmentation-preview.md): non-persistent selected-sample
-  preview path and verification checklist.
-- [Cancellation semantics](cancellation.md): interrupted-run checkpointing,
-  retained partial outputs, and cleanup guarantees.
-- [albu-spec catalog](albu-spec-catalog.md): version-aware transform capability
-  registry and review report.
-- [Capability browser](capability-browser.md): read-only FiftyOne operator for
-  searching and filtering transform support metadata.
-- [Dataset compatibility report](dataset-compatibility-report.md): read-only
-  FiftyOne operator for inspecting dataset label fields, target families, and
-  safe augmentation recommendations.
-- [External-data transforms](external-data-transforms.md): external input
-  contracts and execution policy for reference-image and metadata-backed
-  transforms.
-- [albu-spec integration audit](albu-spec-integration-audit.md): integration
-  contract, upstream escalation policy, and current metadata findings.
-- [Parameter schema](parameter-schema.md): host-neutral parameter field
-  generation from albu-spec metadata.
-- [Dynamic FiftyOne forms](dynamic-fiftyone-forms.md): rendering catalog-backed
-  transform schemas in the FiftyOne operator.
-- [Pipeline presets](pipeline-presets.md): named shared pipeline templates that
-  can be reused across datasets without storing run outputs or replay records.
-- [Pipeline factory](pipeline-factory.md): catalog-driven transform construction,
-  optional target execution, and replay extraction.
-- [Run manifest](run-manifest.md): saved run metadata, relative output paths,
-  replay records, and FiftyOne custom run registration.
-- [Run summary operator](run-summary-operator.md): read-only FiftyOne run
-  inspection and stale manifest handling.
-- [Run cleanup operator](run-cleanup-operator.md): confirmed cleanup for
-  generated samples, manifest-listed files, and custom runs.
-- [FiftyOne operator debugging](fiftyone-operator-debugging.md): form,
-  execution, selector, and UI refresh diagnostics for App operators.
-- [Release v0.1.0](release-v0.1.0.md): historic first-release scope,
-  verification checklist, known limitations, and tag flow.
-- [Release artifacts](release-artifacts.md): checksummed GitHub Release
-  artifact build, publication, and install flow.
-- [Capability report v0.1.0](capability-report-v0.1.0.md): final albu-spec
-  transform capability snapshot for the first public release.
-- [PR checklist](pr-checklist.md): required checks before review and merge.
-- [Verification](verification.md): local gate, targeted tests, supported-transform smoke, and manual checks.
+## Contributor reference
 
-## Documentation rules
+- [Design and roadmap](../DESIGN.md)
+- [Architecture and module ownership](architecture.md)
+- [Catalog](albu-spec-catalog.md), [parameter schemas](parameter-schema.md), and [pipeline factory](pipeline-factory.md)
+- [Dynamic forms](dynamic-fiftyone-forms.md) and [execution compatibility](fixed-transform-slice.md)
+- [Manifest format](run-manifest.md)
+- [Operator debugging](fiftyone-operator-debugging.md)
+- [Verification](verification.md), [PR checklist](pr-checklist.md), and [Git workflow](gitflow.md)
+- [Upstream integration draft](https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/voxel51-albumentationsx-integration-template.rst): contributor draft with placeholders, excluded from the plugin ZIP.
 
-- Keep user-facing setup and demo commands in the root `README.md`.
-- Keep implementation workflow, review notes, and release process in `docs/`.
-- Update documentation in the same pull request as behavior changes.
-- Prefer short, reproducible command blocks over prose-only instructions.
+## Releases and historical reference
+
+- [Artifact contents and release process](release-artifacts.md)
+- [Release 0.1.2 changes](release-v0.1.2.md)
+- [First-release notes](release-v0.1.0.md) and [versioned capability snapshot](capability-report-v0.1.0.md)
+- [albu-spec integration assessment](albu-spec-integration-audit.md): dependency-specific reference, not a current release gate.
+
+Historical App audit dumps and screenshots were removed from the current source
+and release tree in VOX-79. They remain available in the
+[reviewed source snapshot](https://github.com/albumentations-team/voxel51-plugin/tree/99b594bdcca16990f174d0bfa9f3a228f9f0a960/docs/audits).
+The reusable preview DOM assertion is maintained in `tests/manual`; acceptance
+requires a fresh App session and fresh captures for the release candidate.

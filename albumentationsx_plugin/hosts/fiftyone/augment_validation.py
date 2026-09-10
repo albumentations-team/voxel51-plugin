@@ -8,13 +8,19 @@ from dataclasses import dataclass, field
 from typing import Final
 
 from albumentationsx_plugin.core import (
+    FIXED_TRANSFORM_NAMES,
     MAX_PIPELINE_STEPS,
     PIPELINE_STEP_COUNT_FIELD_NAME,
     JSONDict,
+    ParameterSchemaProvider,
+    PluginError,
+    TransformCatalogProvider,
     pipeline_stage_enabled_field_name,
     pipeline_stage_order_field_name,
+    pipeline_step_field_name,
 )
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
+from albumentationsx_plugin.hosts.fiftyone.pipeline_compiler import build_fixed_pipeline_config
 from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
     SAVE_PRESET_NAME_FIELD_NAME,
     SAVE_PRESET_ONLY_FIELD_NAME,
@@ -40,6 +46,7 @@ class AugmentValidationIssue:
     code: str
     message: str
     context: Mapping[str, object] = field(default_factory=dict)
+    fields: tuple[str, ...] = ()
 
     def to_dict(self) -> JSONDict:
         """Serialize this issue for operator outputs."""
@@ -54,17 +61,26 @@ class AugmentValidationIssue:
 
 
 def validate_augment_template_sources(params: Mapping[str, object]) -> tuple[AugmentValidationIssue, ...]:
-    """Validate mutually exclusive template sources before applying presets."""
+    """Reject legacy live template selectors; loading now creates a draft."""
 
     named_preset_key = selected_pipeline_preset_key(params)
     previous_run_key = selected_previous_run_key(params)
-    if not named_preset_key or not previous_run_key:
+    if not named_preset_key and not previous_run_key:
         return ()
+
+    if not (named_preset_key and previous_run_key):
+        return (
+            AugmentValidationIssue(
+                code="pipeline_load_required",
+                message="Use Load pipeline and Replace draft to load an editable copy. Remove legacy pipeline_preset_key / previous_run_key parameters before execution.",
+                context={"pipeline_preset_key": named_preset_key, "previous_run_key": previous_run_key},
+            ),
+        )
 
     return (
         AugmentValidationIssue(
             code=PRESET_SOURCE_CONFLICT_CODE,
-            message="Choose either a named preset or a previous run, not both.",
+            message="Choose one source in Load pipeline: a saved pipeline or a run from history. Remove the two legacy source selectors.",
             context={
                 "reason": "mutually_exclusive_template_sources",
                 "pipeline_preset_key": named_preset_key,
@@ -74,13 +90,67 @@ def validate_augment_template_sources(params: Mapping[str, object]) -> tuple[Aug
     )
 
 
-def validate_effective_augment_params(params: Mapping[str, object]) -> tuple[AugmentValidationIssue, ...]:
-    """Validate effective params after any selected preset has been applied."""
+def validate_effective_augment_params(
+    params: Mapping[str, object],
+    *,
+    catalog_provider: TransformCatalogProvider | None = None,
+    parameter_schema_provider: ParameterSchemaProvider | None = None,
+) -> tuple[AugmentValidationIssue, ...]:
+    """Validate the current editable draft before saving or execution."""
 
-    return (
+    issues = (
         *validate_execution_mode_params(params),
         *validate_pipeline_stage_orders(params),
     )
+    if issues:
+        return issues
+    try:
+        build_fixed_pipeline_config(
+            params,
+            catalog_provider=catalog_provider,
+            parameter_schema_provider=parameter_schema_provider,
+        )
+    except PluginError as error:
+        parameter = str(error.context.get("parameter_name", "transform"))
+        stage = error.context.get("stage_number")
+        stages = sorted(
+            (
+                _int_param(
+                    params,
+                    pipeline_stage_order_field_name(number),
+                    default=number,
+                    min_value=1,
+                    max_value=MAX_PIPELINE_STEPS,
+                ),
+                number,
+            )
+            for number in range(1, _pipeline_step_count(params) + 1)
+            if params.get(pipeline_stage_enabled_field_name(number)) is not False
+        )
+        position = error.context.get("execution_stage")
+        if isinstance(position, int) and 0 < position <= len(stages):
+            stage = stages[position - 1][1]
+        if parameter.startswith("<"):
+            parameter = "transform"
+        field_name = pipeline_step_field_name(stage, parameter) if isinstance(stage, int) else parameter
+        if parameter in {"transforms", "pipeline_stages"}:
+            field_name = PIPELINE_STEP_COUNT_FIELD_NAME
+        fields = (field_name,)
+        if stage is None and error.context.get("transform_name") not in {None, "<pipeline>", "<operator>"}:
+            fields = (
+                tuple(
+                    pipeline_step_field_name(number, parameter)
+                    for _, number in stages
+                    if params.get(
+                        pipeline_step_field_name(number, "transform"),
+                        FIXED_TRANSFORM_NAMES[number - 1] if number <= len(FIXED_TRANSFORM_NAMES) else "HorizontalFlip",
+                    )
+                    == error.context["transform_name"]
+                )
+                or fields
+            )
+        return (AugmentValidationIssue(error.code.value, error.message, error.context, fields),)
+    return ()
 
 
 def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[AugmentValidationIssue, ...]:
@@ -109,7 +179,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Save preset only cannot be combined with Preview only.",
+                message="Save pipeline only cannot be combined with Preview only.",
                 context={
                     "reason": "save_preset_only_conflicts_with_preview_only",
                     SAVE_PRESET_ONLY_FIELD_NAME: True,
@@ -122,7 +192,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Save preset only cannot be combined with Dry run.",
+                message="Save pipeline only cannot be combined with Dry run.",
                 context={
                     "reason": "save_preset_only_conflicts_with_dry_run",
                     SAVE_PRESET_ONLY_FIELD_NAME: True,
@@ -135,7 +205,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Preset name is required when Save preset only is enabled.",
+                message="Saved pipeline name is required when Save pipeline only is enabled.",
                 context={
                     "reason": "save_preset_only_requires_preset_name",
                     SAVE_PRESET_ONLY_FIELD_NAME: True,
@@ -148,7 +218,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Preview only does not save named presets; disable Preview only or enable Save preset only.",
+                message="Preview only does not save pipelines; disable Preview only or enable Save pipeline only.",
                 context={
                     "reason": "preview_only_would_skip_preset_save",
                     PREVIEW_ONLY_FIELD_NAME: True,
@@ -161,7 +231,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Dry run does not save named presets; disable Dry run or enable Save preset only.",
+                message="Dry run does not save pipelines; disable Dry run or enable Save pipeline only.",
                 context={
                     "reason": "dry_run_would_skip_preset_save",
                     DRY_RUN_FIELD_NAME: True,
@@ -205,12 +275,22 @@ def validate_pipeline_stage_orders(params: Mapping[str, object]) -> tuple[Augmen
     return (
         AugmentValidationIssue(
             code=DUPLICATE_STAGE_ORDER_CODE,
-            message="Each enabled pipeline stage must have a unique execution order.",
+            message="Each enabled pipeline stage must have a unique execution order. "
+            + " ".join(
+                f"Stages {', '.join(map(str, item['stage_numbers']))} use order {item['execution_order']}; change one of these orders."
+                for item in duplicates
+            ),
             context={
                 "reason": "duplicate_execution_order",
                 "duplicates": duplicates,
                 "visible_step_count": visible_step_count,
             },
+            fields=tuple(
+                pipeline_stage_order_field_name(number)
+                for numbers in grouped.values()
+                if len(numbers) > 1
+                for number in numbers
+            ),
         ),
     )
 

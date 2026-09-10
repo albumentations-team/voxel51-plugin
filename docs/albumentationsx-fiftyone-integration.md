@@ -82,7 +82,7 @@ The plugin registers five App operators:
 | --- | --- |
 | `Augment with AlbumentationsX` | Configure and execute an augmentation pipeline. |
 | `Show AlbumentationsX Capabilities` | Search the current transform catalog and see support reasons. |
-| `Manage AlbumentationsX Presets` | Inspect, export, import, rename, or delete named presets. |
+| `Manage AlbumentationsX Saved Pipelines` | Inspect, export, import, rename, or delete named presets. |
 | `View AlbumentationsX Run` | Inspect a saved run manifest and generated sample availability. |
 | `Delete AlbumentationsX Run` | Remove generated outputs for one selected run after confirmation. |
 
@@ -106,14 +106,15 @@ In the App:
 1. Select one or more source samples.
 2. Open `Augment with AlbumentationsX` from the actions menu.
 3. Set `Execution scope` to `Selected samples`.
-4. Enable `Preview only` for the first pass.
+4. Choose **Action → Preview** for the first pass.
 5. Set `Pipeline stages` to `1`.
 6. Choose `HorizontalFlip`.
 7. Keep `p` at `1.0`.
 8. Keep `Outputs per sample` at `1`.
 9. Run the operator and inspect the preview output.
-10. Disable `Preview only`, optionally set a readable `Run label`, and run the
-    same configuration again.
+10. Click **Review and create samples**. Review the current scope, optionally set
+    **Run options → Run label**, then click **Create augmented samples**.
+    All pipeline edits and annotation choices are preserved.
 
 The plugin creates new output samples tagged with `albumentationsx-output` and
 a run-specific tag. Source samples and source image files remain unchanged.
@@ -132,26 +133,24 @@ run diagnostics.
 
 ## Build A Pipeline
 
-The augmentation form starts with general settings, then renders one section per
-pipeline stage.
+The form starts with the action and source/output summary, followed by pipeline
+stages and annotations. Optional library, save/run settings, and reports are
+collapsed and can be opened with the keyboard.
 
-General settings include:
+Settings include:
 
-- `Named preset`: load a reusable pipeline template from shared plugin storage.
-- `Previous run`: load a saved run's pipeline config from the active dataset.
+- `Load pipeline`: choose a saved pipeline or run history, then explicitly replace the draft.
 - `Execution scope`: selected samples, current view, or entire dataset.
-- `Preview only`: render bounded selected-sample previews without persistence.
+- `Action`: Preview, Create augmented samples, Save pipeline, or Validate without creating samples.
 - `Run label`: add a readable prefix to generated run keys.
 - `Outputs per sample`: generate multiple outputs for each source sample.
-- `Preset name` and `Preset description`: save the resolved pipeline as a named
+- `Saved pipeline name` and `Saved pipeline description`: save the resolved pipeline as a named
   preset.
-- `Save preset only`: validate and save a preset without running augmentation.
 - `Pipeline stages`: choose how many stage slots are visible.
 
-`Named preset` and `Previous run` are mutually exclusive template sources. If
-both are selected, the form shows a validation message and blocks execution
-until one source is cleared. This avoids silently applying one saved pipeline
-over another.
+Loading creates an editable snapshot. Changing the source picker alone keeps
+unsaved edits; **Reload and replace draft** explicitly restores the saved values.
+Preview and execution use the current draft with fresh randomness.
 
 Each stage has its own transform selector, `Enabled` switch, `Execution order`,
 and catalog-backed parameter fields. Disabled stages are ignored without
@@ -170,12 +169,17 @@ field tables, target-family details, package versions, and copyable JSON.
 
 ## Preview, Dry Run, And Execution
 
-Use `Preview only` when you want to see a small selected-sample result before
+Use **Action → Preview** when you want to see a small selected-sample result before
 writing anything. Preview returns source images, output images, annotated
 before/after comparison images, sampled replay metadata, transformed label JSON,
-and annotation comparison JSON through the operator output.
+and annotation comparison JSON through the operator output. Annotated comparisons
+appear first; technical fields are under **Result details**. Use **Back to editor**
+or **Preview again** to continue editing, or **Review and create samples** to
+review the current source selection before materializing the same configuration.
+Errors preserve the draft for correction. Each execution uses fresh randomness.
+Closing the result ends the transient draft; save a pipeline for later reuse.
 
-Use `Dry run` when you want validation and scope resolution without creating
+Use **Action → Validate without creating samples** when you want validation and scope resolution without creating
 samples or files. Dry runs do not create run directories, manifests, custom
 runs, or presets.
 
@@ -262,13 +266,14 @@ It records:
 - execution scope and execution status;
 - the matching FiftyOne custom run key.
 
-`Previous run` uses the saved pipeline config as a template for a new run in the
-same dataset. It samples fresh randomness. It does not exact-replay each earlier
-sample's random parameters.
+**From run history** loads transforms, output count and compatible annotation
+selection into an editable draft. The run viewer also offers **Use pipeline
+from this run**. See [the loading contract](pipeline-presets.md) for field
+mapping, execution settings, and API migration.
 
-## Named Presets
+## Saved Pipelines
 
-Named presets are reusable pipeline templates stored outside dataset-specific
+Saved pipelines are reusable configurations stored outside dataset-specific
 run directories:
 
 ```text
@@ -280,10 +285,10 @@ version, dependency versions, and optional description. It does not store source
 sample IDs, generated sample IDs, output paths, custom run keys, or replay
 records.
 
-Use presets when you want a portable training recipe. Use previous runs when
+Use saved pipelines for a portable training recipe. Use run history when
 you want to reuse a pipeline that was already executed on the active dataset.
 
-`Manage AlbumentationsX Presets` supports:
+`Manage AlbumentationsX Saved Pipelines` supports:
 
 - inspecting stored presets;
 - exporting one preset as JSON;
@@ -407,11 +412,12 @@ Open the operator output and inspect:
 Those fields are designed to be copied into bug reports. The structured error
 usually names the field, label type, transform, stage, target, and reason.
 
-### Preset Or Previous Run Does Not Match The Form
+### Reload a saved pipeline
 
-`Named preset` and `Previous run` are both template sources. They cannot be used
-at the same time. Clear one source, reload the form, and then edit or execute
-the resolved pipeline.
+Choose one source in **Load pipeline**, then click **Replace draft with selected
+pipeline** or **Reload and replace draft**. Selecting a source alone keeps
+current edits. Missing or incompatible annotation fields are explained beside
+the editor; select replacements explicitly if needed.
 
 ## How This Differs From The Older Voxel51 Page
 

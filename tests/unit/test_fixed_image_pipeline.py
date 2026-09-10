@@ -128,12 +128,24 @@ def test_fixed_pipeline_builds_ordered_transform_chain() -> None:
         TransformConfig(
             name="RandomBrightnessContrast",
             params={
+                "brightness_by_max": False,
+                "ensure_safe_output": False,
                 "p": 0.5,
                 "brightness_range": [-0.1, 0.1],
                 "contrast_range": [-0.2, 0.2],
             },
         ),
-        TransformConfig(name="RandomCrop", params={"p": 1.0, "height": 4, "width": 5}),
+        TransformConfig(
+            name="RandomCrop",
+            params={
+                "pad_if_needed": False,
+                "pad_position": "center",
+                "border_mode": 0,
+                "p": 1.0,
+                "height": 4,
+                "width": 5,
+            },
+        ),
     )
 
 
@@ -179,6 +191,8 @@ def test_random_brightness_contrast_config_uses_albumentationsx_range_params() -
         TransformConfig(
             name="RandomBrightnessContrast",
             params={
+                "brightness_by_max": False,
+                "ensure_safe_output": False,
                 "p": 1.0,
                 "brightness_range": [-0.1, 0.3],
                 "contrast_range": [-0.4, 0.2],
@@ -261,6 +275,9 @@ def test_fixed_pipeline_parses_advanced_json_fallback_parameters_before_config()
         TransformConfig(
             name="RandomCrop",
             params={
+                "pad_if_needed": False,
+                "pad_position": "center",
+                "border_mode": 0,
                 "height": 4,
                 "width": 5,
                 "fill": [1, 2, 3],
@@ -420,3 +437,39 @@ def test_fixed_pipeline_rejects_unknown_transform_and_invalid_parameters() -> No
     assert range_error.value.context["parameter_name"] == "brightness_range"
     assert direct_probability_error.value.context["parameter_name"] == "p"
     assert unknown_param_error.value.context["unknown_parameters"] == ["legacy"]
+
+
+@pytest.mark.unit
+def test_crop_dimension_validation_follows_stage_order_and_ignores_zero_probability():
+    enlarged = build_fixed_pipeline_config(
+        {
+            "pipeline_step_count": 2,
+            "transform": "Resize",
+            "height": 12,
+            "width": 14,
+            "p": 1.0,
+            "step_2_transform": "RandomCrop",
+            "step_2_height": 10,
+            "step_2_width": 10,
+            "step_2_p": 1.0,
+        }
+    )
+    validate_fixed_pipeline_config(enlarged, image_shape=(4, 5, 3))
+    result = create_fixed_image_pipeline(enlarged).apply(np.zeros((4, 5, 3), dtype=np.uint8))
+    assert result.image.shape == (10, 10, 3)
+    skipped = build_fixed_pipeline_config({"transform": "RandomCrop", "height": 9999, "width": 9999, "p": 0.0})
+    assert create_fixed_image_pipeline(skipped).apply(np.zeros((4, 5, 3), dtype=np.uint8)).image.shape == (4, 5, 3)
+    with pytest.raises(InvalidParameterError):
+        build_fixed_pipeline_config(
+            {
+                "pipeline_step_count": 2,
+                "transform": "RandomCrop",
+                "height": 4,
+                "width": 4,
+                "p": 1.0,
+                "step_2_transform": "RandomCrop",
+                "step_2_height": 8,
+                "step_2_width": 8,
+                "step_2_p": 1.0,
+            }
+        )

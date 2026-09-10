@@ -1,13 +1,13 @@
 # Augmentation Preview
 
-VOX-29 adds a non-persistent preview path to `Augment with AlbumentationsX`.
+VOX-29 adds a non-persistent preview path to `Augment images`.
 Preview is for judging an augmentation configuration before adding generated
 samples to a FiftyOne dataset.
 
 ## User Flow
 
 1. Select one to three source samples in the FiftyOne App.
-2. Open **Augment with AlbumentationsX**.
+2. Open **Augment images**.
 3. Configure the same pipeline settings that would be used for a normal run.
 4. Enable `Preview only` and execute the operator.
 5. Inspect the source image, augmented image, annotated before/after comparison,
@@ -79,7 +79,7 @@ Manual App check:
 
 1. Create or open the demo dataset.
 2. Select one to three images.
-3. Run `Augment with AlbumentationsX` with `Preview only` enabled.
+3. Run `Augment images` with `Preview only` enabled.
 4. Confirm source, augmented, and annotated comparison preview images render.
 5. Confirm replay, transformed label JSON, and annotation comparison JSON are
    shown.
@@ -87,3 +87,28 @@ Manual App check:
    created by preview.
 7. Disable `Preview only`, run the same configuration, and confirm persistent
    outputs are created normally.
+
+## Image Layout
+
+Source, augmented and comparison images retain their intrinsic aspect ratios.
+They use automatic width/height, fit the available result width, and are limited
+in height to the smaller of 360 CSS pixels or half the viewport. Small images
+are not enlarged, and no image content is cropped by the display. The image
+container can shrink with the operator dialog, including laptop-sized viewports.
+
+The annotated comparison retains the existing independent fit for each panel:
+up to 420 × 320 pixels, without enlargement. Panels are aligned at the top-left
+of equal-size cells, with padding to the right/bottom when dimensions differ.
+Before/after headers and overlay legends remain part of the comparison. The
+**Image display** note explains that displayed panel sizes do not represent a
+shared pixel scale when a crop or resize changes output dimensions.
+
+Only slots with complete source, output and comparison image results are shown.
+Unused slots and failed previews do not reserve blank image or diagnostic regions.
+The flat result payload retains empty slot keys for API compatibility; the App
+schema uses actual images rather than the requested selection or count.
+
+Browser verification is required for this layout: backend pixel tests cannot
+catch CSS stretching. Run the [live DOM assertion](https://github.com/albumentations-team/voxel51-plugin/blob/dev/tests/manual/assert-preview-layout.js)
+in the current App preview to compare rendered and natural image dimensions.
+Historical captured JSON and screenshots do not verify the current UI.

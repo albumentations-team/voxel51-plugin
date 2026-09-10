@@ -1,54 +1,56 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-from scripts.verify_release_tag import normalize_release_tag, verify_release_tag
+from scripts.verify_release_tag import declared_versions, normalize_release_tag, verify_release_tag
 
-ROOT = Path(__file__).resolve().parents[2]
+pytestmark = pytest.mark.unit
 
 
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    ("tag", "expected"),
-    [
-        ("0.1.0", "0.1.0"),
-        ("v0.1.0", "0.1.0"),
-        ("  v0.1.0  ", "0.1.0"),
-    ],
-)
-def test_normalize_release_tag_accepts_optional_v_prefix(tag: str, expected: str) -> None:
+@pytest.fixture
+def release_root(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "example-plugin"\nversion = "9.8.7"\nrequires-python = ">=3.10"\n'
+    )
+    (tmp_path / "fiftyone.yml").write_text("version: 9.8.7\n")
+    (tmp_path / "uv.lock").write_text(
+        'requires-python = ">=3.10"\n[[package]]\nname = "example-plugin"\nversion = "9.8.7"\n'
+    )
+    (tmp_path / "albumentationsx_plugin").mkdir()
+    (tmp_path / "albumentationsx_plugin/_version.py").write_text('__version__ = "9.8.7"\n')
+    return tmp_path
+
+
+@pytest.mark.parametrize(("tag", "expected"), [("9.8.7", "9.8.7"), ("v9.8.7", "9.8.7"), ("  v9.8.7  ", "9.8.7")])
+def test_normalize_release_tag_accepts_optional_v_prefix(tag, expected):
     assert normalize_release_tag(tag) == expected
 
 
-@pytest.mark.unit
-def test_normalize_release_tag_rejects_empty_tag() -> None:
+def test_normalize_release_tag_rejects_empty_tag():
     with pytest.raises(ValueError, match="must not be empty"):
         normalize_release_tag("  ")
 
 
-@pytest.mark.unit
-def test_current_metadata_matches_the_v0_1_0_release_tag() -> None:
-    assert verify_release_tag("v0.1.0") == "0.1.0"
+def test_current_metadata_is_consistent():
+    version = declared_versions()[0]
+    assert verify_release_tag(f"v{version}") == version
 
 
-@pytest.mark.unit
-def test_release_tag_reports_metadata_mismatch() -> None:
-    with pytest.raises(ValueError, match="Release tag '0.1.1' requires version '0.1.1'"):
-        verify_release_tag("0.1.1")
+def test_release_tag_reports_metadata_mismatch(release_root):
+    with pytest.raises(ValueError, match="requires version '9.8.8'"):
+        verify_release_tag("9.8.8", root=release_root)
 
 
-@pytest.mark.unit
-def test_release_tag_reports_python_compatibility_mismatch(tmp_path) -> None:
-    for filename in ("pyproject.toml", "fiftyone.yml", "uv.lock"):
-        (tmp_path / filename).write_text((ROOT / filename).read_text(encoding="utf-8"), encoding="utf-8")
+@pytest.mark.parametrize("filename", ["fiftyone.yml", "uv.lock", "albumentationsx_plugin/_version.py"])
+def test_release_tag_checks_all_shipped_version_sources(release_root, filename):
+    path = release_root / filename
+    path.write_text(path.read_text().replace("9.8.7", "9.8.6"))
+    with pytest.raises(ValueError, match="found"):
+        verify_release_tag("9.8.7", root=release_root)
 
-    lockfile = (tmp_path / "uv.lock").read_text(encoding="utf-8")
-    (tmp_path / "uv.lock").write_text(
-        lockfile.replace('requires-python = ">=3.10"', 'requires-python = ">=3.11"', 1),
-        encoding="utf-8",
-    )
 
+def test_release_tag_reports_python_compatibility_mismatch(release_root):
+    path = release_root / "uv.lock"
+    path.write_text(path.read_text().replace(">=3.10", ">=3.11"))
     with pytest.raises(ValueError, match="Python compatibility mismatch"):
-        verify_release_tag("v0.1.0", root=tmp_path)
+        verify_release_tag("v9.8.7", root=release_root)

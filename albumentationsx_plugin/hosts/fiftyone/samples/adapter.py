@@ -89,11 +89,8 @@ class FiftyOneSampleAdapter:
             return
 
         samples_by_id: dict[str, fo.Sample] = {}
-        selected_ids = set(self._selected_sample_ids)
-        for sample in collection:
-            sample_id = str(sample.id)
-            if sample_id in selected_ids:
-                samples_by_id[sample_id] = sample
+        for sample in collection.select(self._selected_sample_ids):
+            samples_by_id[str(sample.id)] = sample
 
         missing_ids = tuple(sample_id for sample_id in self._selected_sample_ids if sample_id not in samples_by_id)
         if missing_ids:

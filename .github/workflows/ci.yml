@@ -45,10 +45,13 @@ jobs:
       - name: Run pre-commit checks
         run: uv run pre-commit run --all-files --show-diff-on-failure
 
+      - name: Test App toolbar navigation
+        run: node --test tests/frontend/test_toolbar.cjs
+
   test:
     name: Tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:

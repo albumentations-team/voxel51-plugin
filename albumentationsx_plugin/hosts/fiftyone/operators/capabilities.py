@@ -10,6 +10,7 @@ import fiftyone.operators.types as types
 from fiftyone.operators.operator import RiskLevel
 
 from albumentationsx_plugin.core import CapabilityStatus, JSONDict
+from albumentationsx_plugin.hosts.fiftyone.branding import ALBUMENTATIONS_ICON
 from albumentationsx_plugin.hosts.fiftyone.capabilities import (
     ALL_FILTER_VALUE,
     CapabilityBrowserFilters,
@@ -31,8 +32,10 @@ class ShowAlbumentationsXCapabilities(foo.Operator):
         return foo.OperatorConfig(
             name=OPERATOR_NAME,
             label=OPERATOR_LABEL,
+            icon=ALBUMENTATIONS_ICON,
             description="Inspect supported AlbumentationsX transforms, target compatibility, and exclusion reasons.",
             dynamic=True,
+            unlisted=True,
             allow_immediate_execution=True,
             allow_delegated_execution=False,
             allow_distributed_execution=False,
@@ -96,13 +99,7 @@ class ShowAlbumentationsXCapabilities(foo.Operator):
 
     # pyrefly: ignore[bad-override]
     def resolve_placement(self, ctx: Any):
-        return types.Placement(
-            types.Places.SAMPLES_GRID_ACTIONS,
-            types.Button(
-                label=OPERATOR_LABEL,
-                prompt=True,
-            ),
-        )
+        return None
 
     def execute(self, ctx: Any) -> JSONDict:
         try:

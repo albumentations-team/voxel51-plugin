@@ -63,26 +63,43 @@ Preview runs also do not create output files, run directories, manifests, or
 custom runs. Preview returns in-memory images and JSON diagnostics through the
 operator output only; it is not listed by the run summary or cleanup operators.
 
-Materialized manifests include `metadata.execution_status`. Completed runs use
-`completed`, in-progress checkpoints use `running`, and controlled cancellation
-uses `cancelled` plus `metadata.cancelled_at`. A cancelled run is intentionally
+Materialized manifests include `metadata.execution_status`:
+
+- `completed`: all attempts finished without errors;
+- `partial`: at least one sample was created and at least one attempt failed;
+- `failed`: no samples were created and execution has errors;
+- `running`: an in-progress checkpoint;
+- `cancelled`: controlled cancellation, with `metadata.cancelled_at`, even if
+  some outputs were already created.
+
+The final operator result, manifest, custom run and history use the same status.
+History also classifies older `completed` manifests from their created/error
+counters without rewriting them. Preview succeeds with `preview`, validation
+with `dry_run`, and saving a pipeline with `preset_saved`. Errors use `failed`
+or, for a preview containing both outputs and errors, `partial`; mode flags
+retain whether the operation was a preview or dry run. Preflight failure writes
+no manifest. Diagnostics include the operation's execution status.
+
+`processed` and `skipped` count source samples; `created` counts generated samples
+and `errors` counts error records, so these counters need not sum to a source
+count when there are multiple outputs per source.
+
+ A cancelled run is intentionally
 retained as an inspectable partial run; generated samples and files already
 listed in the manifest can be removed with `Delete AlbumentationsX Run`.
 
-Saved manifests also act as same-dataset augmentation presets. The
-`Augment with AlbumentationsX` form can load a previous run's `pipeline` config
-to prefill transforms, visible parameters, and output count for a new run.
-When `Previous run` is the only selected template source, the saved pipeline
-prefills the current form values; clear `Previous run` after loading if you want
-to keep editing from that state. `Previous run` and `Named preset` cannot be
-selected together. Per-output replay records remain inspection metadata; they
-are not used for exact replay on new samples.
+Run history is available in **Load pipeline**. An explicit load copies the
+run's transforms, output count and annotation selection into an editable draft.
+Subsequent edits are used by preview and execution without a saved override.
+**Use pipeline from this run** in the run viewer opens the same editable copy.
+Per-output replay records remain inspection metadata; new executions sample
+fresh randomness.
 
 First-class named pipeline presets are stored separately from dataset run
 manifests under the shared plugin storage root. They persist reusable pipeline
 configuration and dependency metadata only. They do not participate in cleanup
 allowlists and never contain generated sample IDs, output paths, or replay
-records. `Manage AlbumentationsX Presets` can delete a preset JSON file, but
+records. `Manage AlbumentationsX Saved Pipelines` can delete a preset JSON file, but
 that action does not mutate run manifests, FiftyOne custom runs, generated
 samples, generated files, or sources. Details live in
 [Pipeline presets](pipeline-presets.md).

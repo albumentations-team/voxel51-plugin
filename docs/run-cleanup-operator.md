@@ -5,8 +5,12 @@ operator for cleaning up generated outputs from one AlbumentationsX plugin run.
 
 ## Behavior
 
-The operator requires an explicit `confirm_delete` boolean before it mutates
-anything. Without confirmation it returns `confirmation_required`.
+Open cleanup from **Run history → Review deletion of generated outputs**.
+The preview shows the selected label/date, sample/file counts and manifest file
+scope. App confirmation is bound to this run. API callers retain the explicit
+`confirm_delete` boolean. Without confirmation the operator returns
+`confirmation_required`. The backend URI remains available but has no independent
+toolbar action. See [Navigation](plugin-navigation.md).
 
 After confirmation, cleanup loads the trusted `manifest.json` for the selected
 run and deletes only:
@@ -77,6 +81,7 @@ uv run python scripts/create_demo_dataset.py create --overwrite
 uv run fiftyone app launch albumentationsx-demo
 ```
 
-Run `Augment with AlbumentationsX` with a non-dry configuration, then run
-`Delete AlbumentationsX Run` with `confirm_delete` checked. Confirm that source
+Run `Augment images` with a non-dry configuration, then run
+**Run history → Review deletion of generated outputs**, inspect the preview,
+then confirm the deletion. Confirm that source
 samples/files remain and generated output samples/files are gone.

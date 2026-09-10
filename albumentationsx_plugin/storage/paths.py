@@ -47,10 +47,19 @@ def slugify_run_label(value: str | None) -> str:
 
 
 def build_preset_key(name: str) -> str:
-    """Return a stable path-safe key for a user-facing preset name."""
+    """Return a legacy name slug; retained for existing callers and references.
+
+    New saved pipelines must use ``new_preset_key``: name slugs are not unique.
+    """
 
     normalized = _UNSAFE_RUN_LABEL.sub("-", name.casefold().strip()).strip("-")
     return (normalized or "preset")[:MAX_PRESET_KEY_LENGTH].strip("-") or "preset"
+
+
+def new_preset_key() -> str:
+    """Allocate an identity independent of the display name, retained on edits."""
+
+    return f"pipeline-{uuid.uuid4().hex}"
 
 
 def default_storage_root(*, home: str | PathLike[str] | None = None) -> Path:

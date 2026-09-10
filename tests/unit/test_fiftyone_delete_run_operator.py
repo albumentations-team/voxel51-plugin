@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import pathlib
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -59,13 +60,27 @@ def test_delete_run_operator_resolves_run_selector_confirmation_and_output(monke
         return ("albumentationsx-20260731T150000Z-first",)
 
     monkeypatch.setattr(delete_run_operator_module, "list_deletable_run_keys", fake_list_deletable_run_keys)
+    monkeypatch.setattr(
+        delete_run_operator_module,
+        "build_cleanup_preview",
+        lambda *a, **k: SimpleNamespace(
+            run_label="First",
+            created_at="2026-09-09",
+            sample_count=2,
+            file_count=3,
+            missing_sample_count=0,
+            missing_file_count=0,
+            run_dir="/tmp/run",
+            output_paths=("image.png",),
+        ),
+    )
 
     input_json = operator.resolve_input(Context()).to_json()
     output_json = operator.resolve_output(ctx=None).to_json()
     input_properties = input_json["type"]["properties"]
     output_properties = output_json["type"]["properties"]
 
-    assert input_json["view"]["label"] == "Delete AlbumentationsX Run"
+    assert input_json["view"]["label"] == "AlbumentationsX · Delete generated outputs"
     assert input_properties["run_key"]["type"]["name"] == "Enum"
     assert input_properties["run_key"]["default"] == "albumentationsx-20260731T150000Z-first"
     assert input_properties["run_key"]["view"]["name"] == "AutocompleteView"
@@ -117,40 +132,10 @@ def test_delete_run_operator_resolves_empty_selector_without_confirmation(monkey
 
 
 @pytest.mark.unit
-def test_delete_run_operator_resolves_samples_grid_placement() -> None:
+def test_delete_run_operator_is_an_unlisted_api_entry():
     operator = DeleteAlbumentationsXRun()
-
-    placement_json = operator.resolve_placement(ctx=None).to_json()
-    view_json = placement_json["view"]
-
-    assert placement_json["place"] == "samples-grid-actions"
-    assert isinstance(view_json, dict)
-    assert view_json["name"] == "Button"
-    assert view_json["label"] == "Delete AlbumentationsX Run"
-    assert view_json["prompt"] is True
-    assert view_json["disabled"] is True
-
-
-@pytest.mark.unit
-def test_delete_run_operator_enables_samples_grid_placement_with_dataset_runs(monkeypatch) -> None:
-    operator = DeleteAlbumentationsXRun()
-
-    class Context:
-        dataset = object()
-        params = {}
-
-    monkeypatch.setattr(
-        delete_run_operator_module,
-        "list_deletable_run_keys",
-        lambda dataset, **kwargs: ("albumentationsx-20260731T150000Z-run",),
-    )
-
-    placement_json = operator.resolve_placement(Context()).to_json()
-    view_json = placement_json["view"]
-
-    assert isinstance(view_json, dict)
-    assert view_json["disabled"] is False
-    assert view_json["title"] is None
+    assert operator.resolve_placement(ctx=None) is None
+    assert operator.config.unlisted is True
 
 
 @pytest.mark.unit

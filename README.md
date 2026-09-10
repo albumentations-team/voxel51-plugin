@@ -10,6 +10,28 @@ and leaves the selected source samples and files unchanged.
 For the full user workflow, see the public
 [AlbumentationsX and FiftyOne integration guide](docs/albumentationsx-fiftyone-integration.md).
 
+## App navigation
+
+The plugin has three primary actions: **AlbumentationsX · Augment images**,
+**AlbumentationsX · Saved pipelines**, and **AlbumentationsX · Run history**.
+Each toolbar button displays the Albumentations logo beside **augment**,
+**pipelines**, or **history**, with its full action name in the tooltip.
+Below, these actions are referred to by their shorter names.
+In the editor, type in **Transform**
+to search, filter by target, and expand **Compatibility details** while keeping
+current settings. Creation opens the generated samples, clearing source filters;
+the result retains the editable draft and a link to that run in history.
+
+In **Run history**, choose a run by label, date, and outcome. Open its outputs or
+failed source samples, use its pipeline as an editable copy, or **Review deletion
+of generated outputs**. Cleanup shows the run, sample/file counts and exact file
+scope before confirmation. Cleaned manifests remain visible as audit records.
+**Saved pipelines** contains reusable configurations, with editing, import/export,
+rename and delete actions. Save a new configuration from the editor.
+
+See [Navigation and operator compatibility](docs/plugin-navigation.md) for the
+workflow and retained Python operator URIs.
+
 ## Install a published release
 
 Install the plugin into the same Python environment as FiftyOne. Replace
@@ -41,54 +63,58 @@ FiftyOne registers these operators:
 @albumentations/albumentationsx/delete_albumentationsx_run
 ```
 
+Results lead with the outcome and counts: successful runs are `completed`, mixed
+results are `partial`, and runs with errors but no created samples are `failed`.
+Cancellation remains `cancelled`. Use **Open generated samples** to see outputs
+without source filters, **View in history** to inspect the run, or **Back to editor**
+to continue with the same draft. Error causes and recovery actions appear above
+collapsed **Technical details**, where JSON can be copied or downloaded.
+
 ## Run your first augmentation
 
 1. Open a FiftyOne image dataset or view. Optionally select samples if you want
    to process only a subset.
-2. Optionally run **Analyze AlbumentationsX Compatibility** to inspect detected
-   label fields, safe target families, and dataset-specific recommendations.
-3. Run **Augment with AlbumentationsX** from the App actions menu.
+2. Open **Augment images** from the App actions menu.
+3. Expand **Compatibility details** to inspect selected label fields and
+   dataset-specific recommendations while editing the pipeline.
 4. Choose the execution scope, annotation fields, ordered pipeline stages, and
    transform parameters. The form shows a compact compatibility summary for the
    current dataset/scope/pipeline and warns about unsafe annotation choices
-   before execution. Optionally enable `Preview only` to inspect up to three
-   selected samples in memory, then disable it and run the same configuration to
-   create outputs. Optionally choose a named preset or save the current pipeline
-   as a reusable preset.
-5. Inspect the resulting samples tagged by the run key. Use **Manage
-   AlbumentationsX Presets** for shared preset import/export/rename/delete,
-   **View AlbumentationsX Run** to inspect the saved pipeline, and **Delete
-   AlbumentationsX Run** to remove only that run's generated outputs.
+   before execution. Choose **Action → Preview** to inspect up to three selected
+   samples in memory. The result offers **Back to editor**, **Preview again**, and
+   **Review and create samples**, preserving your stages, parameters, annotations,
+   scope, and output count. Choose **Action → Save pipeline** to save a reusable configuration.
+5. Creation opens the generated samples. Use **Saved pipelines** for shared
+   pipeline import/export/rename/delete. Use **Run history** to inspect the
+   execution, reuse its pipeline, or review deletion of its generated outputs.
 
 `Execution scope` controls whether the operator processes selected samples, the
-active current view, or the entire dataset. `Preview only` renders source and
+active current view, or the entire dataset. **Preview** renders source and
 augmented images, annotated before/after comparison images, sampled replay
 parameters, transformed label JSON, and annotation comparison JSON for a bounded
 selected-sample preview without creating samples, files, manifests, or custom
-runs. `Dry run` validates a configuration and reports the resolved source scope
+runs. **Validate without creating samples** validates a configuration and reports the resolved source scope
 without creating samples or files. Use immediate execution for small bounded
 selections; use delegated execution for larger views or datasets to keep the App
 responsive while progress is reported.
 
 > [!NOTE]
-> Selecting `Previous run` loads its saved pipeline as a reusable template and
-> samples fresh randomness. Clear that field before editing the loaded pipeline.
-> `Named preset` loads a shared pipeline template that can be reused across
-> datasets in the same plugin storage root. Choose only one template source at a
-> time; selecting both blocks execution with a configuration warning.
+> Use **Load pipeline** to choose a saved pipeline or run history, then explicitly
+> replace the draft. Loaded configurations stay editable; preview and execution
+> use your current values with fresh randomness. See [the loading contract](docs/pipeline-presets.md).
 
 ## Current capabilities
 
 - The form exposes 113 catalog-backed image transforms from the current locked
   dependency set. [albu-spec Catalog](docs/albu-spec-catalog.md) records the
   current transform-by-transform snapshot and exclusion reasons.
-- **Analyze AlbumentationsX Compatibility** reports dataset-specific label-field
+- The API-only **Analyze AlbumentationsX Compatibility** operator reports dataset-specific label-field
   support, source scope counts, safe target families, and recommendations before
   a pipeline is executed.
-- **Augment with AlbumentationsX** embeds a compact compatibility section that
+- **Augment images** embeds a compact compatibility section that
   reuses the same report backend and selected-pipeline validation, while the
   standalone compatibility operator remains the fuller diagnostic view.
-- **Show AlbumentationsX Capabilities** exposes the same catalog in the App with
+- The API-only **Show AlbumentationsX Capabilities** operator exposes the full catalog with
   search, status filtering, target filtering, dependency versions, supported
   targets, advanced-parameter status, and exclusion reasons.
 - Form controls use compact captions, readable enum labels, and responsive
@@ -122,7 +148,10 @@ responsive while progress is reported.
   metadata.
 - Every non-dry run stores its pipeline configuration and sampled replay
   metadata. Generated samples and files can be inspected and cleaned up by run.
-- **View AlbumentationsX Run** provides searchable run history, newest first,
+- Label tags and JSON-safe dynamic/legacy attributes are preserved. The form
+  and execution results explain omitted fields, derived attributes and source
+  provenance; see the [output metadata policy](docs/annotation-aware-execution.md#output-metadata-policy).
+- **Run history** provides searchable run history, newest first,
   with run labels, timestamps, outcomes, scope, counters, and pipeline versions.
   Select a run to inspect its manifest and errors, open generated samples,
   reuse its pipeline with fresh randomness, or open the cleanup confirmation.
@@ -131,9 +160,16 @@ responsive while progress is reported.
 - Named pipeline presets can be saved from the augmentation form and loaded
   across datasets. They persist only the reusable pipeline config and dependency
   versions, not sample IDs, output paths, or replay records.
-- **Manage AlbumentationsX Presets** can inspect, export, import, rename, and
-  delete named presets. Import validates the preset schema and pipeline against
-  the current executable catalog before saving. Deleting a preset removes only
+- **Save pipeline** offers **Save as new pipeline** and **Update existing
+  pipeline** with an explicit target and replacement confirmation. Unicode and
+  repeated display names get independent IDs; renaming keeps existing references.
+- **Saved pipelines** can inspect, export, import, edit details, duplicate, rename,
+  and delete pipelines. Export's **Importable pipeline JSON** is the field to
+  copy. Import accepts this complete JSON object or a local `.json` file path
+  on the FiftyOne server. Import validates the schema and executable pipeline
+  before saving; replacing the same ID requires **Overwrite existing saved pipeline**.
+  See the [save/import/edit workflow](docs/pipeline-presets.md#save-and-manage).
+  Deleting a preset removes only
   the preset JSON file, not runs, generated samples, output files, or sources.
 
 ## Current limits
@@ -156,9 +192,9 @@ responsive while progress is reported.
   heatmap values untouched by those effects.
 - `supported_with_defaults` transforms expose simple typed controls plus an
   advanced JSON section for optional complex parameters.
-- `Previous run` restores pipeline configuration; it does not reproduce each
+- `From run history` restores pipeline configuration; it does not reproduce each
   earlier sample's random parameters.
-- `Named preset` restores reusable pipeline configuration across datasets; it
+- `Saved pipeline` restores reusable pipeline configuration across datasets; it
   does not store source samples, generated outputs, or sampled replay values.
 
 ## Develop locally
@@ -199,40 +235,37 @@ FiftyOne internal sample IDs are database-generated.
 Additional local suites for annotation, mask, and validation checks are
 available via `--suite`; see [Demo dataset](docs/demo-dataset.md).
 
-In the App, run `Augment with AlbumentationsX`, choose `Execution scope`
+In the App, run `Augment images`, choose `Execution scope`
 (`Selected samples`, `Current view`, or `Entire dataset`), set `Pipeline stages`,
-optionally choose `Named preset` to prefill the form from a shared pipeline
-template, optionally choose `Previous run` to prefill the form from a saved run
-in this dataset, optionally set `Run label` and `Outputs per sample`, and choose
+optionally use `Load pipeline` and `Replace draft with selected pipeline` to load
+an editable copy from saved pipelines or run history, set `Run label` and
+`Outputs per sample`, and choose
 a catalog-backed transform for each visible stage slot. Each stage slot can be
-skipped with `Enabled` or moved by changing `Execution order`. Fill `Preset
-name` to save the current pipeline as a reusable named preset; enable `Save
-preset only` to save it without running augmentation. Select one to three source
-samples and enable `Preview only` to render source/augmented image previews,
+skipped with `Enabled` or moved by changing `Execution order`. Choose **Action →
+Save pipeline** and fill **Saved pipeline name** to save it without creating samples.
+A name retained in the editor does not request a save during other actions.
+Select one to three source samples and choose **Action → Preview** to render source/augmented image previews,
 annotated before/after comparisons, sampled replay parameters, transformed
 label JSON, and annotation comparison JSON without writing files, creating
-samples, or registering a run. `Dry run` validates the configuration and reports
+samples, or registering a run. **Validate without creating samples** validates the configuration and reports
 the resolved source scope without writing files or creating samples. Run small
 selections immediately. For larger views or full datasets, choose delegated
 execution in FiftyOne's execution dialog so the App can remain responsive and
-report live progress. Previous-run settings are used
-as a reusable pipeline template with fresh randomness, including all saved
-stages up to the current ten-slot editor limit, not as an exact replay of
-earlier sampled parameters. Clear `Previous run` after loading if you want to
-keep editing the form without reapplying the saved pipeline. New output samples
+report live progress. Loaded pipelines use fresh randomness and stay editable
+without clearing their source. New output samples
 are written under the plugin-owned storage directory and tagged with the run
 key; source samples and source files remain unchanged. Non-dry runs also save
 `manifest.json` under the run output directory and register the manifest in
 FiftyOne's custom run store. If a materialized run is cancelled or interrupted
 after outputs have been created, retained partial outputs are recorded in the
 manifest so they can be inspected and deleted by run.
-Then run `View AlbumentationsX Run` to inspect persisted counts, generated
+Then run `Run history` to inspect persisted counts, generated
 sample availability, versions, transform config, per-output replay records, and
 stale/missing manifest state. The viewer can also open the generated samples
-that still exist in the active dataset. Run `Manage AlbumentationsX Presets` to
-inspect shared presets, export one as JSON, import validated preset JSON, rename
-presets, or delete only a preset JSON file. Run
-`Delete AlbumentationsX Run` with confirmation checked to remove generated
+that still exist in the active dataset. Run `Saved pipelines` to
+inspect shared pipelines, copy **Importable pipeline JSON**, import from JSON or
+a local file, edit details, duplicate, or delete a configuration. In **Run history**, choose
+**Review deletion of generated outputs**, inspect the scope, and confirm to remove generated
 samples/files and the FiftyOne custom run; source samples and source files
 remain unchanged. Cleaned runs remain inspectable through the retained manifest
 audit trail, but they are hidden from cleanup run-key suggestions.

@@ -14,11 +14,11 @@ uv lock --check
 uv run pre-commit run --all-files
 uv run pytest --cov-fail-under=85
 uv run pyrefly check
+node --test tests/frontend/test_toolbar.cjs
 ```
 
-For early documentation-only pull requests before the Python package exists,
-run `uv run pre-commit run --all-files` and record any test or type-check
-commands that are not applicable yet.
+For documentation-only changes, run pre-commit and check links. Run affected
+behavior tests when examples or documented commands change.
 
 ## Targeted test groups
 
@@ -53,8 +53,8 @@ uv run python scripts/build_release_artifacts.py --tag <release-tag>
 ```
 
 `<release-tag>` may use either `0.1.2` or `v0.1.2`; it must match the versions
-in `pyproject.toml` and `fiftyone.yml`, and `uv.lock` must match the declared
-Python compatibility. Attach or link the resulting capability snapshot,
+in `pyproject.toml`, `fiftyone.yml`, `albumentationsx_plugin/_version.py`, and
+the root package entry in `uv.lock`. Python compatibility must also match. Attach or link the resulting capability snapshot,
 install notes, and `SHA256SUMS` from the release notes. The historic
 [Release v0.1.0](release-v0.1.0.md) records the first release's scope and
 manual App checks. The reusable artifact process is documented in
@@ -100,7 +100,7 @@ expanded label-family support is usable in the FiftyOne App.
    ```
 
 2. In the App, select at least one demo sample and run
-   **Augment with AlbumentationsX**.
+   **Augment images**.
 3. Keep annotation fields enabled for `Classification`, `Detections`,
    `Keypoints`, `Polylines`, `Heatmap`, and `Segmentation`.
 4. Run a non-dry geometry-only pipeline, for example `HorizontalFlip` with
@@ -112,13 +112,14 @@ expanded label-family support is usable in the FiftyOne App.
    - keypoints and polyline vertices move with the image;
    - heatmap values stay spatially aligned;
    - segmentation masks preserve discrete regions.
-7. Run **View AlbumentationsX Run** for the new run key and confirm that the
+7. Run **Run history** for the new run key and confirm that the
    summary includes selected annotation fields, runtime target requirements,
    replay records, generated sample counts, and dropped annotation diagnostics.
-8. Run **Augment with AlbumentationsX** again with a selected `Heatmap` field
+8. Run **Augment images** again with a selected `Heatmap` field
    and a mixed geometry plus image-only color/intensity pipeline. Confirm the
    operator rejects the run before creating outputs.
-9. Run **Delete AlbumentationsX Run** with confirmation checked. Confirm
+9. Open **Run history → Review deletion of generated outputs**, inspect the preview,
+   and confirm deletion. Confirm
    generated samples and plugin-owned output files are removed, while source
    samples, source images, and source annotation files remain unchanged.
 

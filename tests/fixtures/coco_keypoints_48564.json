@@ -1,0 +1,30 @@
+{
+  "source": "http://images.cocodataset.org/annotations/annotations_trainval2017.zip",
+  "annotation_file": "person_keypoints_val2017.json",
+  "image": {"id": 48564, "width": 427, "height": 640},
+  "annotation": {
+    "id": 454910,
+    "image_id": 48564,
+    "category_id": 1,
+    "num_keypoints": 10,
+    "keypoints": [
+      147, 158, 2,
+      169, 111, 2,
+      118, 134, 2,
+      235, 91, 2,
+      96, 161, 2,
+      395, 291, 2,
+      141, 290, 2,
+      409, 514, 2,
+      39, 487, 2,
+      0, 0, 0,
+      78, 301, 2,
+      0, 0, 0,
+      0, 0, 0,
+      0, 0, 0,
+      0, 0, 0,
+      0, 0, 0,
+      0, 0, 0
+    ]
+  }
+}

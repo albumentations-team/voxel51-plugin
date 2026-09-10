@@ -6,13 +6,14 @@ import base64
 import io
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import fiftyone as fo
 from PIL import Image
 
 from albumentationsx_plugin.core import RUN_EXECUTION_STATUS_PREVIEW, JSONDict, PluginError
+from albumentationsx_plugin.core.contracts.runs import terminal_execution_status
 from albumentationsx_plugin.core.serialization import normalize_json_mapping
 from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import (
     AppliedOutput,
@@ -24,6 +25,10 @@ from albumentationsx_plugin.hosts.fiftyone.augmentation.runtime import build_fix
 from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
     EXECUTION_SCOPE_FIELD_NAME,
     EXECUTION_SCOPE_SELECTED_SAMPLES,
+)
+from albumentationsx_plugin.hosts.fiftyone.output_metadata import (
+    metadata_policy_output_fields,
+    policy_from_annotation_metadata,
 )
 from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
     MAX_PREVIEW_SAMPLES,
@@ -92,6 +97,7 @@ class FixedAugmentationPreviewResult:
     error_count: int
     outputs: tuple[FixedAugmentationPreviewOutput, ...]
     errors: tuple[JSONDict, ...] = ()
+    metadata_policy: JSONDict = field(default_factory=dict)
 
     def to_dict(self) -> JSONDict:
         """Serialize the summary for FiftyOne operator output."""
@@ -104,7 +110,9 @@ class FixedAugmentationPreviewResult:
             "skipped_count": self.skipped_count,
             "error_count": self.error_count,
             "dry_run": False,
-            "execution_status": RUN_EXECUTION_STATUS_PREVIEW,
+            "execution_status": terminal_execution_status(
+                succeeded=self.preview_count, errors=self.error_count, success_status=RUN_EXECUTION_STATUS_PREVIEW
+            ),
             "output_tag": "",
             "output_dir": "",
             "manifest_path": "",
@@ -113,6 +121,7 @@ class FixedAugmentationPreviewResult:
             PREVIEW_ONLY_FIELD_NAME: True,
             "preview_count": self.preview_count,
             "preview_note": PREVIEW_NOTE,
+            **metadata_policy_output_fields(self.metadata_policy),
         }
         for slot_number in range(1, MAX_PREVIEW_SAMPLES + 1):
             if slot_number <= len(self.outputs):
@@ -177,6 +186,7 @@ def execute_fixed_augmentation_preview(
         error_count=len(errors),
         outputs=tuple(outputs),
         errors=tuple(errors),
+        metadata_policy=policy_from_annotation_metadata(runtime.annotation_metadata),
     )
 
 

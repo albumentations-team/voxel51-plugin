@@ -87,9 +87,15 @@ and similar) for compatibility. Later slots use prefixed field names such as
 Each visible slot also has `pipeline_stage_enabled`/`step_N_pipeline_stage_enabled`
 and `pipeline_stage_order`/`step_N_pipeline_stage_order` controls. Disabled
 slots are skipped without clearing their transform settings. Enabled slots must
-use unique execution-order values; duplicate orders render a configuration
-warning and are rejected before preview, dry-run, save-only, or materialized
-execution starts.
+use unique execution-order values. Duplicate orders list the conflicting stage
+numbers, mark their order fields invalid, and disable submission until corrected.
+Configuration errors use the same validator in the form and server execution.
+No-selection preview and missing save names also block submission at their fields.
+Known crop dimensions are checked against available selected-image metadata in
+the editor and against actual images in server preflight before any run is
+created. Disabled stages retain their raw values but hide inactive parameter
+controls so they cannot block submission. Errors expand their containing section
+and focus the first invalid text or number field.
 
 VOX-27 groups the prompt into a general settings section followed by one
 visible section for each configured augmentation stage slot. General settings
@@ -106,43 +112,56 @@ current pipeline transform/copy behavior. Pipeline-specific conflicts are shown
 as warnings before execution. The standalone compatibility operator remains the
 full diagnostic view with field tables, target families, versions, and JSON.
 
-VOX-29 adds `Preview only` to the general settings. Preview is intentionally
-bounded to selected samples: the operator renders up to three selected source
-samples as source/augmented image pairs, annotation-aware before/after
-comparison images, and JSON diagnostics, then returns without creating samples,
-files, manifests, custom runs, or dataset reloads.
-The preview output schema is shown only while `preview_only` is selected so
-normal run summaries remain compact.
+The editor exposes one **Action**: **Preview**, **Create augmented samples**,
+**Save pipeline**, or **Validate without creating samples**. The submit label
+matches that action; preview, validation, and saving execute immediately.
+Creation also supports delegated execution. Preview is bounded to up to three
+selected samples and creates no samples, files, manifests, or custom runs.
 
-When a previous run is selected, the form loads that run's `manifest.json` from
-the current dataset and overlays its saved `pipeline` config over current
-pipeline form values. The same overlay is applied during operator execution, so
-submitting only the previous run key still applies the saved pipeline template to
-the new selection. Presets preserve saved stages up to the same ten-slot safety
-limit as the editor. Clear `Previous run` after loading if you want to keep
-editing the form without reapplying the saved pipeline. Replay records are not
-reused; the new run samples fresh random parameters.
+Results retain a transient snapshot of the submitted draft. **Back to editor**,
+**Preview again**, and **Review and create samples** open the same configuration
+with isolated form paths. These actions open the editor; creating outputs still
+requires submitting the visible scope. Each stochastic execution uses fresh
+randomness, not the previous preview's replay. The snapshot includes disabled
+stages, raw invalid JSON, run label, output count, annotation checkboxes, and
+pipeline origin. A successful retry clears the previous error notice.
 
-VOX-28 adds first-class named pipeline presets stored under the shared plugin
-storage root. A named preset can prefill the form across datasets because it
-stores only the validated pipeline config, output count, dependency versions,
-and user-facing metadata. It does not store source sample ids, output paths,
-custom run keys, or replay records. `Named preset` and `Previous run` are
-mutually exclusive template sources; selecting both renders a configuration
-warning and blocks execution instead of applying silent precedence. Filling
-`Preset name` saves the resolved pipeline during a materialized augmentation
-run; `Save preset only` validates and saves the preset without running
-augmentation.
+Creation refreshes selected IDs/counts from the App context. A selection change
+after the editor opens is rejected before writing outputs; returning shows the
+current selection for review. The scope is explicit in returned drafts, so an
+empty selection cannot silently change Selected samples into Current view.
+Drafts also retain their dataset identity; loading a saved pipeline explicitly
+maps its annotations to a different dataset.
 
-VOX-50 adds shared form/execution validation for confusing configuration
-combinations. `Preview only` and `Dry run` cannot be selected together, because
-preview is already non-persistent and uses selected samples only. `Save preset
-only` requires `Preset name` and cannot be combined with `Preview only` or `Dry
-run`. Filling `Preset name` while using `Preview only` or `Dry run` is also
-blocked, because those modes do not save presets.
+Transforms are above annotations and optional reports. The library, save
+settings, run options, compatibility, metadata, and result diagnostics use
+native `details`/`summary` sections through GridView component props. Controls
+stay mounted when collapsed. This works with the released FiftyOne 1.19 App,
+whose ObjectView does not implement the newer `collapsible` option.
+Preview results show populated annotated comparisons first, followed by
+continuation controls; individual images and JSON remain under Result details.
+
+Closing/cancelling the editor or result ends that transient draft. Use the
+continuation buttons or Save pipeline to keep the configuration. This does not
+introduce persistent temporary sessions or cross-tab/server draft storage.
+
+**Load pipeline** combines saved pipelines and run history in one source picker.
+Selecting a source preserves the current draft. **Replace draft with selected
+pipeline** opens an editable snapshot with actual nested form values populated;
+**Reload and replace draft** explicitly discards subsequent edits. Execution
+uses the current draft without overlaying saved values. Annotation selection is
+restored by name and type, and unavailable fields are explained in the form.
+See [Saved pipelines and run history](pipeline-presets.md) for the load/save
+contract and legacy API migration.
+
+Known shared validation errors (such as duplicate stage orders) block submission
+inside the editor. Runtime errors offer Back to editor with the raw settings and
+an error notice preserved. The legacy boolean Python API retains its existing
+mode-conflict checks. UI actions are exclusive; a retained saved-pipeline name
+has no saving effect unless Save pipeline is selected.
 
 VOX-48 keeps preset lifecycle management out of the augmentation form. The
-separate `Manage AlbumentationsX Presets` operator handles inspect, export,
+separate `Manage AlbumentationsX Saved Pipelines` operator handles inspect, export,
 import, rename, and delete actions against the same shared preset storage.
 
 Stage headings identify the stable slot. `Execution order` provides the

@@ -146,6 +146,6 @@ def test_validation_issues_render_as_form_warning_and_operator_errors() -> None:
     errors = validation_issues_to_errors(issues)
 
     assert "Fix these settings before running augmentation" in warning
-    assert "Choose either a named preset or a previous run" in warning
+    assert "Choose one source in Load pipeline" in warning
     first_error = cast(dict[str, Any], errors[0])
     assert first_error["code"] == PRESET_SOURCE_CONFLICT_CODE
