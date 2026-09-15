@@ -60,107 +60,56 @@ FiftyOne manifest and root registration entrypoint needed for App discovery.
 
 ## Quickstart
 
-### Create a small dataset without a repository checkout
-
-The following standalone script uses dependencies installed above. It creates
-three small images and a new dataset; existing datasets are left intact.
-
-Save it as `albumentationsx_quickstart.py` and run it with the Python environment
-that contains FiftyOne and the plugin:
-
-```python
-from pathlib import Path
-from tempfile import mkdtemp
-
-import fiftyone as fo
-from PIL import Image, ImageDraw
-
-data_dir = Path(mkdtemp(prefix="albumentationsx-demo-"))
-dataset = fo.Dataset()  # FiftyOne chooses a unique name
-dataset.persistent = True
-
-for index, color in enumerate(("tomato", "royalblue", "seagreen")):
-    image = Image.new("RGB", (480, 320), "whitesmoke")
-    ImageDraw.Draw(image).rectangle((48, 64, 192, 224), fill=color)
-    path = data_dir / f"source-{index + 1}.png"
-    image.save(path)
-    dataset.add_sample(
-        fo.Sample(
-            filepath=str(path),
-            ground_truth=fo.Detections(
-                detections=[
-                    fo.Detection(
-                        label="rectangle",
-                        bounding_box=[0.1, 0.2, 0.3, 0.5],
-                    )
-                ]
-            ),
-        )
-    )
-
-print(f"Dataset: {dataset.name}")
-print(f"Source images: {data_dir}")
-session = fo.launch_app(dataset)
-session.wait()
-```
-
-```bash
-python albumentationsx_quickstart.py
-```
-
-Repository contributors can use the richer generated annotation/mask/validation
-suites described in `docs/demo-dataset.md` in a source checkout.
+Open an image dataset in the FiftyOne App. If you do not have one, use the
+[standalone sample dataset](#optional-standalone-sample-dataset) below.
+The recordings use three COCO photographs with `detections` and `keypoints`
+fields. The standalone example instead uses rectangles and `ground_truth`;
+choose the label fields present in your dataset.
 
 ### Preview and create
 
-![HorizontalFlip preview on COCO with aligned detections and keypoints.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif)
+**Preview one source**
 
-*HorizontalFlip preview on COCO with aligned detections and keypoints.*
+1. Select one source image in the grid and open
+   **AlbumentationsX · Augment images** (the **augment** toolbar action).
+2. Set **Execution scope → Selected samples**, one pipeline stage, and one
+   output per sample. Choose **HorizontalFlip** with **Probability = 1**.
+3. Select the annotation fields to transform. For the COCO recording, these
+   are `detections` and `keypoints`; for the standalone example, `ground_truth`.
+4. Choose **Action → Preview** and submit. Compare the original and augmented
+   image: objects, boxes, masks, and keypoints should flip together when selected.
+5. Use **Back to editor** to change settings or **Preview again** for another
+   result. The draft retains stages, parameters, labels, scope, and output count.
 
-1. Select the first sample in the grid.
-2. Open **AlbumentationsX · Augment images**.
-3. Choose **Execution scope → Selected samples**, one stage,
-   **HorizontalFlip**, **Probability = 1**, and one output per sample.
-4. Keep `ground_truth` checked in the annotation section.
-5. Choose **Action → Preview**, submit, and inspect the comparison:
-   the rectangle and its detection box should move from left to right together.
-6. Use **Back to editor** to change settings or **Preview again** to inspect
-   another stochastic result. The draft retains stages, parameters, labels,
-   scope, and output count.
-7. Choose **Review and create samples**. Review the source selection and submit
-   **Create augmented samples**.
-8. The grid opens the generated sample. The original three samples and their
-   files remain unchanged. Use **View in history** to inspect this execution.
+**Expected result:** a before/after comparison with aligned labels. Preview
+does not save files, samples, manifests, or runs. It shows at most three
+selected sources, even when the execution scope is larger.
 
-Preview does not save files, samples, manifests, or runs. Creation uses fresh
-randomness, so a probabilistic pipeline can differ from its preview.
+<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif" width="480" alt="HorizontalFlip preview on COCO with aligned detections and keypoints."></a>
 
-### Review and remove generated outputs
+*HorizontalFlip preview on COCO with aligned detections and keypoints. Select the image to view it at full size.*
 
-![Create one output and open its generated-sample view.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/create-outputs.gif)
+**Create one persistent output**
 
-*Create one output and open its generated-sample view.*
+1. From the preview, choose **Review and create samples**.
+2. Confirm **Selected samples**, one source, one output per sample, and the
+   annotation fields. Choose **Create augmented samples** and submit.
+3. Inspect the generated-sample view, then use **View in history** to inspect
+   the run's settings and counters.
 
-In **Run history**, select the run and choose
-**Review deletion of generated outputs**. Check the run, sample/file counts,
-directory, and listed paths before confirming.
+**Expected result:** one new sample and its output image, with source provenance.
+The source sample, file, and labels remain unchanged. Creation uses fresh
+randomness; a probabilistic pipeline can differ from its preview.
 
-Cleanup removes only that run's generated samples, recorded output files, and
-matching FiftyOne custom run. Its manifest remains as an audit record. The demo
-source images and original samples remain available.
+<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/create-outputs.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/create-outputs.gif" width="480" alt="Create one output and open its generated-sample view."></a>
 
-Close the cleanup result and any earlier augmentation result with **Close** or
-**Done**. If the grid still shows the output-only view, remove its **Select**
-view stage to see the original samples again.
+*Create one output and open its generated-sample view. Select the image to view it at full size.*
 
-If you later remove the demo dataset, use its printed unique name and handle
-the printed source directory separately. Run cleanup does not delete demo sources.
+To remove the output after exploring, follow
+[Cleanup and data safety](#cleanup-and-data-safety). If an output-only view
+hides the originals, remove its **Select** view stage.
 
 ## Build and edit a pipeline
-
-![Edit two ordered stages, preview, and return with settings preserved.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/edit-pipeline.gif)
-
-*Edit two ordered stages, preview, and return with settings preserved.*
 
 The editor supports up to **ten stage slots** and **one to three outputs per
 source**. Search **Transform**, optionally filter by target, and choose parameters.
@@ -183,6 +132,22 @@ discards subsequent changes. See [pipeline loading](pipeline-presets.md).
 
 The draft survives the continuation buttons and validation errors. Closing the
 editor or result ends it; use **Save pipeline** for later reuse.
+
+### Example: brighten before flipping
+
+1. Return to the editor and increase the stage count to two.
+2. Keep **HorizontalFlip** in the first slot, set its **Execution order** to 2,
+   and set **Probability = 0** so its configuration is retained without a flip.
+3. Choose **RandomBrightnessContrast** in the second slot, set its order to 1,
+   **Probability = 1**, brightness limits to `[0.3, 0.3]`, and contrast limits
+   to `[0, 0]`. Equal limits make this brightness change predictable.
+4. Preview the selected image. It should become brighter without changing
+   orientation. Return with **Back to editor** and inspect the retained settings.
+5. Set the flip probability to 1 and preview again to see both effects.
+
+<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/edit-pipeline.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/edit-pipeline.gif" width="480" alt="Edit two ordered stages, preview, and return with settings preserved."></a>
+
+*Edit two ordered stages, preview, and return with settings preserved. Select the image to view it at full size.*
 
 ## Scope, validation, and execution
 
@@ -207,12 +172,39 @@ output. A known invalid crop without padding or missing input can therefore
 reject the whole run before creating anything. Failures during output execution
 can produce partial results.
 
-Use immediate execution for small selections. For larger scopes, choose delegated
-creation and run a worker in the same environment:
+### Run creation in the background
+
+Use immediate execution for small selections. For larger scopes in FiftyOne
+Open Source, configure the environment that launches the App/SDK:
 
 ```bash
+export FIFTYONE_ALLOW_LEGACY_ORCHESTRATORS=true
+```
+
+Restart an already running App after changing this setting. In a second terminal,
+activate the same Python environment, use the same FiftyOne database and plugin
+configuration, and start a worker that can access the source and output paths:
+
+```bash
+export FIFTYONE_ALLOW_LEGACY_ORCHESTRATORS=true
 fiftyone delegated launch
 ```
+
+In the editor, choose **Create augmented samples**, review the scope, then use
+the execution button's dropdown to choose **Schedule**. Preview, validation,
+and saving a pipeline run immediately. In another terminal, inspect the queue:
+
+```bash
+fiftyone delegated list \
+  --operator @albumentations/albumentationsx/augment_with_albumentationsx
+# Replace OPERATION_ID with an ID from the list
+fiftyone delegated info OPERATION_ID
+```
+
+Use **Run history** to inspect persisted output results. A queued operation
+does not yet have a plugin run record. Managed deployments can use their
+configured orchestrator; see FiftyOne's
+[delegated operations guide](https://docs.voxel51.com/plugins/using_plugins.html#delegated-operations).
 
 Delegated execution reports progress and retains results without switching the
 active grid. Preparation happens before output checkpoints, so progress and
@@ -276,10 +268,6 @@ donor-object/mosaic/overlay/text inputs are outside the current executable flow.
 
 ## Save and share pipelines
 
-![Save a pipeline, load its independent copy, and edit the flip probability.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/save-reuse.gif)
-
-*Save a pipeline, load its independent copy, and edit the flip probability.*
-
 Choose **Action → Save pipeline**, enter a name, and choose:
 
 - **Save as new pipeline**: creates a new ID even if a display name already exists.
@@ -288,11 +276,30 @@ Choose **Action → Save pipeline**, enter a name, and choose:
 The load picker never selects a replacement target. Other actions do not
 implicitly save a name retained in the draft.
 
-In **Saved pipelines**, inspect configurations, **Edit a copy of this pipeline**,
-rename/edit metadata, duplicate, export, import, or delete. Export the full
-**Importable pipeline JSON** object. Import accepts pasted JSON or a regular
-UTF-8 JSON file on the machine running FiftyOne, up to 4 MiB. A browser-local
-file path is not a remote server path.
+### Load and edit a saved pipeline
+
+1. Open **Saved pipelines → Inspect saved pipelines** and select a pipeline.
+2. Choose **Edit a copy of this pipeline**. Review its annotation mapping and
+   execution scope for the current dataset.
+3. Change a parameter and preview. The saved original remains unchanged until
+   you explicitly save an update. You can also rename, edit details, duplicate,
+   or delete configurations in **Saved pipelines**.
+
+<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/save-reuse.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/save-reuse.gif" width="480" alt="Save a pipeline, load its independent copy, and edit the flip probability."></a>
+
+*Save a pipeline, load its independent copy, and edit the flip probability. Select the image to view it at full size.*
+
+### Export and import
+
+1. Open **Saved pipelines → Export saved pipeline**, select the pipeline, and
+   submit. Copy the complete **Importable pipeline JSON** object.
+2. In the receiving environment, open **Saved pipelines → Import saved pipeline**.
+3. Choose **Paste full JSON** and paste that object, or choose **Local JSON file**
+   and enter its absolute **Local JSON file path**. The file must be a regular
+   UTF-8 JSON file on the machine running FiftyOne, up to 4 MiB. A browser-local
+   path is not a remote server path.
+4. Review the imported configuration, then load an editable copy, check the
+   current dataset's annotation fields, and validate before creating outputs.
 
 Imported IDs are retained. Replacing an existing ID requires explicit overwrite;
 equal names with different IDs remain separate. Presets store configuration,
@@ -300,10 +307,6 @@ annotation mapping, and dependency metadata, without source IDs, generated
 paths, or sampled replay. See the [complete preset contract](pipeline-presets.md).
 
 ## Run history, outcomes, and provenance
-
-![Inspect completed counters and reuse the run pipeline.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/inspect-run.gif)
-
-*Inspect completed counters and reuse the run pipeline.*
 
 **Run history** searches labels, dates, statuses, and transforms, newest first.
 Select a run to inspect counters, scope, parameters, versions, errors, outputs,
@@ -333,21 +336,66 @@ run_outputs = dataset.match_tags(f"albumentationsx-run:{run_key}")
 Provenance includes `albumentationsx_source_sample_id`,
 `albumentationsx_run_key`, `albumentationsx_transform_summary`, and
 `albumentationsx_output_tag`. Manifests are stored under
-`~/.fiftyone/albumentationsx-plugin/<dataset-name>/<run-key>/`.
-They retain configuration, versions, source/output IDs, relative generated
+`~/.fiftyone/albumentationsx-plugin/<normalized-dataset-name>-<hash>/<run-key>/`.
+The dataset directory includes a ten-character hash; use the exact path shown
+in the run details instead of guessing it from the dataset name. Manifests retain configuration, versions, source/output IDs, relative generated
 paths, replay metadata, counters, and errors.
 
 Reuse loads configuration with fresh randomness. Exact reproduction of earlier
 sampled outputs is not implemented.
 
+<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/inspect-run.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/inspect-run.gif" width="480" alt="Inspect completed counters and reuse the run pipeline."></a>
+
+*Inspect completed counters and reuse the run pipeline. Select the image to view it at full size.*
+
+## Recover from errors
+
+### Correct an invalid crop without creating outputs
+
+1. Select one source and choose **RandomCrop**. Enter a width and height larger
+   than that image, with **Pad if needed** disabled.
+2. Choose **Validate without creating samples**. Read the error's source and
+   requested dimensions. This preparation failure creates no samples or run.
+3. Use **Back to editor**. Reduce the crop dimensions to fit the source, or enable
+   **Pad if needed**. For example, a 640 × 640 crop of a 480 × 320 image needs
+   padding. Review fill values if your labels include masks.
+4. Validate again, then preview. Inspect the crop and its selected annotations
+   before choosing **Create augmented samples**.
+
+If an advanced parameter contains malformed JSON, correct the highlighted field
+and submit again. Use JSON syntax such as `[0.3, 0.3]`, not Python tuples.
+For an annotation compatibility error, follow the heatmap example in
+[Supported annotations](#supported-annotations).
+
+### Inspect and retry a partial or failed run
+
+1. In **Run history**, select the affected run. Read the outcome, output/error
+   counters, failed source IDs, and technical details. Error counts describe
+   output attempts; they are not necessarily counts of distinct source images.
+2. Use **Open failed source samples** and inspect the reported cause. Repair the
+   source access, annotation, or pipeline setting that caused it.
+3. Return to that run and choose **Use pipeline from this run**. Review the
+   current view and any explicit sample selection; choose a scope containing
+   only the intended sources. Loading a pipeline does not restore source IDs.
+4. Validate that scope, then create outputs. This creates a new run with fresh
+   randomness; it does not resume individual failed output attempts.
+5. Inspect the new run and decide whether to retain or clean up the older run.
+
+Retries operate on whole sources. With multiple outputs per source, a failed
+source may already have successful outputs; rerunning it can create additional
+versions of those outputs. Review existing outputs before retrying. A failure
+rejected before persistence has no history entry; correct it in the editor.
+
 ## Cleanup and data safety
 
-![Confirm deletion, inspect the result, and return to the original COCO images.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/cleanup.gif)
+1. Open **Run history**, select the intended run, and choose
+   **Review deletion of generated outputs**.
+2. Review the run identity, generated sample/file counts, output directory,
+   and listed paths. Confirm only after this scope matches your intention.
+3. Inspect the deletion result. Close it and any earlier result with **Close**
+   or **Done**. Remove an output-only **Select** view stage to see the sources.
 
-*Confirm deletion, inspect the result, and return to the original COCO images.*
-
-Use **Run history → Review deletion of generated outputs**. Confirmation is
-bound to the selected run. Missing, invalid, or unsafe manifests block deletion.
+Confirmation is bound to the selected run. Missing, invalid, or unsafe manifests block deletion.
 Cleanup resolves only manifest-listed paths inside the run directory and removes
 recorded generated sample IDs. It leaves sources and unrelated files intact.
 
@@ -355,6 +403,66 @@ File-backed generated masks participate in the same allowlist. Partial runs can
 be cleaned. Completed cleanup retains the manifest; **Include cleaned runs**
 shows audit records. Preset deletion is independent of output cleanup.
 See [cleanup details](run-cleanup-operator.md).
+
+<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/cleanup.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/cleanup.gif" width="480" alt="Confirm deletion, inspect the result, and return to the original COCO images."></a>
+
+*Confirm deletion, inspect the result, and return to the original COCO images. Select the image to view it at full size.*
+
+## Optional standalone sample dataset
+
+The following standalone script uses dependencies installed above. It creates
+three small images and a new dataset; existing datasets are left intact.
+
+Save it as `albumentationsx_quickstart.py` and run it with the Python environment
+that contains FiftyOne and the plugin:
+
+```python
+from pathlib import Path
+from tempfile import mkdtemp
+
+import fiftyone as fo
+from PIL import Image, ImageDraw
+
+data_dir = Path(mkdtemp(prefix="albumentationsx-demo-"))
+dataset = fo.Dataset()  # FiftyOne chooses a unique name
+dataset.persistent = True
+
+for index, color in enumerate(("tomato", "royalblue", "seagreen")):
+    image = Image.new("RGB", (480, 320), "whitesmoke")
+    ImageDraw.Draw(image).rectangle((48, 64, 192, 224), fill=color)
+    path = data_dir / f"source-{index + 1}.png"
+    image.save(path)
+    dataset.add_sample(
+        fo.Sample(
+            filepath=str(path),
+            ground_truth=fo.Detections(
+                detections=[
+                    fo.Detection(
+                        label="rectangle",
+                        bounding_box=[0.1, 0.2, 0.3, 0.5],
+                    )
+                ]
+            ),
+        )
+    )
+
+print(f"Dataset: {dataset.name}")
+print(f"Source images: {data_dir}")
+session = fo.launch_app(dataset)
+session.wait()
+```
+
+```bash
+python albumentationsx_quickstart.py
+```
+
+The script prints the unique dataset name and source directory. Run cleanup
+removes only plugin-generated outputs. If you later remove this demo dataset,
+handle its printed source directory separately.
+
+For real COCO images or richer annotation/validation fixtures, repository
+contributors can follow the
+[demo dataset guide](https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/demo-dataset.md#coco-acceptance).
 
 ## Troubleshooting
 
@@ -407,7 +515,30 @@ All URI suffixes below are relative to `@albumentations/albumentationsx/`.
 | `show_albumentationsx_capabilities` | Unlisted full catalog report |
 | `delete_albumentationsx_run` | Run-bound cleanup reached from history |
 
-The repository's `docs/operator-api.md` documents flat parameters and legacy
-Python migration. UI labels do not change these six registered Python URIs.
+For example, query the catalog from a Python script after installing and
+enabling the plugin. Replace the dataset name with an existing image dataset:
+
+```python
+import fiftyone.operators as foo
+
+execution = foo.execute_operator(
+    "@albumentations/albumentationsx/show_albumentationsx_capabilities",
+    ctx={
+        "dataset": "your-image-dataset",
+        "params": {
+            "query": "HorizontalFlip",
+            "status_filter": "all",
+            "target_filter": "all",
+        },
+    },
+)
+execution.raise_exceptions()
+print(execution.result["transforms"])
+```
+
+This query creates no samples or run. In a notebook with an active event loop,
+await the returned task before reading `execution.result`. The
+[Python operator contract](https://github.com/albumentations-team/voxel51-plugin/blob/feature/release-docs-and-demos/docs/operator-api.md) documents flat parameters and
+legacy Python migration. UI labels do not change these six registered URIs.
 
 Demo image sources and recording details: [media credits](https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/README.md).

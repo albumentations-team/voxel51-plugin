@@ -3,8 +3,9 @@
 ## User guide
 
 Start with the [integration guide](albumentationsx-fiftyone-integration.md).
-It covers installation, a standalone demo, the three App actions, supported
-annotations, execution, and migration from the older community plugin.
+It covers installation, a first preview on your dataset, the three App actions,
+supported annotations, execution, error recovery, and migration from the older
+community plugin. A standalone dataset example is available when needed.
 
 Detailed references:
 
@@ -30,6 +31,7 @@ Use a checkout of the release tag for release-specific source and commands.
 - `albu-spec-catalog.md`, `parameter-schema.md`, `pipeline-factory.md`: backend contracts
 - `run-manifest.md`: persisted run format
 - `demo-dataset.md`: generated annotation/validation suites
+- `recording-guide.md`: COCO video/GIF storyboards, editing, and updates to both draft PRs
 - `verification.md`: canonical checks and fresh App acceptance
 - `gitflow.md`, `pr-checklist.md`: contribution and release workflow
 - `fiftyone-integration.rst`: maintained source for the upstream integration page

@@ -4,6 +4,39 @@ The [integration guide](albumentationsx-fiftyone-integration.md#python-operator-
 lists the six registered Python URIs. These parameters are for programmatic
 callers; the App uses the Action picker and nested draft groups.
 
+## Execute a read-only catalog query
+
+Run this in the Python environment where the plugin is installed and enabled.
+Replace the dataset name with an existing image dataset in that environment:
+
+```python
+import fiftyone.operators as foo
+
+execution = foo.execute_operator(
+    "@albumentations/albumentationsx/show_albumentationsx_capabilities",
+    ctx={
+        "dataset": "your-image-dataset",
+        "params": {
+            "query": "HorizontalFlip",
+            "status_filter": "all",
+            "target_filter": "all",
+        },
+    },
+)
+execution.raise_exceptions()
+print(execution.result["transforms"])
+```
+
+The result includes `status`, `query`, `matching_count`, and `transforms`.
+This query creates no samples or run. With an active event loop, such as in a
+notebook, `execute_operator` returns a task: use
+`execution = await foo.execute_operator(...)` before inspecting its result.
+
+For a read-only compatibility report, use
+`@albumentations/albumentationsx/analyze_albumentationsx_dataset_compatibility`
+with `params={"execution_scope": "current_view"}` and pass the intended view
+in the execution context. A dataset-only context uses its full view.
+
 ## Pipeline fields
 
 | Parameter | Contract |

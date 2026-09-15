@@ -4,16 +4,23 @@ These clips show the actual FiftyOne 1.19 App running the 0.1.2 release candidat
 They use COCO photographs, real instance masks, and official person keypoints.
 The UI is not a mockup. Text, captions, and the surrounding documentation are English.
 
-## Finished assets
+For the next recording pass, follow the
+[recording guide](../recording-guide.md): shot-by-shot COCO scenarios, error
+recovery, pacing, export settings, and updates to both existing draft PRs.
+The current clips below have not yet been replaced by those planned recordings.
+
+## Current assets
 
 | Clip | Duration | Size |
 | --- | --- | --- |
-| [preview.gif](preview.gif) | 11.23 s | 2.67 MiB |
-| [edit-pipeline.gif](edit-pipeline.gif) | 15.17 s | 3.78 MiB |
-| [create-outputs.gif](create-outputs.gif) | 16.99 s | 2.30 MiB |
-| [save-reuse.gif](save-reuse.gif) | 23.78 s | 3.44 MiB |
-| [inspect-run.gif](inspect-run.gif) | 11.39 s | 2.84 MiB |
-| [cleanup.gif](cleanup.gif) | 15.16 s | 1.49 MiB |
+| [preview.gif](preview.gif) | 11.26 s | 2.67 MiB |
+| [edit-pipeline.gif](edit-pipeline.gif) | 15.13 s | 3.78 MiB |
+| [create-outputs.gif](create-outputs.gif) | 17.01 s | 2.30 MiB |
+| [save-reuse.gif](save-reuse.gif) | 23.76 s | 3.44 MiB |
+| [inspect-run.gif](inspect-run.gif) | 11.38 s | 2.84 MiB |
+| [cleanup.gif](cleanup.gif) | 14.38 s | 1.49 MiB |
+
+Durations are measured from the encoded GIF frame delays.
 
 The GIFs loop without audio. Captions explain each action; the guide provides
 text instructions alongside every clip. All exports are below 5 MiB. The 500 KiB
@@ -87,7 +94,7 @@ with a labeled redaction; result counters and confirmation remain visible.
 No other UI content or outcome was replaced. Raw recordings contain local paths
 and remain in the ignored `source/` directory for local review, outside releases.
 
-## Reproduce
+## Reproduce the current exports
 
 Create the recording subset with the helper in
 [COCO acceptance](../demo-dataset.md#coco-acceptance), adding `--recording-only`.
@@ -109,3 +116,5 @@ On another platform, pass a readable TrueType font path. The exporter uses a
 784 × 952 crop, a 42-pixel caption band, 8 fps, a 160-color per-clip palette,
 and Bayer dithering. Inspect playback and labels after any recapture or font
 change, then refresh the hashes and commit the reviewed exports.
+New recordings need their own source/cut metadata and step captions; this
+fixed-crop exporter is not a general editor for the new storyboards.

@@ -167,7 +167,7 @@
           31.2
         ]
       ],
-      "duration_seconds": 11.23,
+      "duration_seconds": 11.26,
       "bytes": 2801826,
       "sha256": "c60cdf9740949dd5bdc85eeb2e7f2c5626ec8bf3766266d25a2e386b80d90acc"
     },
@@ -180,7 +180,7 @@
           64.5
         ]
       ],
-      "duration_seconds": 15.17,
+      "duration_seconds": 15.13,
       "bytes": 3963254,
       "sha256": "04fd49cc57a645546ea461689b9245767e79fe78670fe921456fc52eed0ae84e"
     },
@@ -201,7 +201,7 @@
           781.479
         ]
       ],
-      "duration_seconds": 16.99,
+      "duration_seconds": 17.01,
       "bytes": 2415362,
       "sha256": "2e7067d431c7543bde900f2fc4a1d09bcf3cf2decd6ccda2d04f017b4d223e4e"
     },
@@ -222,7 +222,7 @@
           730.5
         ]
       ],
-      "duration_seconds": 23.78,
+      "duration_seconds": 23.76,
       "bytes": 3603813,
       "sha256": "71dac88f1aa203bb687d1beaf99351199ff6e822ebab0767da28d28c6cedd4c0"
     },
@@ -239,7 +239,7 @@
           825.3
         ]
       ],
-      "duration_seconds": 11.39,
+      "duration_seconds": 11.38,
       "bytes": 2975628,
       "sha256": "1fc8bec181f01943e7160d1f17bdf3468365ac59551e6942512b434af783ef10"
     },
@@ -264,7 +264,7 @@
           927.9
         ]
       ],
-      "duration_seconds": 15.16,
+      "duration_seconds": 14.38,
       "bytes": 1564352,
       "sha256": "74db4aaee7a52cd6e8025f46235cab87ffdb12b33cc37e50e3f77f8cfb3cc2d2"
     }
