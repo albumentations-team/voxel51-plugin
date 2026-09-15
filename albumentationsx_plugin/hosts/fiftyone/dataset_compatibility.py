@@ -473,10 +473,10 @@ def _target_family_rows(capabilities: Sequence[TransformCapability]) -> tuple[Ta
                 geometry_transform_count=len(geometry),
                 example_transforms=_capability_examples(supported),
                 host_annotation_use=_TARGET_HOST_USE.get(
-                    target, "Not wired to a FiftyOne annotation adapter in the MVP."
+                    target, "Not wired to a FiftyOne annotation adapter in this plugin."
                 ),
                 limitations=_TARGET_LIMITATIONS.get(
-                    target, "Transforms for this target family are not exposed by the MVP host adapter."
+                    target, "Transforms for this target family are not exposed by the current host adapter."
                 ),
             )
         )
@@ -597,7 +597,7 @@ def _recommendations(
             recommendations.append(
                 f"For `{target}` labels, filter transform capabilities by target `{target}` before building pipelines."
             )
-    recommendations.append("Use Preview only on a small selection before materializing outputs for a new dataset.")
+    recommendations.append("Use Action → Preview on a small selection before creating outputs for a new dataset.")
     return tuple(dict.fromkeys(recommendations))
 
 

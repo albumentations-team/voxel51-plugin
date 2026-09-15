@@ -26,7 +26,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def result_context(tmp_path):
     path = write_rgb_image(np.arange(240, dtype=np.uint8).reshape(8, 10, 3), tmp_path, "source.png")
-    dataset = fo.Dataset(f"vox74-results-{uuid4().hex}")
+    dataset = fo.Dataset(f"run-outcomes-{uuid4().hex}")
     try:
         ids = dataset.add_samples([fo.Sample(filepath=str(path), tags=["source"]) for _ in range(3)])
         ctx = SimpleNamespace(dataset=dataset, view=dataset, selected=ids, params={})
@@ -48,7 +48,9 @@ def _fields(schema):
 def _assert_clean_report(ctx, result):
     op = AugmentWithAlbumentationsX()
     ctx.results = result
-    schema = op.resolve_output(ctx).to_json()
+    output = op.resolve_output(ctx)
+    assert output is not None
+    schema = output.to_json()
     fields = _fields(schema)
     assert next(iter(schema["type"]["properties"])) == "_outcome"
     assert "errors" not in fields  # No editable list or empty-list invitation.

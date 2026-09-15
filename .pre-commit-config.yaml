@@ -7,6 +7,11 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-added-large-files
+        exclude: ^docs/media/[^/]+\.gif$
+      - id: check-added-large-files
+        name: Check documentation GIF size (5 MiB)
+        files: ^docs/media/[^/]+\.gif$
+        args: [--maxkb=5120]
       - id: check-ast
       - id: check-case-conflict
       - id: check-executables-have-shebangs

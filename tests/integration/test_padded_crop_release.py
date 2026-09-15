@@ -24,7 +24,7 @@ pytestmark = pytest.mark.integration
 def test_loaded_padded_crop_survives_preview_validation_creation_and_cleanup(tmp_path):
     source = write_rgb_image(np.full((32, 32, 3), 75, dtype=np.uint8), tmp_path, "source.png")
     before = source.read_bytes()
-    dataset = fo.Dataset(f"vox79-padded-crop-{uuid4().hex}")
+    dataset = fo.Dataset(f"padded-crop-{uuid4().hex}")
     storage = tmp_path / "runs"
     try:
         sample_id = dataset.add_sample(fo.Sample(filepath=str(source), tags=["source"]))

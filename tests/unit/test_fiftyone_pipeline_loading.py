@@ -235,6 +235,11 @@ def test_prompt_uses_nested_values_and_new_identity_only_on_explicit_reload(tmp_
     params = cast(dict[str, Any], pipeline_draft_prompt_params(draft))
     group_name = draft_parameter_group_name(str(draft[DRAFT_ID]))
     values = params[group_name]
+    # Missing text values trigger delayed default writes in FiftyOne 1.19,
+    # which can replace this nested draft after it has appeared correctly.
+    assert values["_save_options"]["save_preset_name"] == ""
+    assert values["_save_options"]["save_preset_description"] == ""
+    assert values["_run_options"]["run_label"] == ""
     assert values["_annotation_fields"][annotation_field_param_name("boxes")] is True
     assert values["_annotation_fields"][annotation_field_param_name("joints")] is False
     assert values["_stage_parameters_1"] == {"pipeline_stage_enabled": True, "pipeline_stage_order": 1, "p": 1.0}

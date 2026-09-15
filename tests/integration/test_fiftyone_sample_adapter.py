@@ -58,7 +58,7 @@ def _manifest(
     source_sample_ids: tuple[str, ...], output_paths: tuple[str, ...] = ("images/output.png",)
 ) -> RunManifest:
     return RunManifest(
-        run_key="albumentationsx-20260731T140000Z-vox9",
+        run_key="albumentationsx-20260731T140000Z-adapter-fixture",
         plugin_version="0.0.0",
         dependency_versions={"fiftyone": "test"},
         pipeline=PipelineConfig(

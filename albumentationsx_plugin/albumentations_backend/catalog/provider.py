@@ -49,7 +49,7 @@ class AlbuSpecCatalogProvider:
         return None
 
     def list_supported_transform_names(self) -> tuple[str, ...]:
-        """Return transform names exposed as normal MVP choices."""
+        """Return transform names exposed as executable choices."""
 
         return tuple(capability.name for capability in self._capabilities if is_mvp_supported_status(capability.status))
 

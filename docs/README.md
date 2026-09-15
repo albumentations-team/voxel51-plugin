@@ -1,37 +1,21 @@
-# Project documentation
+# Documentation
 
-## User workflows
+Start with the [integration guide](albumentationsx-fiftyone-integration.md) for
+installation, a first preview, pipeline editing, creation, error recovery, and
+migration from the older community plugin.
 
-- [Installation and overview](../README.md)
-- [Integration guide](albumentationsx-fiftyone-integration.md)
-- [First run](first-run-onboarding.md) and [demo datasets](demo-dataset.md)
-- [Navigation](plugin-navigation.md)
-- [Pipeline loading, saving and management](pipeline-presets.md)
-- [Preview](augmentation-preview.md) and [annotation-aware execution](annotation-aware-execution.md)
-- [Dataset compatibility](dataset-compatibility-report.md) and [capability browser](capability-browser.md)
-- [External-data transforms](external-data-transforms.md)
-- [Run history](run-summary-operator.md), [cleanup](run-cleanup-operator.md), and [cancellation](cancellation.md)
+The guide includes COCO recordings for preview, pipeline editing, output
+creation, saving and sharing configurations, run reuse, and cleanup. Still
+images explain annotation alignment and crop validation errors.
 
-## Contributor reference
+## Detailed guides
 
-- [Design and roadmap](../DESIGN.md)
-- [Architecture and module ownership](architecture.md)
-- [Catalog](albu-spec-catalog.md), [parameter schemas](parameter-schema.md), and [pipeline factory](pipeline-factory.md)
-- [Dynamic forms](dynamic-fiftyone-forms.md) and [execution compatibility](fixed-transform-slice.md)
-- [Manifest format](run-manifest.md)
-- [Operator debugging](fiftyone-operator-debugging.md)
-- [Verification](verification.md), [PR checklist](pr-checklist.md), and [Git workflow](gitflow.md)
-- [Upstream integration draft](https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/voxel51-albumentationsx-integration-template.rst): contributor draft with placeholders, excluded from the plugin ZIP.
-
-## Releases and historical reference
-
-- [Artifact contents and release process](release-artifacts.md)
-- [Release 0.1.2 changes](release-v0.1.2.md)
-- [First-release notes](release-v0.1.0.md) and [versioned capability snapshot](capability-report-v0.1.0.md)
-- [albu-spec integration assessment](albu-spec-integration-audit.md): dependency-specific reference, not a current release gate.
-
-Historical App audit dumps and screenshots were removed from the current source
-and release tree in VOX-79. They remain available in the
-[reviewed source snapshot](https://github.com/albumentations-team/voxel51-plugin/tree/99b594bdcca16990f174d0bfa9f3a228f9f0a960/docs/audits).
-The reusable preview DOM assertion is maintained in `tests/manual`; acceptance
-requires a fresh App session and fresh captures for the release candidate.
+| Guide | When to use it |
+| --- | --- |
+| [Annotation support](annotation-aware-execution.md) | Check label compatibility, missing keypoints, masks, and copied or omitted metadata |
+| [Saved pipelines](pipeline-presets.md) | Load, edit, save, share, import, or migrate reusable configurations |
+| [Reference images](external-data-transforms.md) | Use reference-image transforms and understand resource limits |
+| [Run history and cleanup](run-history.md) | Interpret outcomes, inspect stored results, handle cancellation, and delete generated outputs |
+| [Python operator API](operator-api.md) | Call the six operators, query diagnostics, and migrate older parameters |
+| [Release ZIP installation](release-artifacts.md) | Verify and install a published plugin archive |
+| [0.1.2 release notes](release-v0.1.2.md) | Review the candidate's changes, compatibility, and limitations |

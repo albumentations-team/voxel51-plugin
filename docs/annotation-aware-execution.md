@@ -1,7 +1,7 @@
-# Annotation-Aware Execution
+# Annotation support and output metadata
 
-VOX-26 adds the first annotation-aware execution path for the fixed FiftyOne
-augmentation slice. Geometry is delegated to Albumentations target handling; the
+This guide describes annotation-aware execution through the FiftyOne
+augmentation workflow. Geometry is delegated to Albumentations target handling; the
 plugin only converts FiftyOne labels into target data and reconstructs FiftyOne
 labels from the transformed targets.
 
@@ -45,6 +45,15 @@ The current FiftyOne adapter supports these dataset label fields:
 
 Supported label attributes, tags, labels, confidences, and indices are preserved
 where they can be represented as JSON-safe values.
+
+Detection boxes remain axis-aligned after rotation: their position and size
+change, but their edges do not tilt. Instance masks and keypoint coordinates
+follow the transformed image geometry.
+
+[![COCO cyclist before and after a horizontal flip, with boxes, masks, and keypoints](media/annotation-preview.png)](media/annotation-preview.png)
+
+*Compare the selected annotations on the original and flipped image.
+[Image credits](albumentationsx-fiftyone-integration.md#demo-image-credits).*
 
 Missing-point slots follow the [FiftyOne skeleton convention](https://docs.voxel51.com/user_guide/using_datasets.html#storing-keypoint-skeletons).
 Only missing keypoint coordinates receive this special JSON encoding. Non-finite
@@ -115,52 +124,10 @@ media are unchanged.
 
 ## Unsupported Scope
 
-The current slice does not claim full annotation coverage. Unsupported label
-classes, custom embedded documents, video labels, 3D labels, and
-transform-specific target requirements should be added in follow-up tasks with
-focused tests.
+Unsupported label classes, custom embedded documents, video labels, and 3D
+labels are outside the current annotation adapter. Some transforms also require
+additional target handling that the adapter does not provide.
 
 Unsupported label fields are excluded from generated output samples. The run
 manifest stores excluded fields and reason codes under `metadata.annotations` so
 the behavior is inspectable instead of silent.
-
-## Runtime Flow
-
-The FiftyOne sample adapter resolves supported label fields from the dataset
-schema and serializes labels into `AugmentationInput.metadata`. The fixed
-executor converts that payload into Albumentations target arrays before calling
-the backend runner:
-
-```text
-FiftyOne labels -> annotation payload -> Albumentations targets
-Albumentations targets -> transformed payload -> FiftyOne output labels
-```
-
-The backend runner remains host-neutral. It only receives target names such as
-`bboxes`, `keypoints`, `masks`, and `heatmaps`, configures `ReplayCompose`, and
-returns the transformed target values. FiftyOne-specific reconstruction stays
-in `hosts/fiftyone/annotations/`. File-backed semantic mask results are
-materialized under the plugin-owned run directory and listed in the manifest
-cleanup allowlist.
-
-Compatibility checks run in two passes. The first pass uses the dataset schema
-to reject selected label fields whose declared target type is incompatible with
-the requested transform chain. The second pass uses the serialized source
-annotation payloads. This catches value-dependent requirements, such as a
-`Detections` field that normally needs `bboxes` targets but also needs `mask`
-targets when any selected detection carries an instance mask. Runtime target
-requirements are stored in run annotation metadata for inspection.
-
-## Verification
-
-Use the complete local gate in [Verification](verification.md). The focused
-annotation check is:
-
-```bash
-uv run pytest tests/integration/test_fiftyone_fixed_augmentation_executor.py::test_fixed_augmentation_executor_transforms_supported_annotations
-uv run pytest tests/integration/test_fiftyone_fixed_augmentation_executor.py::test_fixed_augmentation_executor_materializes_file_backed_segmentation_masks
-uv run pytest tests/integration/test_fiftyone_fixed_augmentation_executor.py::test_fixed_augmentation_preview_matches_materialized_deterministic_geometry
-uv run pytest tests/integration/test_demo_dataset_workflow.py tests/smoke/test_mvp_demo_workflow.py
-uv run pytest tests/unit/test_fiftyone_annotation_conversion.py
-uv run pytest tests/unit/test_fiftyone_annotation_fields.py tests/unit/test_fiftyone_augment_operator.py
-```

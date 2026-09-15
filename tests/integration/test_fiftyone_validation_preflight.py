@@ -18,7 +18,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def validation_context(tmp_path):
     path = write_rgb_image(np.zeros((8, 10, 3), dtype=np.uint8), tmp_path, "source.png")
-    dataset = fo.Dataset(f"vox-73-validation-{uuid4().hex}")
+    dataset = fo.Dataset(f"validation-preflight-{uuid4().hex}")
     try:
         sample_id = dataset.add_sample(fo.Sample(filepath=str(path), metadata=fo.ImageMetadata(width=10, height=8)))
         root = tmp_path / "outputs"

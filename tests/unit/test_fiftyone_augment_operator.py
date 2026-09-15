@@ -237,7 +237,9 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     operator = AugmentWithAlbumentationsX()
 
     input_json = operator.resolve_input(ctx=None).to_json()
-    output_json = operator.resolve_output(ctx=None).to_json()
+    output = operator.resolve_output(ctx=None)
+    assert output is not None
+    output_json = output.to_json()
     input_properties = _form_properties(input_json)
 
     assert input_json["view"]["label"] == "AlbumentationsX · Augment images"
@@ -340,7 +342,9 @@ def test_augment_operator_resolves_preview_output_fields() -> None:
             PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON,
         ):
             context.results[preview_field_name(slot, field)] = '{"available": true}'
-    output_json = operator.resolve_output(context).to_json()
+    output = operator.resolve_output(context)
+    assert output is not None
+    output_json = output.to_json()
     output_properties = _form_properties(output_json)
     source_image = output_properties[preview_field_name(1, PREVIEW_FIELD_SOURCE_IMAGE)]
     output_image = output_properties[preview_field_name(1, PREVIEW_FIELD_OUTPUT_IMAGE)]
@@ -383,7 +387,9 @@ def test_preview_schema_only_renders_populated_result_slots(populated_slots: tup
     }
     results["preview_count"] = "3"
     ctx = SimpleNamespace(params={PREVIEW_ONLY_FIELD_NAME: True}, results=results)
-    properties = _form_properties(AugmentWithAlbumentationsX().resolve_output(ctx).to_json())
+    output = AugmentWithAlbumentationsX().resolve_output(ctx)
+    assert output is not None
+    properties = _form_properties(output.to_json())
     for slot in range(1, MAX_PREVIEW_SAMPLES + 1):
         assert (preview_field_name(slot, PREVIEW_FIELD_SOURCE_IMAGE) in properties) == (slot in populated_slots)
         assert preview_field_name(slot, PREVIEW_FIELD_LABELS_JSON) not in properties
@@ -394,7 +400,9 @@ def test_preview_schema_only_renders_populated_result_slots(populated_slots: tup
 @pytest.mark.parametrize("results", [None, {}, {"preview_count": 3}])
 def test_preview_schema_without_result_images_has_no_blank_image_regions(results: object) -> None:
     ctx = SimpleNamespace(params={PREVIEW_ONLY_FIELD_NAME: True}, results=results)
-    properties = _form_properties(AugmentWithAlbumentationsX().resolve_output(ctx).to_json())
+    output = AugmentWithAlbumentationsX().resolve_output(ctx)
+    assert output is not None
+    properties = _form_properties(output.to_json())
     assert ("preview_note" in properties) == (results is None)
     assert all(prop["view"]["name"] != "ImageView" for prop in properties.values())
 
@@ -2020,7 +2028,9 @@ def test_augment_operator_execute_reports_unexpected_error_with_debug_bundle(mon
     assert errors_json[0]["code"] == "unexpected_runtime_error"
     assert errors_json[0]["context"]["error_type"] == "RuntimeError"
     assert debug_bundle_json["exception"] == {"type": "RuntimeError", "message": "backend exploded"}
-    fields = _form_properties(operator.resolve_output(SimpleNamespace(params=Context.params, results=result)).to_json())
+    output = operator.resolve_output(SimpleNamespace(params=Context.params, results=result))
+    assert output is not None
+    fields = _form_properties(output.to_json())
     assert "backend exploded" in fields["_error_1"]["view"]["description"]
     assert "Next:" in fields["_error_1"]["view"]["description"]
     assert debug_bundle_json["operator_params"]["transform"] == "HorizontalFlip"

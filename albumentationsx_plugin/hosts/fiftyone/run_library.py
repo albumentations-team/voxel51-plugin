@@ -80,7 +80,7 @@ def classify_run(manifest: RunManifest) -> str:
 
 
 def run_execution_status(manifest: RunManifest) -> str:
-    """Share VOX-74 outcome interpretation between history rows and the inspector."""
+    """Share execution outcome interpretation between history rows and the inspector."""
     execution = manifest.metadata.get("execution_status")
     if isinstance(execution, str) and execution and execution != "completed":
         return execution

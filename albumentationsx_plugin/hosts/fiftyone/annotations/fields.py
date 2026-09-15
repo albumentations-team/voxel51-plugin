@@ -129,7 +129,7 @@ def selected_annotation_fields_from_params(
     """Resolve selected annotation fields from operator params.
 
     If no annotation controls were submitted, all supported fields are selected
-    to preserve the pre-VOX-40 default behavior.
+    to preserve the legacy default field selection.
     """
 
     supported_fields = list_supported_annotation_fields(dataset)

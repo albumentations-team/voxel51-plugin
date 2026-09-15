@@ -134,7 +134,9 @@ class AugmentWithAlbumentationsX(foo.Operator):
     def resolve_output(self, ctx: Any):
         results = getattr(ctx, "results", None)
         if isinstance(results, Mapping) and results.get("_displayed_in_app") is True:
-            return types.Property(types.Object())
+            # An empty schema still mounts an output overlay in FiftyOne 1.19.
+            # The independent show_output dialog already owns these results.
+            return None
         return self._result_schema(ctx)
 
     def _result_schema(self, ctx: Any):
