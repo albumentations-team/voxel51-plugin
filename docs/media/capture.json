@@ -278,5 +278,6 @@
       "file": "annotation-preview.jpg",
       "sha256": "937e0568c02632beeeecf405eedada5ed112d8711e57652e33e12de5a0161f75"
     }
-  ]
+  ],
+  "candidate_commit": "2f8aa79c4acad7d5efa41e8554161b15828ec9ee"
 }

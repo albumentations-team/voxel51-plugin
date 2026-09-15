@@ -7,6 +7,7 @@ All documentation, release text, captions, and PR content are in English.
 
 - Baseline: `dev` at
   `ca5507b5df3df8c816b16a0f5230b9bc235d0826` after fetching `origin/dev`.
+- Recorded runtime and documentation content: `2f8aa79c4acad7d5efa41e8554161b15828ec9ee`.
 - Latest published release checked: `0.1.1`. Existing candidate version: `0.1.2`.
 - Version sources: `pyproject.toml`, `fiftyone.yml`, runtime `_version.py`, and
   the root package entry in `uv.lock`. No speculative version bump.
@@ -111,14 +112,16 @@ Results below are local evidence, not a claim that release CI or publication ran
 | Check | Result |
 | --- | --- |
 | Complete pytest gate | 532 passed; 91.18% coverage against required 85%. |
-| Focused documentation/artifact tests | 7 passed before the complete suite. |
+| Focused documentation/artifact tests | 7 passed again after final media embedding. |
 | `uv lock --check` | Passed. |
 | Pyrefly | 0 errors; existing suppressions/warnings reported. |
 | Toolbar Node tests | Passed. |
 | Supported transform smoke | 113 passed, 0 failed, 0 skipped. |
 | Wheel, sdist, plugin ZIP | Built successfully; final checksum refresh follows documentation completion. |
-| FiftyOne page preview | Built with upstream `docs/preview_page.bash`; no warnings after RST fixes. |
+| FiftyOne page preview | Official preview plus `sphinx-build -W`; all eight images loaded. Desktop 1440 px and mobile 390 px checked; no horizontal overflow. |
 | COCO acceptance | 12 sources; 131 masks and 33 poses, including 142 missing joints. Validation, 12 created outputs, and cleanup passed; source SHA256 and full labels unchanged. |
+| Final App recording | Six clips, 11–24 seconds each, all below 4 MiB; save/load/edit, completed run, history, cleanup, and three unchanged COCO sources verified. |
+| Media reproduction | Documented exporter reproduced all six GIF SHA256 hashes exactly. |
 | Standalone quickstart | Installed ZIP discovered; three images loaded; annotated preview and one created output exercised. |
 
 The complete suite emitted existing dependency/deprecation warnings; none failed

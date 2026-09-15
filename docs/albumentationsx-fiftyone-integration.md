@@ -113,7 +113,7 @@ suites described in `docs/demo-dataset.md` in a source checkout.
 
 ### Preview and create
 
-![HorizontalFlip preview on COCO with aligned detections and keypoints.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/preview.gif)
+![HorizontalFlip preview on COCO with aligned detections and keypoints.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif)
 
 *HorizontalFlip preview on COCO with aligned detections and keypoints.*
 
@@ -137,7 +137,7 @@ randomness, so a probabilistic pipeline can differ from its preview.
 
 ### Review and remove generated outputs
 
-![Create one output and open its generated-sample view.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/create-outputs.gif)
+![Create one output and open its generated-sample view.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/create-outputs.gif)
 
 *Create one output and open its generated-sample view.*
 
@@ -154,7 +154,7 @@ the printed source directory separately. Run cleanup does not delete demo source
 
 ## Build and edit a pipeline
 
-![Edit two ordered stages, preview, and return with settings preserved.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/edit-pipeline.gif)
+![Edit two ordered stages, preview, and return with settings preserved.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/edit-pipeline.gif)
 
 *Edit two ordered stages, preview, and return with settings preserved.*
 
@@ -247,9 +247,9 @@ HorizontalFlip + RandomBrightnessContrast pipeline cannot safely transform the
 selected heatmap. Uncheck **heatmap** to omit it, then preview the remaining
 annotations. For geometry-only processing, keep the heatmap selected instead.
 
-![Compatibility warning for the selected heatmap](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/compatibility-warning.png)
+![Compatibility warning for the selected heatmap](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/compatibility-warning.png)
 
-![Successful preview with detections, keypoints, and mask-derived polylines](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/annotation-preview.jpg)
+![Successful preview with detections, keypoints, and mask-derived polylines](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/annotation-preview.jpg)
 
 ## Transform coverage and reference images
 
@@ -272,7 +272,7 @@ donor-object/mosaic/overlay/text inputs are outside the current executable flow.
 
 ## Save and share pipelines
 
-![Save a pipeline, load its independent copy, and edit the flip probability.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/save-reuse.gif)
+![Save a pipeline, load its independent copy, and edit the flip probability.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/save-reuse.gif)
 
 *Save a pipeline, load its independent copy, and edit the flip probability.*
 
@@ -297,7 +297,7 @@ paths, or sampled replay. See the [complete preset contract](pipeline-presets.md
 
 ## Run history, outcomes, and provenance
 
-![Inspect completed counters and reuse the run pipeline.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/inspect-run.gif)
+![Inspect completed counters and reuse the run pipeline.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/inspect-run.gif)
 
 *Inspect completed counters and reuse the run pipeline.*
 
@@ -338,7 +338,7 @@ sampled outputs is not implemented.
 
 ## Cleanup and data safety
 
-![Confirm deletion, inspect the result, and return to the original COCO images.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/cleanup.gif)
+![Confirm deletion, inspect the result, and return to the original COCO images.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/cleanup.gif)
 
 *Confirm deletion, inspect the result, and return to the original COCO images.*
 
@@ -406,4 +406,4 @@ All URI suffixes below are relative to `@albumentations/albumentationsx/`.
 The repository's `docs/operator-api.md` documents flat parameters and legacy
 Python migration. UI labels do not change these six registered Python URIs.
 
-Demo image sources and recording details: [media credits](https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/media/README.md).
+Demo image sources and recording details: [media credits](https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/README.md).

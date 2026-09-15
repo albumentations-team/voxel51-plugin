@@ -22,7 +22,7 @@ Detailed references:
 ## Contributors
 
 Contributor files are maintained in the
-[repository docs directory](https://github.com/albumentations-team/voxel51-plugin/tree/dev/docs).
+[repository docs directory](https://github.com/albumentations-team/voxel51-plugin/tree/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs).
 Use a checkout of the release tag for release-specific source and commands.
 
 - `architecture.md`: implementation ownership and dependency boundaries

@@ -70,7 +70,7 @@ Statuses:
 
 The commands in this section require the repository checkout and its test suite.
 
-Use the complete local gate in [Verification](https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/verification.md). Contributor checks (run from a repository checkout):
+Use the complete local gate in [Verification](https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/verification.md). Contributor checks (run from a repository checkout):
 
 ```bash
 uv run pytest tests/unit/test_fiftyone_run_cleanup.py tests/unit/test_fiftyone_delete_run_operator.py tests/integration/test_fiftyone_delete_run_operator_integration.py

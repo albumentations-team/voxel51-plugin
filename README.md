@@ -14,7 +14,7 @@ images and annotations, and create new samples while keeping source data intact.
 Read the [complete integration guide](docs/albumentationsx-fiftyone-integration.md)
 for installation, annotation support, and the full workflow.
 
-![Preview a COCO image with aligned annotations](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/preview.gif)
+![Preview a COCO image with aligned annotations](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif)
 
 *Preview HorizontalFlip on COCO with detections and keypoints.*
 
@@ -86,7 +86,7 @@ uv run fiftyone operators list
 
 Keep `FIFTYONE_PLUGINS_DIR` scoped to this checkout to avoid scanning unrelated
 repositories. Use the repository's
-[contributor documentation](https://github.com/albumentations-team/voxel51-plugin/tree/dev/docs)
+[contributor documentation](https://github.com/albumentations-team/voxel51-plugin/tree/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs)
 for architecture, demo scripts, the canonical verification gate, and release
 procedures. The installed plugin ZIP contains user documentation; contributor
 commands require a checkout.

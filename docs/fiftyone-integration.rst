@@ -88,7 +88,7 @@ chosen release with the CLI’s ``--overwrite`` option. Reinstall its
 requirements, restart the App, and validate a small saved pipeline before
 creating outputs. If the plugin is disabled, enable it with
 ``fiftyone plugins enable @albumentations/albumentationsx``. See `ZIP
-installation <https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/release-artifacts.md#install-from-release-zip>`__
+installation <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/release-artifacts.md#install-from-release-zip>`__
 for an alternative to the GitHub download helper.
 
 The wheel is the reusable Python package. The plugin ZIP also includes the
@@ -234,7 +234,7 @@ Use **Load pipeline** to select a saved configuration or run, then explicitly
 click **Replace draft with selected pipeline**. Selecting a source alone keeps
 your edits. Loaded settings remain editable; **Reload and replace draft**
 discards subsequent changes. See `pipeline
-loading <https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/pipeline-presets.md>`__.
+loading <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/pipeline-presets.md>`__.
 
 The draft survives the continuation buttons and validation errors. Closing the
 editor or result ends it; use **Save pipeline** for later reuse.
@@ -284,7 +284,7 @@ active grid. Preparation happens before output checkpoints, so progress and
 cancellation may not be immediate. Cancellation is best-effort; a hard process
 kill may prevent a final checkpoint. Retained partial outputs can be inspected
 and cleaned through history. See
-`cancellation <https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/cancellation.md>`__.
+`cancellation <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/cancellation.md>`__.
 
 .. _albumentationsx-annotations:
 
@@ -326,7 +326,7 @@ known derived geometry values that require recomputation. Source sample tags
 and custom sample fields are not copied. Generated samples contain source
 provenance instead. Unsupported values and omitted fields are reported. Read
 the `annotation and metadata
-policy <https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/annotation-aware-execution.md>`__
+policy <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/annotation-aware-execution.md>`__
 for missing keypoints, clipping, dynamic attributes, and file-backed masks.
 
 The example below uses a COCO photograph, its instance masks and keypoints,
@@ -366,7 +366,7 @@ images in the execution scope as references and require at least two sources.
 The implementation loads the full reference pool and constructs per-source
 reference lists/provenance. Those lists grow quadratically; use small
 selections. `External-data
-transforms <https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/external-data-transforms.md>`__
+transforms <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/external-data-transforms.md>`__
 explains this policy.
 
 Video, 3D, tensor/unsafe image outputs, unsupported label classes, and
@@ -380,7 +380,8 @@ Save and share pipelines
 ------------------------
 
 .. figure:: /images/integrations/albumentationsx/save-reuse.gif
-    :alt: Save a pipeline, load its independent copy, and edit the flip probability.
+    :alt: Save a pipeline, load its independent copy, and edit the flip
+        probability.
     :width: 720px
 
     Save a pipeline, load its independent copy, and edit the flip probability.
@@ -404,7 +405,7 @@ Imported IDs are retained. Replacing an existing ID requires explicit
 overwrite; equal names with different IDs remain separate. Presets store
 configuration, annotation mapping, and dependency metadata, without source IDs,
 generated paths, or sampled replay. See the `complete preset
-contract <https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/pipeline-presets.md>`__.
+contract <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/pipeline-presets.md>`__.
 
 .. _albumentations-last-transformation-info:
 .. _albumentationsx-history:
@@ -469,7 +470,8 @@ Cleanup and data safety
 -----------------------
 
 .. figure:: /images/integrations/albumentationsx/cleanup.gif
-    :alt: Confirm deletion, inspect the result, and return to the original COCO images.
+    :alt: Confirm deletion, inspect the result, and return to the original
+        COCO images.
     :width: 720px
 
     Confirm deletion, inspect the result, and return to the original COCO images.
@@ -484,7 +486,7 @@ File-backed generated masks participate in the same allowlist. Partial runs can
 be cleaned. Completed cleanup retains the manifest; **Include cleaned runs**
 shows audit records. Preset deletion is independent of output cleanup. See
 `cleanup
-details <https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/run-cleanup-operator.md>`__.
+details <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/run-cleanup-operator.md>`__.
 
 .. _albumentationsx-troubleshooting:
 
@@ -589,7 +591,7 @@ All URI suffixes below are relative to ``@albumentations/albumentationsx/``.
       - Run-bound cleanup reached from history
 
 The `Python operator
-contract <https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/operator-api.md>`__
+contract <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/operator-api.md>`__
 documents flat parameters and legacy Python migration. UI labels do not change
 these six registered Python URIs.
 
@@ -601,6 +603,6 @@ COCO metadata identifies their photo license as `CC BY 2.0
 <https://creativecommons.org/licenses/by/2.0/>`__. The examples show transformed
 photographs and annotation overlays. See the `original image sources and
 capture manifest
-<https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/media/README.md>`__
+<https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/README.md>`__
 for attribution, parameters, and versions. Polylines in the additional example
 are derived from instance masks; its gradient heatmap is an illustrative fixture.

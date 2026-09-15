@@ -158,5 +158,5 @@ storage_root=...)`, where `source` is `saved:<key>` or `run:<key>`. Edit the
 returned flat params and pass them to the augmentation operator. The App packs
 that snapshot into its own nested form group before opening the editor. This
 isolates it from delayed updates to a replaced prompt, so actual checkbox/input
-values match the configuration rather than relying on schema defaults. See [verification](https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/verification.md) for the complete gate and smoke
+values match the configuration rather than relying on schema defaults. See [verification](https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/verification.md) for the complete gate and smoke
 scenarios.
