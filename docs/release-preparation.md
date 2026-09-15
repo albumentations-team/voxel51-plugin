@@ -117,17 +117,36 @@ Results below are local evidence, not a claim that release CI or publication ran
 | Pyrefly | 0 errors; existing suppressions/warnings reported. |
 | Toolbar Node tests | Passed. |
 | Supported transform smoke | 113 passed, 0 failed, 0 skipped. |
-| Wheel, sdist, plugin ZIP | Built successfully; final checksum refresh follows documentation completion. |
+| Wheel, sdist, plugin ZIP | Built in fresh `dist/release-0.1.2/`; six candidate files in SHA256SUMS, all verified. |
 | FiftyOne page preview | Official preview plus `sphinx-build -W`; all eight images loaded. Desktop 1440 px and mobile 390 px checked; no horizontal overflow. |
 | COCO acceptance | 12 sources; 131 masks and 33 poses, including 142 missing joints. Validation, 12 created outputs, and cleanup passed; source SHA256 and full labels unchanged. |
 | Final App recording | Six clips, 11–24 seconds each, all below 4 MiB; save/load/edit, completed run, history, cleanup, and three unchanged COCO sources verified. |
 | Media reproduction | Documented exporter reproduced all six GIF SHA256 hashes exactly. |
-| Standalone quickstart | Installed ZIP discovered; three images loaded; annotated preview and one created output exercised. |
+| Clean artifact installation | Fresh venv outside checkout; wheel imported from site-packages, then uninstalled; ZIP alone registered six operators. Both passed preview/create/cleanup with unchanged source data. |
+| Clean App quickstart | ZIP-only environment: preview 1, create 1, inspect history, delete 1, close result dialogs, remove the output-only view stage, and return to 3 sources. |
+| GitHub download | Documented CLI successfully installed available candidate commit `2c04dac`; no editable checkout required. |
 
 The complete suite emitted existing dependency/deprecation warnings; none failed
 the gate. The declared Python/FiftyOne compatibility range still requires the
 release workflow's OS/Python matrix. See [Verification](verification.md) for
 commands and the full App checklist.
+
+## Distribution inventory
+
+The GitHub download intentionally contains the complete tracked source tree:
+251 files, about 19.21 MiB at `2c04dac`, including contributor docs, tests,
+scripts, and finished media. No raw recordings, generated datasets, caches,
+or logs were present. The small runtime artifacts are separate:
+
+| Distribution | Entries | Documentation and assets |
+| --- | --- | --- |
+| Plugin ZIP | 145 | Root README plus 13 selected guides; registration, manifest, version, toolbar, and logos included. |
+| Wheel | 132 | Runtime Python package, version, toolbar/logo package data, metadata, and license; no media or contributor docs. |
+| sdist | 159 | Python build sources, README, metadata, and license; no demo media, caches, or downloaded data. |
+
+Build in an empty staging directory before checksum generation. Existing files
+from older releases in a developer's `dist/` must not enter an upload set.
+Only the six current candidate assets and their SHA256SUMS belong in the draft.
 
 ## Upstream documentation handoff
 
@@ -142,3 +161,14 @@ The upstream draft must be reviewed against the published plugin release and
 include its final media paths. Build it with the upstream preview script and
 review desktop and narrow layouts before merging. Release publication and
 upstream merge remain separate from this preparation branch.
+
+## Review links and external gates
+
+- [Plugin preparation PR](https://github.com/albumentations-team/voxel51-plugin/pull/75), targeting `dev`.
+- [FiftyOne integration PR](https://github.com/voxel51/fiftyone/pull/8471), targeting `main`, with eight public media assets.
+- Both PRs must remain drafts until the maintainer finishes their own detailed
+  review and changes the status. Required CI runs and release publication remain external
+  gates; local acceptance is not a claim that the OS/Python matrix has passed.
+- Publish the matching release before merging the upstream integration page,
+  then verify the final public tag/download links. No tag was created or pushed
+  by the preparation workflow.

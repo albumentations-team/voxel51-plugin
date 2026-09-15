@@ -279,5 +279,15 @@
       "sha256": "937e0568c02632beeeecf405eedada5ed112d8711e57652e33e12de5a0161f75"
     }
   ],
-  "candidate_commit": "2f8aa79c4acad7d5efa41e8554161b15828ec9ee"
+  "candidate_commit": "2f8aa79c4acad7d5efa41e8554161b15828ec9ee",
+  "page_previews": [
+    {
+      "file": "page-preview-desktop.jpg",
+      "sha256": "9d2215043cb592204af73a2aed1069aab4adfee3ae1e5104a96fb171f0a64d37"
+    },
+    {
+      "file": "page-preview-mobile.jpg",
+      "sha256": "2b5145a1b27f8db3a90b55b63ceb0eb4f80379e5d4124ab5ffca767b75a93e14"
+    }
+  ]
 }

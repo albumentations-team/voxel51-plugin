@@ -32,6 +32,12 @@ The runtime ZIP and wheel exclude media and recording tools.
 These captures use a separate copy of the three source images. Their derived
 polylines and heatmap are illustrative fixtures, not original COCO annotations.
 
+## Documentation page preview
+
+The styled upstream preview was reviewed at [desktop width](page-preview-desktop.jpg)
+and [390 px width](page-preview-mobile.jpg). These are contributor review assets;
+they are not part of the upstream page or runtime ZIP.
+
 ## Dataset and attribution
 
 The dedicated recording dataset contains three COCO 2017 validation images,
