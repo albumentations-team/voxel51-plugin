@@ -5,11 +5,11 @@ review agent.
 
 ## Scope
 
-- The PR maps to one Linear issue.
+- The PR describes one coherent change and links its verification evidence.
 - The branch starts from the current `dev` branch.
 - The diff does not include unrelated refactors or metadata churn.
 - No code is copied from the previous community plugin.
-- The root `__init__.py`, once created, stays limited to operator registration.
+- The root `__init__.py` stays limited to operator registration.
 
 ## Documentation
 

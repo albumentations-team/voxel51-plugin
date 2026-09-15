@@ -263,7 +263,7 @@ DEMO_DATASET_SPECS: dict[str, DemoDatasetSpec] = {
     DEFAULT_SUITE_KEY: DemoDatasetSpec(
         suite_key=DEFAULT_SUITE_KEY,
         dataset_name=DEFAULT_DATASET_NAME,
-        description="Small stable dataset used by the existing MVP smoke workflow.",
+        description="Small stable dataset used by the operator smoke workflow.",
         samples=DEMO_SAMPLES,
     ),
     "annotations": DemoDatasetSpec(

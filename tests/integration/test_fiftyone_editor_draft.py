@@ -95,9 +95,9 @@ def test_preview_return_creation_preserves_order_parameters_annotations_and_outp
     preview = operator.execute(ctx)
     assert preview["error_count"] == 0 and preview["preview_count"] == 1
     assert len(ctx.dataset) == 2 and not root.exists()
-    schema = operator.resolve_output(SimpleNamespace(params=ctx.params, results=preview)).to_json()["type"][
-        "properties"
-    ]
+    output = operator.resolve_output(SimpleNamespace(params=ctx.params, results=preview))
+    assert output is not None
+    schema = output.to_json()["type"]["properties"]
     assert next(iter(schema)) == "_outcome"
     assert schema[RESULT_DETAILS]["view"]["componentsProps"]["grid"]["component"] == "details"
     restored = _return_params(operator, ctx, preview)
@@ -286,7 +286,7 @@ def test_app_output_uses_independent_modal_to_allow_return(editor_context):
     assert shown["results"][EDITOR_DRAFT]["p"] == 0.0
     assert "_back_to_editor" in shown["outputs"]["type"]["properties"]
     ctx.results = result
-    assert not op.resolve_output(ctx).type.properties
+    assert op.resolve_output(ctx) is None
 
 
 @pytest.mark.parametrize("action", ["unknown", []])

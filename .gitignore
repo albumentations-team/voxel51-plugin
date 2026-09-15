@@ -30,3 +30,6 @@ sample_data/generated/
 .DS_Store
 .idea/
 .vscode/
+
+# Local masters for documentation recordings
+docs/media/source/

@@ -1,11 +1,11 @@
 # Run Manifest
 
-VOX-15 persists each non-dry augmentation execution as a plugin-owned run
-manifest and registers the same data in FiftyOne's generic custom run store.
+A materialized augmentation execution is persisted as a plugin-owned run
+manifest, registering the same data in FiftyOne's generic custom run store.
 
 ## Filesystem Layout
 
-For local MVP runs, generated data lives under:
+For local runs, generated data lives under:
 
 ```text
 ~/.fiftyone/albumentationsx-plugin/<dataset-name>/<run-key>/
@@ -37,7 +37,7 @@ provenance fields, and manifest lookups.
 
 Output paths must be relative to the run directory. Absolute paths and parent
 traversal are rejected before the manifest is saved. This makes the manifest the
-future cleanup allowlist.
+cleanup allowlist.
 
 Manifest writes use a temporary file in the same run directory followed by
 replace, so interrupted writes should not leave a partially written
@@ -86,7 +86,7 @@ count when there are multiple outputs per source.
 
  A cancelled run is intentionally
 retained as an inspectable partial run; generated samples and files already
-listed in the manifest can be removed with `Delete AlbumentationsX Run`.
+listed in the manifest can be removed with **Run history → Review deletion of generated outputs**.
 
 Run history is available in **Load pipeline**. An explicit load copies the
 run's transforms, output count and annotation selection into an editable draft.
@@ -99,14 +99,14 @@ First-class named pipeline presets are stored separately from dataset run
 manifests under the shared plugin storage root. They persist reusable pipeline
 configuration and dependency metadata only. They do not participate in cleanup
 allowlists and never contain generated sample IDs, output paths, or replay
-records. `Manage AlbumentationsX Saved Pipelines` can delete a preset JSON file, but
+records. **Saved pipelines** can delete a preset JSON file, but
 that action does not mutate run manifests, FiftyOne custom runs, generated
 samples, generated files, or sources. Details live in
 [Pipeline presets](pipeline-presets.md).
 
 ## Run Summary
 
-VOX-16 adds the read-only `view_albumentationsx_run` operator. It lists run keys
+The read-only `view_albumentationsx_run` operator inspects persisted executions. It lists run keys
 for the active dataset and displays counters, versions, transform config, replay
 availability, output fields, and errors from `manifest.json`. If the manifest is
 missing or malformed, the operator returns a clear status instead of mutating the
@@ -114,7 +114,7 @@ dataset or crashing. Details live in [Run summary operator](run-summary-operator
 
 ## Run Cleanup
 
-VOX-17 adds the confirmed `delete_albumentationsx_run` operator. Cleanup uses
+The `delete_albumentationsx_run` operator requires confirmation. Cleanup uses
 the manifest as its allowlist, deletes only `created_sample_ids` and
 manifest-listed `output_paths`, and removes the matching FiftyOne custom run.
 The manifest file is retained for auditability and idempotent repeated cleanup.

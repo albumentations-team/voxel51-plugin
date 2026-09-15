@@ -1,6 +1,6 @@
 # Capability Browser Operator
 
-VOX-44 adds the read-only `Show AlbumentationsX Capabilities` operator. It uses
+The read-only `Show AlbumentationsX Capabilities` operator reports transform coverage. It uses
 the same `AlbuSpecCatalogProvider` and capability classification rules as the
 augmentation form and `scripts/report_transform_capabilities.py`.
 
@@ -30,7 +30,7 @@ augmentation form as JSON-backed advanced fields.
 `External inputs` lists declared input requirement names for any transform that
 needs extra data. Supported reference-image transforms already have a
 `reference_image_pool` adapter; `requires_external_data` rows still need future
-VOX-43-style adapters before they can become executable.
+explicit input adapters before they can become executable.
 
 ## Dependency Behavior
 

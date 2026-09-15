@@ -1,8 +1,8 @@
 # Architecture
 
 This document turns the architecture section of `DESIGN.md` into implementation
-guidance for the MVP. The design document remains the product contract; this
-page describes the code boundaries we should keep while building it.
+guidance for the plugin. The design document remains the product contract; this
+page describes the implemented code boundaries.
 
 ## Goals
 
@@ -29,8 +29,7 @@ Expected modules:
 - `albumentationsx_plugin/core/contracts/forms.py`
 - `albumentationsx_plugin/core/contracts/augmentation.py`
 - `albumentationsx_plugin/core/contracts/runs.py`
-- `albumentationsx_plugin/core/contracts/fixed_slice.py` for the temporary
-  fixed-transform MVP contract
+- `albumentationsx_plugin/core/contracts/fixed_slice.py` for stable editor limits and compatibility
 - `albumentationsx_plugin/core/serialization/`
 - `albumentationsx_plugin/core/errors.py`
 - `albumentationsx_plugin/core/interfaces/catalog.py`
@@ -55,8 +54,7 @@ Expected modules:
 - `albumentationsx_plugin/albumentations_backend/pipeline/factory.py`
 - `albumentationsx_plugin/albumentations_backend/pipeline/runner.py`
 - `albumentationsx_plugin/albumentations_backend/pipeline/replay.py`
-- `albumentationsx_plugin/albumentations_backend/fixed/pipeline.py` for the
-  temporary fixed-transform vertical slice
+- `albumentationsx_plugin/albumentations_backend/fixed/pipeline.py` for legacy import compatibility
 
 `hosts/fiftyone`
 
@@ -135,9 +133,8 @@ Boundary tests check forbidden imports in neutral layers:
 - importing `albumentationsx_plugin.storage` must not import FiftyOne operator
   modules.
 
-When the package layout stabilizes, add an import-boundary tool such as
-`import-linter` to encode the same rules in configuration. That check should run
-inside the complete local gate documented in `docs/verification.md`.
+Existing boundary tests enforce these rules. Add further tooling only when it
+closes a demonstrated gap.
 
 ## Core Contracts
 
@@ -208,30 +205,30 @@ progress, cancellation and output preparation. Saved-pipeline loading belongs to
 `preset_management.py`, and run discovery to `run_library.py`. Conversion back
 to editor fields lives beside compilation; `presets.py` preserves legacy imports.
 
-The VOX-11 albu-spec catalog is documented in `docs/albu-spec-catalog.md`. It
+The albu-spec catalog is documented in `docs/albu-spec-catalog.md`. It
 is the source for normal transform choices, capability reports, and version
 drift checks.
 
-The VOX-12 parameter schema generator is documented in
+The parameter schema generator is documented in
 `docs/parameter-schema.md`. It converts albu-spec parameter metadata into
 host-neutral `FormFieldSchema` records without importing FiftyOne.
 
-The VOX-13 dynamic form layer is documented in
+The dynamic form layer is documented in
 `docs/dynamic-fiftyone-forms.md`. It keeps FiftyOne-specific rendering under
 `hosts/fiftyone/forms/` while consuming backend catalog and schema interfaces.
 
-The VOX-14 pipeline factory is documented in `docs/pipeline-factory.md`. It
+The pipeline factory is documented in `docs/pipeline-factory.md`. It
 resolves transform classes from albu-spec metadata, validates parameters through
 neutral schemas, and provides a replay runner that can optionally receive
 Albumentations target data. Host-level media IO, label conversion, output sample
 creation, and storage orchestration remain outside that runner.
 
-VOX-29 preview execution is documented in `docs/augmentation-preview.md`.
+Preview execution is documented in `docs/augmentation-preview.md`.
 Preview uses the same runtime setup and per-source output preparation as the
 materialized executor, but encodes images and diagnostics in memory instead of
 writing files, samples, manifests, or custom runs.
 
-The VOX-15 run manifest layer is documented in `docs/run-manifest.md`. It stores
+The run manifest layer is documented in `docs/run-manifest.md`. It stores
 `manifest.json` in the plugin-owned run directory and registers the same payload
 in FiftyOne's generic custom run store. The filesystem manifest remains the
 cleanup allowlist because it contains relative output paths that can be resolved
@@ -295,7 +292,7 @@ by augmentation execution or cleanup.
 
 ## Decision Record
 
-Decision: keep the reusable core inside this repository for the MVP.
+Decision: keep the reusable core inside this repository for the plugin.
 
 Reason: there is one concrete host integration today, FiftyOne. Extracting a
 separate shared package before a second consumer exists would add release and
@@ -315,3 +312,19 @@ Use `docs/verification.md` as the single source of truth for local gates and
 manual checks. Architecture-only changes usually need the documentation gate and
 manual review against `DESIGN.md`; code changes should use the complete local
 gate described there.
+
+## Metadata ownership and upstream work
+
+albu-spec owns transform metadata, runtime module names, target declarations,
+parameter shapes/defaults, and dependency snapshots. The plugin owns editor
+policy, selected label handling, image-aware defaults, output validation, and
+safe persistence. Core/host code consume neutral contracts and backend services.
+
+Metadata workarounds belong in the backend, carry reason codes and focused tests,
+and link to upstream work. Re-evaluate them when the catalog version changes.
+Do not add arbitrary type-hint parsers or duplicate transform catalogs. The
+[2026-08-15 audit](https://github.com/albumentations-team/voxel51-plugin/blob/ca5507b5df3df8c816b16a0f5230b9bc235d0826/docs/albu-spec-integration-audit.md)
+preserves structured-schema, external-input, and output-contract observations.
+Richer machine-readable metadata remains an upstream concern. Optional complex fields currently
+use JSON controls; unresolved external-data families remain excluded until their
+adapters, validation, provenance, and cleanup tests exist.

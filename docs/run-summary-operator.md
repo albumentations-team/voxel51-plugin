@@ -1,11 +1,11 @@
 # Run Summary Operator
 
-VOX-16 adds `view_albumentationsx_run`, a read-only FiftyOne operator for
+`view_albumentationsx_run` is a read-only FiftyOne operator for
 inspecting previous AlbumentationsX plugin runs.
 
 ## Behavior
 
-VOX-56 extends the viewer into a run library. Open **Run history**
+The viewer includes a searchable run library. Open **Run history**
 from the samples grid, then search by label, run key, outcome, or transform.
 The selector shows labels first, followed by UTC creation time, outcome, and a
 unique key to distinguish runs with the same label. Runs are ordered newest
@@ -66,7 +66,7 @@ has manifest-listed outputs. The selector defaults to the first output and lets
 users inspect one JSON-safe replay record without opening `manifest.json`
 manually.
 
-When `Open generated samples` is enabled, executing the operator asks the
+The **Open generated samples** action asks the
 FiftyOne App to show the generated samples from the selected run that still
 exist in the dataset. This is read-only App navigation; it does not modify the
 dataset, manifest, output files, or custom run metadata.
@@ -107,9 +107,11 @@ summary service.
 The operator accepts an internal `_storage_root` parameter for tests and
 programmatic checks. The FiftyOne App form does not expose it.
 
-## Verification
+## Contributor verification
 
-Use the complete local gate in [Verification](verification.md). Focused checks:
+The commands in this section require the repository checkout and its test suite.
+
+Use the complete local gate in [Verification](https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/verification.md). Contributor checks (run from a repository checkout):
 
 ```bash
 uv run pytest tests/unit/test_fiftyone_run_summary.py tests/unit/test_fiftyone_view_run_operator.py tests/integration/test_fiftyone_view_run_operator_integration.py

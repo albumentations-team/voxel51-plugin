@@ -210,7 +210,7 @@ def _ensure_image_collection(collection: Any) -> None:
     if media_type not in (None, IMAGE_MEDIA_TYPE):
         raise HostAdapterError(
             host=FIFTYONE_HOST_NAME,
-            message="Only image datasets are supported by the AlbumentationsX MVP adapter.",
+            message="Only image datasets are supported by the AlbumentationsX adapter.",
             context={
                 "reason": "unsupported_media_type",
                 "dataset_name": dataset_name,

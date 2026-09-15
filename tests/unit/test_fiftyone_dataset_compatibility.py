@@ -182,7 +182,7 @@ def test_dataset_compatibility_report_lists_fields_targets_and_recommendations()
     assert targets["image"]["supported_transform_count"] == 3
     assert targets["image"]["excluded_transform_count"] == 1
     assert targets["volume"]["status"] == "not_available"
-    assert "Preview only" in payload["recommendations_text"]
+    assert "Action → Preview" in payload["recommendations_text"]
     assert "heatmap" in payload["recommendations_text"]
     assert json.loads(str(payload["report_json"]))["counts"]["executable_transforms"] == 3
 

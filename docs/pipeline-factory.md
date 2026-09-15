@@ -1,6 +1,6 @@
 # Pipeline Factory
 
-VOX-14 adds the first catalog-driven AlbumentationsX execution factory. It
+The catalog-driven AlbumentationsX execution factory
 replaces handwritten transform construction in the fixed vertical slice with a
 shared backend package that resolves transform classes from albu-spec metadata,
 coerces parameters from neutral schemas, executes `ReplayCompose`, and returns
@@ -62,7 +62,7 @@ than host-specific form strings. The backend receives only the enabled slots,
 already sorted by the selected execution order, so `PipelineConfig` remains the
 host-neutral ordered contract.
 
-VOX-26 adds the first host-side annotation adapter. The backend runner remains
+The host-side annotation adapter handles supported FiftyOne labels. The backend runner remains
 host-neutral: FiftyOne label serialization and reconstruction live in
 `hosts/fiftyone/annotations/`, while this package only receives and returns
 Albumentations target arrays.

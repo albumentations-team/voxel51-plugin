@@ -1,23 +1,24 @@
 # Release Artifacts
 
-VOX-45 adds a repeatable release artifact path for public tags. A release tag
+The release workflow builds reproducible artifacts for public tags. A release tag
 should publish these files as GitHub Release assets:
 
 - `fiftyone_albumentationsx_plugin-<version>-py3-none-any.whl`
 - `fiftyone_albumentationsx_plugin-<version>.tar.gz`
 - `albumentationsx-fiftyone-plugin-v<version>.zip`
 - `albumentationsx-fiftyone-plugin-v<version>-install.md`
-- `capability-report-v<version>.md`
+- `capability-report-<release-tag>.md`
 - `SHA256SUMS`
 
 The wheel and source distribution prove that the reusable Python package can be
 built. The FiftyOne plugin zip is the App-ready artifact: it contains
-`fiftyone.yml`, the root plugin entrypoint, runtime requirements, docs, sample
-data notes, and the `albumentationsx_plugin` package.
+`fiftyone.yml`, the root plugin entrypoint, runtime requirements, selected user
+documentation, and the `albumentationsx_plugin` package.
 
 ## Build Locally
 
-Run from a clean release branch or tag checkout:
+Contributor commands below require a clean release branch or tag checkout,
+not the installed plugin directory:
 
 ```bash
 uv sync --group dev
@@ -29,7 +30,8 @@ uv run python scripts/build_release_artifacts.py --tag <release-tag>
 ```
 
 `scripts/verify_release_tag.py` accepts both `0.1.2` and `v0.1.2`. The tag must
-match `pyproject.toml`, `fiftyone.yml`, and `uv.lock` Python compatibility.
+match `pyproject.toml`, `fiftyone.yml`, runtime `_version.py`, and the root
+`uv.lock` entry; Python compatibility must also agree.
 
 ## Install From Release Zip
 
@@ -46,14 +48,17 @@ If a workflow needs the attached zip artifact instead, download the zip and
 plugin directory:
 
 ```bash
-curl -LO https://github.com/albumentations-team/voxel51-plugin/releases/download/<release-tag>/albumentationsx-fiftyone-plugin-<release-tag>.zip
-curl -LO https://github.com/albumentations-team/voxel51-plugin/releases/download/<release-tag>/SHA256SUMS
+RELEASE_TAG="<release-tag>"
+ARTIFACT_VERSION="${RELEASE_TAG#v}"
+ARCHIVE="albumentationsx-fiftyone-plugin-v${ARTIFACT_VERSION}.zip"
+curl -fLO "https://github.com/albumentations-team/voxel51-plugin/releases/download/${RELEASE_TAG}/${ARCHIVE}"
+curl -fLO "https://github.com/albumentations-team/voxel51-plugin/releases/download/${RELEASE_TAG}/SHA256SUMS"
 shasum -a 256 --check SHA256SUMS --ignore-missing
 
 PLUGIN_ROOT="${FIFTYONE_PLUGINS_DIR:-$HOME/fiftyone/__plugins__}"
 PLUGIN_DIR="$PLUGIN_ROOT/albumentationsx"
 mkdir -p "$PLUGIN_DIR"
-unzip -q "albumentationsx-fiftyone-plugin-<release-tag>.zip" -d "$PLUGIN_DIR"
+unzip -q "$ARCHIVE" -d "$PLUGIN_DIR"
 fiftyone plugins requirements @albumentations/albumentationsx --install
 fiftyone plugins list --enabled --names-only
 ```
@@ -76,8 +81,10 @@ prove the browser App interaction path.
 runtime module or intended documentation asset to that list. The builder fails
 if any listed file is absent or is a symlink. Files created locally under package,
 documentation or sample-data directories cannot enter the archive implicitly.
-Historical audits, generated demo images, caches and the upstream RST draft are
-excluded. `DESIGN.md` is included so bundled documentation links resolve.
+Historical audits, generated demo images, caches and the upstream RST source are
+excluded. Contributor procedures, historical reports, and source demo scripts
+are not bundled in the user ZIP. User-doc links
+resolve within the ZIP or point to the repository for source-only material.
 
 Both bare and `v`-prefixed tags are accepted. Artifact filenames use the normalized
 version; install URLs retain the exact publication tag. Update all four version

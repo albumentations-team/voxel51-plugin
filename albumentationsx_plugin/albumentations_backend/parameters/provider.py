@@ -36,7 +36,7 @@ class AlbuSpecParameterSchemaProvider:
         return {metadata.name: metadata for metadata in collection.get_all()}
 
     def get_parameter_schema(self, transform_name: str) -> tuple[FormFieldSchema, ...]:
-        """Return neutral fields for a transform that is exposed by the MVP catalog."""
+        """Return neutral fields for a transform that is exposed by the current catalog."""
 
         capability = self._catalog_provider.get_transform_capability(transform_name)
         if capability is None:
@@ -48,7 +48,7 @@ class AlbuSpecParameterSchemaProvider:
         if not is_mvp_supported_status(capability.status):
             raise UnsupportedTransformError(
                 transform_name,
-                message=f"Transform {transform_name} is not available for MVP parameter schema generation.",
+                message=f"Transform {transform_name} is not available for parameter schema generation.",
                 context={
                     "reason_code": capability.reason_code or capability.status.value,
                     "status": capability.status.value,

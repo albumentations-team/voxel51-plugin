@@ -1,6 +1,6 @@
 # Cancellation Semantics
 
-VOX-47 defines the safe behavior for interrupted or cancelled materialized
+This guide defines the behavior for interrupted or cancelled materialized
 augmentation runs.
 
 ## Host Signal
@@ -30,7 +30,7 @@ When cancellation is observed:
 - the final manifest stores `metadata.execution_status = "cancelled"`;
 - the final manifest stores `metadata.cancelled_at` as an ISO UTC timestamp;
 - the manifest includes an `augmentation_cancelled` structured error;
-- the FiftyOne custom run is registered so `View AlbumentationsX Run` can
+- the FiftyOne custom run is registered so **Run history** can
   inspect the partial run;
 - the progress reporter receives a final `cancelled` snapshot.
 
@@ -39,7 +39,7 @@ whether to inspect or delete generated data.
 
 ## Cleanup
 
-`Delete AlbumentationsX Run` uses the same manifest allowlist for cancelled runs
+**Run history → Review deletion of generated outputs** uses the same manifest allowlist for cancelled runs
 as it does for completed runs. It removes only:
 
 - `manifest.created_sample_ids`;
@@ -49,9 +49,11 @@ as it does for completed runs. It removes only:
 The original source samples and source files remain outside the cleanup
 allowlist.
 
-## Verification
+## Contributor verification
 
-Focused checks:
+The commands in this section require the repository checkout and its test suite.
+
+Contributor checks (run from a repository checkout):
 
 ```bash
 uv run pytest tests/unit/test_fiftyone_cancellation.py tests/integration/test_fiftyone_fixed_augmentation_executor.py
@@ -61,6 +63,14 @@ Manual App checks:
 
 1. Start a delegated augmentation on a dataset with multiple samples.
 2. Interrupt the execution if the host exposes a supported cancellation path.
-3. Run `View AlbumentationsX Run` and confirm the run is marked `cancelled`.
-4. Run `Delete AlbumentationsX Run` and confirm retained generated outputs are
+3. Run **Run history** and confirm the run is marked `cancelled`.
+4. Run **Run history → Review deletion of generated outputs** and confirm retained generated outputs are
    removed while source samples remain unchanged.
+
+## Preparation limits
+
+Source collection, image/annotation validation, and reference-image setup occur
+before output progress and cancellation checkpoints. A large scope can therefore
+remain in preparation for some time. Use small selected scopes, especially for
+reference-image transforms. Preparation is not yet cancellable and reference
+resources are not bounded; delegated execution does not remove these costs.

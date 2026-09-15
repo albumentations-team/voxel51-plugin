@@ -1,3 +1,6 @@
+> Historical 0.1.0 capability snapshot; retained without regenerating its 110-choice result.
+> Current release reports are generated separately from the release source and environment.
+
 AlbumentationsX capability catalog
 version key: albumentationsx-2.3.8__albu-spec-0.0.6
 total transforms: 134

@@ -1,6 +1,6 @@
 # Annotation-Aware Execution
 
-VOX-26 adds the first annotation-aware execution path for the fixed FiftyOne
+This guide describes annotation-aware execution through the FiftyOne
 augmentation slice. Geometry is delegated to Albumentations target handling; the
 plugin only converts FiftyOne labels into target data and reconstructs FiftyOne
 labels from the transformed targets.
@@ -151,9 +151,11 @@ annotation payloads. This catches value-dependent requirements, such as a
 targets when any selected detection carries an instance mask. Runtime target
 requirements are stored in run annotation metadata for inspection.
 
-## Verification
+## Contributor verification
 
-Use the complete local gate in [Verification](verification.md). The focused
+The commands in this section require the repository checkout and its test suite.
+
+Use the complete local gate in [Verification](https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/verification.md). The focused
 annotation check is:
 
 ```bash

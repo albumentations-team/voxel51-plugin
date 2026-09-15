@@ -1,11 +1,15 @@
 # Release v0.1.0
 
-This page is the release note and checklist for the first public MVP release of
+> Historical release record. Commands, names, and counts describe that release.
+> Use [Verification](verification.md) for current gates and the
+> [integration guide](albumentationsx-fiftyone-integration.md) for current usage.
+
+This page is the release note and checklist for the first public release of
 `@albumentations/albumentationsx`.
 
-## MVP Scope
+## Release scope
 
-`v0.1.0` is a working FiftyOne plugin MVP:
+`v0.1.0` is a working FiftyOne plugin:
 
 - installs as a local FiftyOne plugin from this repository;
 - registers `Augment with AlbumentationsX`, `View AlbumentationsX Run`, and
@@ -28,7 +32,7 @@ This page is the release note and checklist for the first public MVP release of
 
 - Execution is image-focused and writes generated image samples under
   plugin-owned run directories.
-- The executable picker exposes the `110` normal MVP choices classified as
+- The executable picker exposes the `110` executable choices classified as
   `supported` or `supported_with_defaults` by the current albu-spec catalog.
   The default stage presets are `HorizontalFlip`,
   `RandomBrightnessContrast`, and `RandomCrop`, but they are not the complete
@@ -64,7 +68,7 @@ The final catalog snapshot for this release is
 
 - version key: `albumentationsx-2.3.8__albu-spec-0.0.6`
 - total transforms: `134`
-- normal MVP choices: `110`
+- executable choices: `110`
 
 Regenerate it with the release candidate check listed in
 [Verification](verification.md#release-candidate-checks) when AlbumentationsX,
@@ -111,7 +115,7 @@ Validate from the final release branch before tagging:
 
 Before publishing:
 
-1. Merge the tested MVP state from `dev` into `main` by pull request.
+1. Merge the tested release candidate from `dev` into `main` by pull request.
 2. Create or align `release/v0.1.0` from the final `main` release candidate.
 3. Keep release-only changes limited to version metadata, release notes,
    capability report updates, documentation, and validation fixes.
@@ -137,7 +141,7 @@ the patch as `v0.1.1`.
 
 ## Post-Release Follow-Up
 
-- Broaden target-aware transform coverage beyond the MVP executable slice.
+- Broaden target-aware transform coverage beyond the plugin executable slice.
 - Improve multi-step pipeline editing, previews, progress, and validation UX.
 - Keep release artifacts and automation aligned with
   [Release artifacts](release-artifacts.md).

@@ -166,7 +166,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Choose either Preview only or Dry run, not both.",
+                message="Choose either preview or validation without creating samples.",
                 context={
                     "reason": "preview_only_conflicts_with_dry_run",
                     PREVIEW_ONLY_FIELD_NAME: True,
@@ -179,7 +179,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Save pipeline only cannot be combined with Preview only.",
+                message="Saving a pipeline cannot be combined with preview.",
                 context={
                     "reason": "save_preset_only_conflicts_with_preview_only",
                     SAVE_PRESET_ONLY_FIELD_NAME: True,
@@ -192,7 +192,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Save pipeline only cannot be combined with Dry run.",
+                message="Saving a pipeline cannot be combined with validation without creating samples.",
                 context={
                     "reason": "save_preset_only_conflicts_with_dry_run",
                     SAVE_PRESET_ONLY_FIELD_NAME: True,
@@ -205,7 +205,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Saved pipeline name is required when Save pipeline only is enabled.",
+                message="Enter a pipeline name before saving.",
                 context={
                     "reason": "save_preset_only_requires_preset_name",
                     SAVE_PRESET_ONLY_FIELD_NAME: True,
@@ -218,7 +218,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Preview only does not save pipelines; disable Preview only or enable Save pipeline only.",
+                message="Preview does not save pipelines. Choose Save pipeline to save this configuration.",
                 context={
                     "reason": "preview_only_would_skip_preset_save",
                     PREVIEW_ONLY_FIELD_NAME: True,
@@ -231,7 +231,7 @@ def validate_execution_mode_params(params: Mapping[str, object]) -> tuple[Augmen
         issues.append(
             AugmentValidationIssue(
                 code=INVALID_EXECUTION_MODE_CODE,
-                message="Dry run does not save pipelines; disable Dry run or enable Save pipeline only.",
+                message="Validation does not save pipelines. Choose Save pipeline to save this configuration.",
                 context={
                     "reason": "dry_run_would_skip_preset_save",
                     DRY_RUN_FIELD_NAME: True,

@@ -1,6 +1,6 @@
 # Parameter Schema
 
-VOX-12 adds host-neutral parameter schema generation for transforms exposed by
+The host-neutral parameter schema describes transforms exposed by
 the albu-spec capability catalog.
 
 ## Boundary
@@ -57,7 +57,7 @@ fields = provider.get_parameter_schema("RandomBrightnessContrast")
 ```
 
 The provider only returns schemas for transforms that the capability catalog
-marks as normal MVP choices. Excluded transforms raise `UnsupportedTransformError`
+marks as executable choices. Excluded transforms raise `UnsupportedTransformError`
 with the catalog reason.
 
 ## Snapshot Review

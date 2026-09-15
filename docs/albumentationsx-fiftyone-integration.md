@@ -1,46 +1,38 @@
-# AlbumentationsX and FiftyOne Integration
+# AlbumentationsX and FiftyOne integration
 
-AlbumentationsX for FiftyOne lets you build augmentation pipelines in the
-FiftyOne App, apply them to image datasets, inspect the generated samples, and
-clean up plugin-created outputs without touching source samples or source
-files.
+Build augmentation pipelines directly in the FiftyOne App, inspect their effect
+on labels, and create new image samples. Source samples, annotations, and media
+remain unchanged. Generated outputs persist until you explicitly delete them.
 
-This guide documents the AlbumentationsX plugin in this repository:
+This guide describes `@albumentations/albumentationsx` from
+`albumentations-team/voxel51-plugin`. The older
+`jacobmarks/fiftyone-albumentations-plugin` uses a different workflow; see
+[Migration](#migration-from-the-older-community-plugin).
 
-```text
-@albumentations/albumentationsx
-```
+## Choose an action
 
-It is not the same plugin as the older Voxel51 Albumentations integration page.
-That page describes the historical `jacobmarks/fiftyone-albumentations-plugin`
-workflow, including temporary batches, "last run" shortcuts, and
-dataset-bound saved transforms. The current plugin uses explicit run manifests,
-run-key based inspection, named pipeline presets, and allowlist-based cleanup.
+| Action | Purpose | Writes data? |
+| --- | --- | --- |
+| **Augment images → Preview** | Inspect up to three selected sources with annotated before/after comparisons. | No |
+| **Augment images → Validate without creating samples** | Read the chosen sources and execute planned transformations in memory. | No |
+| **Augment images → Create augmented samples** | Generate persistent samples, files, and a run record. | Yes |
+| **Augment images → Save pipeline** | Save a reusable configuration without generating samples. | Configuration only |
+| **Saved pipelines** | Inspect, load, import/export, edit, duplicate, or delete configurations. | For management actions |
+| **Run history** | Inspect executions, open outputs, reuse a pipeline, or review deletion. | Only confirmed cleanup |
 
-## What You Can Do
+The sample-grid toolbar uses the short labels **augment**, **pipelines**, and
+**history**, with full names in tooltips. On narrow grids, look in **More items**.
+Compatibility and transform search live inside the editor.
 
-- Build a pipeline of AlbumentationsX transforms from the FiftyOne App.
-- Apply the pipeline to selected samples, the current view, or the whole image
-  dataset.
-- Generate one or more output samples per source sample.
-- Preview selected-sample outputs in memory before writing files.
-- Run a dry-run validation without creating samples, files, manifests, or
-  FiftyOne custom runs.
-- Keep supported labels aligned with compatible geometry transforms.
-- Store run manifests with pipeline config, dependency versions, output paths,
-  structured errors, and replay metadata.
-- Reuse a previous run as a same-dataset pipeline template with fresh
-  randomness.
-- Save named presets that can be reused across datasets in the same plugin
-  storage root.
-- Inspect, export, import, rename, and delete named presets.
-- Delete only the generated samples, files, and FiftyOne custom run for a
-  selected augmentation run.
+## Installation and upgrade
 
-## Install
+Use Python 3.10–3.14 with FiftyOne `>=1.19,<2`. The runtime dependencies are
+AlbumentationsX `>=2.3.8,<3` and albu-spec `>=0.0.6,<1`.
+The release lockfile pins AlbumentationsX 2.3.8 and albu-spec 0.0.6.
+Declared ranges and CI targets are not a claim that every dependency combination
+has been manually tested.
 
-Install the plugin into the same Python environment that runs FiftyOne. For a
-published release, prefer a tag instead of an unreviewed branch tip:
+Run these commands in the environment that launches FiftyOne:
 
 ```bash
 python -m pip install "fiftyone>=1.19,<2"
@@ -49,438 +41,369 @@ fiftyone plugins requirements @albumentations/albumentationsx --install
 fiftyone plugins list --enabled --names-only
 ```
 
-The plugin list should include:
+Choose an existing [release tag](https://github.com/albumentations-team/voxel51-plugin/releases).
+The final command must list `@albumentations/albumentationsx`.
+The source currently prepares 0.1.2; verify that a tag exists before using it.
+AlbumentationsX installs as `albumentationsx` and is imported in Python as
+`albumentations`.
 
-```text
-@albumentations/albumentationsx
+For an upgrade, stop the App, preserve your plugin storage, and download the
+chosen release with the CLI's `--overwrite` option. Reinstall its requirements,
+restart the App, and validate a small saved pipeline before creating outputs.
+If the plugin is disabled, enable it with
+`fiftyone plugins enable @albumentations/albumentationsx`.
+See [ZIP installation](release-artifacts.md#install-from-release-zip) for an
+alternative to the GitHub download helper.
+
+The wheel is the reusable Python package. The plugin ZIP also includes the
+FiftyOne manifest and root registration entrypoint needed for App discovery.
+
+## Quickstart
+
+### Create a small dataset without a repository checkout
+
+The following standalone script uses dependencies installed above. It creates
+three small images and a new dataset; existing datasets are left intact.
+
+Save it as `albumentationsx_quickstart.py` and run it with the Python environment
+that contains FiftyOne and the plugin:
+
+```python
+from pathlib import Path
+from tempfile import mkdtemp
+
+import fiftyone as fo
+from PIL import Image, ImageDraw
+
+data_dir = Path(mkdtemp(prefix="albumentationsx-demo-"))
+dataset = fo.Dataset()  # FiftyOne chooses a unique name
+dataset.persistent = True
+
+for index, color in enumerate(("tomato", "royalblue", "seagreen")):
+    image = Image.new("RGB", (480, 320), "whitesmoke")
+    ImageDraw.Draw(image).rectangle((48, 64, 192, 224), fill=color)
+    path = data_dir / f"source-{index + 1}.png"
+    image.save(path)
+    dataset.add_sample(
+        fo.Sample(
+            filepath=str(path),
+            ground_truth=fo.Detections(
+                detections=[
+                    fo.Detection(
+                        label="rectangle",
+                        bounding_box=[0.1, 0.2, 0.3, 0.5],
+                    )
+                ]
+            ),
+        )
+    )
+
+print(f"Dataset: {dataset.name}")
+print(f"Source images: {data_dir}")
+session = fo.launch_app(dataset)
+session.wait()
 ```
-
-Published releases also include a checksummed plugin zip for environments that
-cannot use `fiftyone plugins download`. See
-[Release artifacts](release-artifacts.md) for the zip install and verification
-flow.
-
-For local development:
 
 ```bash
-git clone https://github.com/albumentations-team/voxel51-plugin.git
-cd voxel51-plugin
-uv sync --group dev
-export FIFTYONE_PLUGINS_DIR="$PWD"
-uv run fiftyone operators list
+python albumentationsx_quickstart.py
 ```
 
-`FIFTYONE_PLUGINS_DIR` should point at this checkout, not a broad parent
-directory. FiftyOne recursively scans plugin paths, so broad workspace roots
-can make unrelated repositories look like broken plugins.
+Repository contributors can use the richer generated annotation/mask/validation
+suites described in `docs/demo-dataset.md` in a source checkout.
 
-## Registered Operators
+### Preview and create
 
-The plugin registers five App operators:
+![HorizontalFlip preview on COCO with aligned detections and keypoints.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/preview.gif)
 
-| Operator | Purpose |
+*HorizontalFlip preview on COCO with aligned detections and keypoints.*
+
+1. Select the first sample in the grid.
+2. Open **AlbumentationsX · Augment images**.
+3. Choose **Execution scope → Selected samples**, one stage,
+   **HorizontalFlip**, **Probability = 1**, and one output per sample.
+4. Keep `ground_truth` checked in the annotation section.
+5. Choose **Action → Preview**, submit, and inspect the comparison:
+   the rectangle and its detection box should move from left to right together.
+6. Use **Back to editor** to change settings or **Preview again** to inspect
+   another stochastic result. The draft retains stages, parameters, labels,
+   scope, and output count.
+7. Choose **Review and create samples**. Review the source selection and submit
+   **Create augmented samples**.
+8. The grid opens the generated sample. The original three samples and their
+   files remain unchanged. Use **View in history** to inspect this execution.
+
+Preview does not save files, samples, manifests, or runs. Creation uses fresh
+randomness, so a probabilistic pipeline can differ from its preview.
+
+### Review and remove generated outputs
+
+![Create one output and open its generated-sample view.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/create-outputs.gif)
+
+*Create one output and open its generated-sample view.*
+
+In **Run history**, select the run and choose
+**Review deletion of generated outputs**. Check the run, sample/file counts,
+directory, and listed paths before confirming.
+
+Cleanup removes only that run's generated samples, recorded output files, and
+matching FiftyOne custom run. Its manifest remains as an audit record. The demo
+source images and original samples remain available.
+
+If you later remove the demo dataset, use its printed unique name and handle
+the printed source directory separately. Run cleanup does not delete demo sources.
+
+## Build and edit a pipeline
+
+![Edit two ordered stages, preview, and return with settings preserved.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/edit-pipeline.gif)
+
+*Edit two ordered stages, preview, and return with settings preserved.*
+
+The editor supports up to **ten stage slots** and **one to three outputs per
+source**. Search **Transform**, optionally filter by target, and choose parameters.
+Each stage has **Enabled** and **Execution order** controls. Orders must be unique;
+lower values execute first. Disabled stages preserve their values and do not run.
+
+Defaults and bounds come from catalog metadata, with image-aware crop defaults
+where possible. **Probability** defaults to 1 for a predictable first run.
+Optional complex parameters appear under **Advanced parameters** as JSON inputs.
+Empty optional JSON values use library defaults; malformed JSON is rejected.
+
+Expand **Compatibility details** to review selected annotation fields, scope,
+and the current transform/copy behavior. Checkboxes control which labels appear
+on outputs. Unsupported or unchecked fields are omitted and explained.
+
+Use **Load pipeline** to select a saved configuration or run, then explicitly
+click **Replace draft with selected pipeline**. Selecting a source alone keeps
+your edits. Loaded settings remain editable; **Reload and replace draft**
+discards subsequent changes. See [pipeline loading](pipeline-presets.md).
+
+The draft survives the continuation buttons and validation errors. Closing the
+editor or result ends it; use **Save pipeline** for later reuse.
+
+## Scope, validation, and execution
+
+| Scope | Source collection |
 | --- | --- |
-| `Augment with AlbumentationsX` | Configure and execute an augmentation pipeline. |
-| `Show AlbumentationsX Capabilities` | Search the current transform catalog and see support reasons. |
-| `Manage AlbumentationsX Saved Pipelines` | Inspect, export, import, rename, or delete named presets. |
-| `View AlbumentationsX Run` | Inspect a saved run manifest and generated sample availability. |
-| `Delete AlbumentationsX Run` | Remove generated outputs for one selected run after confirmation. |
+| **Selected samples** | Selected IDs within the active view |
+| **Current view** | All samples in the filtered view |
+| **Entire dataset** | The dataset, regardless of current filters |
 
-The full operator URIs are listed in the root [README](../README.md).
+Preview uses selected samples only, with one result per source and a maximum
+of three displayed results. It does not preview the entire current view.
 
-## First Run
+**Validate without creating samples** reads source images and selected labels,
+checks dimensions/compatibility, and applies every planned output in memory.
+It can be expensive for large scopes. It does not check future write permissions,
+guarantee identical random choices, or prevent source data changing afterward.
+Saving a pipeline validates its configuration and annotation compatibility;
+validate against actual source images separately.
 
-For the shortest click-by-click path, follow
-[First-run onboarding](first-run-onboarding.md). The summary below shows the
-same flow inline.
+Preparation validates the complete chosen scope before the first manifest or
+output. A known invalid crop without padding or missing input can therefore
+reject the whole run before creating anything. Failures during output execution
+can produce partial results.
 
-Create the deterministic demo dataset:
+Use immediate execution for small selections. For larger scopes, choose delegated
+creation and run a worker in the same environment:
 
 ```bash
-uv run python scripts/create_demo_dataset.py create --overwrite
-uv run fiftyone app launch albumentationsx-demo
+fiftyone delegated launch
 ```
 
-In the App:
+Delegated execution reports progress and retains results without switching the
+active grid. Preparation happens before output checkpoints, so progress and
+cancellation may not be immediate. Cancellation is best-effort; a hard process
+kill may prevent a final checkpoint. Retained partial outputs can be inspected
+and cleaned through history. See [cancellation](cancellation.md).
 
-1. Select one or more source samples.
-2. Open `Augment with AlbumentationsX` from the actions menu.
-3. Set `Execution scope` to `Selected samples`.
-4. Choose **Action → Preview** for the first pass.
-5. Set `Pipeline stages` to `1`.
-6. Choose `HorizontalFlip`.
-7. Keep `p` at `1.0`.
-8. Keep `Outputs per sample` at `1`.
-9. Run the operator and inspect the preview output.
-10. Click **Review and create samples**. Review the current scope, optionally set
-    **Run options → Run label**, then click **Create augmented samples**.
-    All pipeline edits and annotation choices are preserved.
+## Supported annotations
 
-The plugin creates new output samples tagged with `albumentationsx-output` and
-a run-specific tag. Source samples and source image files remain unchanged.
-
-To inspect and clean up the result:
-
-1. Run `View AlbumentationsX Run` and choose the generated run key.
-2. Review the pipeline config, counters, dependency versions, generated sample
-   IDs, and replay metadata.
-3. Run `Delete AlbumentationsX Run`, choose the same run key, and check the
-   confirmation box.
-
-Cleanup removes the generated samples, generated files, and FiftyOne custom run
-for that plugin run. The retained manifest remains useful for audit and stale
-run diagnostics.
-
-## Build A Pipeline
-
-The form starts with the action and source/output summary, followed by pipeline
-stages and annotations. Optional library, save/run settings, and reports are
-collapsed and can be opened with the keyboard.
-
-Settings include:
-
-- `Load pipeline`: choose a saved pipeline or run history, then explicitly replace the draft.
-- `Execution scope`: selected samples, current view, or entire dataset.
-- `Action`: Preview, Create augmented samples, Save pipeline, or Validate without creating samples.
-- `Run label`: add a readable prefix to generated run keys.
-- `Outputs per sample`: generate multiple outputs for each source sample.
-- `Saved pipeline name` and `Saved pipeline description`: save the resolved pipeline as a named
-  preset.
-- `Pipeline stages`: choose how many stage slots are visible.
-
-Loading creates an editable snapshot. Changing the source picker alone keeps
-unsaved edits; **Reload and replace draft** explicitly restores the saved values.
-Preview and execution use the current draft with fresh randomness.
-
-Each stage has its own transform selector, `Enabled` switch, `Execution order`,
-and catalog-backed parameter fields. Disabled stages are ignored without
-clearing their saved values. Lower execution-order values run earlier.
-
-The form derives defaults from the selected dataset when it can. For example,
-crop-like transforms can use image dimensions from selected samples or dataset
-metadata instead of forcing users to start from zero.
-
-The form also includes a compact compatibility section. It summarizes the
-selected source scope, estimated source count, schema availability, selected
-annotation fields, and whether the current pipeline will transform or copy those
-fields. Critical conflicts are shown before execution with a corrective action.
-Run `Analyze AlbumentationsX Compatibility` when you need the full report with
-field tables, target-family details, package versions, and copyable JSON.
-
-## Preview, Dry Run, And Execution
-
-Use **Action → Preview** when you want to see a small selected-sample result before
-writing anything. Preview returns source images, output images, annotated
-before/after comparison images, sampled replay metadata, transformed label JSON,
-and annotation comparison JSON through the operator output. Annotated comparisons
-appear first; technical fields are under **Result details**. Use **Back to editor**
-or **Preview again** to continue editing, or **Review and create samples** to
-review the current source selection before materializing the same configuration.
-Errors preserve the draft for correction. Each execution uses fresh randomness.
-Closing the result ends the transient draft; save a pipeline for later reuse.
-
-Use **Action → Validate without creating samples** when you want validation and scope resolution without creating
-samples or files. Dry runs do not create run directories, manifests, custom
-runs, or presets.
-
-Use materialized execution when you want real generated samples in the dataset.
-For small selections, immediate execution is fine. For larger views or whole
-datasets, choose delegated execution in FiftyOne so the App stays responsive
-while progress is reported.
-
-## Supported Annotations
-
-The plugin processes image samples and can keep these FiftyOne label types
-aligned when the selected pipeline is compatible:
-
-| Label type | Behavior |
+| Label | Behavior and limits |
 | --- | --- |
-| `Classification` | Copied as static labels. |
-| `Detections` | Bounding boxes use Albumentations bbox targets. |
-| `Detection.mask` | In-memory instance masks follow their detections. |
-| `Detection.mask_path` | File-backed instance masks are loaded and returned as in-memory masks. |
-| `Keypoints` | Points use Albumentations keypoint targets. |
-| `Polylines` | Vertices use keypoint-style geometry semantics. |
-| `Heatmap` | Maps use image-like synchronization for geometry-only pipelines. |
-| `Segmentation` | Semantic masks are transformed; file-backed mask outputs are written to plugin-owned storage. |
+| `Classification` | Copied unchanged, with new label identity |
+| `Detections` | Boxes transformed with the image |
+| Detection instance masks | In-memory or file-backed inputs; transformed masks stored in `Detection.mask` |
+| `Keypoints` | Geometry follows the image; missing/cropped joints retain their original slots |
+| `Polylines` | Vertices transformed as keypoints; no full polygon clipping |
+| `Heatmap` | Geometry synchronized through image-like targets; transformed maps stored in memory |
+| `Segmentation` | Masks transformed; file-backed outputs saved as plugin-owned PNGs |
 
-If selected annotations cannot be transformed safely, the operator fails before
-writing outputs and returns structured diagnostics. A common example is mixing a
-selected heatmap with an image-only color transform such as
-`RandomBrightnessContrast`; the image can change color, but the heatmap should
-not receive that intensity operation.
+A pure image-only color pipeline copies selected heatmaps unchanged. A mixed
+geometric plus color/intensity pipeline is blocked when it would apply color
+operations to a transformed heatmap. For example, `RandomBrightnessContrast`
+alone is allowed; `HorizontalFlip + RandomBrightnessContrast` with the heatmap
+selected is blocked.
 
-Unsupported label classes, video media, 3D media, unsafe output-only transforms,
-and unresolved external-data transforms are excluded from the normal executable
-flow.
+Selected supported label tags and JSON-safe attributes are preserved, except
+known derived geometry values that require recomputation. Source sample tags and
+custom sample fields are not copied. Generated samples contain source provenance
+instead. Unsupported values and omitted fields are reported. Read the
+[annotation and metadata policy](annotation-aware-execution.md) for missing
+keypoints, clipping, dynamic attributes, and file-backed masks.
 
-## Transform Coverage
+The example below uses a COCO photograph, its instance masks and keypoints,
+mask-derived polylines, and an illustrative gradient heatmap. A mixed
+HorizontalFlip + RandomBrightnessContrast pipeline cannot safely transform the
+selected heatmap. Uncheck **heatmap** to omit it, then preview the remaining
+annotations. For geometry-only processing, keep the heatmap selected instead.
 
-The transform list is version-aware and comes from the current
-AlbumentationsX/albu-spec catalog. For the current locked dependency snapshot:
+![Compatibility warning for the selected heatmap](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/compatibility-warning.png)
 
-- capability version key:
-  `albumentationsx-2.3.8__albu-spec-0.0.6`
-- total catalog transforms: `134`
-- normal executable choices: `113`
-- directly supported: `72`
-- supported with default-backed advanced parameters: `41`
+![Successful preview with detections, keypoints, and mask-derived polylines](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/annotation-preview.jpg)
 
-Use `Show AlbumentationsX Capabilities` in the App to search transforms by
-name, support status, targets, external input requirements, and exclusion
-reason. To regenerate the command-line report:
+## Transform coverage and reference images
 
-```bash
-uv run python scripts/report_transform_capabilities.py
-```
+The locked catalog contains 134 transforms, of which **113** are executable:
+72 supported directly and 41 with optional advanced parameters. Counts depend
+on the plugin's policy as well as library versions.
 
-Avoid assuming that a transform count from another Albumentations release still
-applies. The supported list changes when AlbumentationsX, albu-spec, or plugin
-capability rules change.
+Use search and target filters in the editor. The full capability and dataset
+compatibility reports remain available through the Python operator URIs listed
+below; they are unlisted in the general App picker.
 
-## Runs And Reproducibility
+`FDA`, `HistogramMatching`, and `PixelDistributionAdaptation` use other images
+in the execution scope as references and require at least two sources.
+The implementation loads the full reference pool and constructs per-source
+reference lists/provenance. Those lists grow quadratically; use small selections.
+[External-data transforms](external-data-transforms.md) explains this policy.
 
-Every materialized run receives a public plugin run key such as:
+Video, 3D, tensor/unsafe image outputs, unsupported label classes, and unresolved
+donor-object/mosaic/overlay/text inputs are outside the current executable flow.
 
-```text
-training-flips-albumentationsx-20260901T120000Z-a1b2c3d4
-```
+## Save and share pipelines
 
-The optional `Run label` becomes the readable prefix. The run key is used for
-generated sample tags, output directories, manifest lookup, and run cleanup.
+![Save a pipeline, load its independent copy, and edit the flip probability.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/save-reuse.gif)
 
-The manifest is stored under:
+*Save a pipeline, load its independent copy, and edit the flip probability.*
 
-```text
-~/.fiftyone/albumentationsx-plugin/<dataset-name>/<run-key>/manifest.json
-```
+Choose **Action → Save pipeline**, enter a name, and choose:
 
-It records:
+- **Save as new pipeline**: creates a new ID even if a display name already exists.
+- **Update existing pipeline**: select the target and confirm its replacement.
 
-- plugin and dependency versions;
-- resolved pipeline config;
-- source sample IDs and generated sample IDs;
-- relative output paths;
-- per-output replay metadata;
-- counters and structured errors;
-- execution scope and execution status;
-- the matching FiftyOne custom run key.
+The load picker never selects a replacement target. Other actions do not
+implicitly save a name retained in the draft.
 
-**From run history** loads transforms, output count and compatible annotation
-selection into an editable draft. The run viewer also offers **Use pipeline
-from this run**. See [the loading contract](pipeline-presets.md) for field
-mapping, execution settings, and API migration.
+In **Saved pipelines**, inspect configurations, **Edit a copy of this pipeline**,
+rename/edit metadata, duplicate, export, import, or delete. Export the full
+**Importable pipeline JSON** object. Import accepts pasted JSON or a regular
+UTF-8 JSON file on the machine running FiftyOne, up to 4 MiB. A browser-local
+file path is not a remote server path.
 
-## Saved Pipelines
+Imported IDs are retained. Replacing an existing ID requires explicit overwrite;
+equal names with different IDs remain separate. Presets store configuration,
+annotation mapping, and dependency metadata, without source IDs, generated
+paths, or sampled replay. See the [complete preset contract](pipeline-presets.md).
 
-Saved pipelines are reusable configurations stored outside dataset-specific
-run directories:
+## Run history, outcomes, and provenance
 
-```text
-~/.fiftyone/albumentationsx-plugin/presets/<preset-key>.json
-```
+![Inspect completed counters and reuse the run pipeline.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/inspect-run.gif)
 
-A named preset stores transform names, parameter values, output count, plugin
-version, dependency versions, and optional description. It does not store source
-sample IDs, generated sample IDs, output paths, custom run keys, or replay
-records.
+*Inspect completed counters and reuse the run pipeline.*
 
-Use saved pipelines for a portable training recipe. Use run history when
-you want to reuse a pipeline that was already executed on the active dataset.
+**Run history** searches labels, dates, statuses, and transforms, newest first.
+Select a run to inspect counters, scope, parameters, versions, errors, outputs,
+and per-output replay. Open generated or failed source samples, or use
+**Use pipeline from this run** to open an editable copy.
 
-`Manage AlbumentationsX Saved Pipelines` supports:
-
-- inspecting stored presets;
-- exporting one preset as JSON;
-- importing validated preset JSON;
-- renaming a preset without changing its pipeline;
-- deleting only the preset JSON file.
-
-Preset deletion never removes generated samples, run manifests, output files,
-FiftyOne custom runs, source samples, or source files.
-
-## Data Safety
-
-The plugin follows a conservative data model:
-
-- source samples are not mutated;
-- source image files are not overwritten;
-- generated images are written under plugin-owned storage;
-- generated samples carry plugin tags and provenance fields;
-- cleanup deletes only manifest-listed generated samples and files;
-- retained manifests make repeated cleanup and stale-run inspection possible.
-
-The main generated fields and tags are:
-
-| Name | Meaning |
+| Outcome | Meaning |
 | --- | --- |
-| `albumentationsx-output` | Tag applied to generated output samples. |
-| `albumentationsx-run-<run-key>` | Run-specific tag applied to generated output samples. |
-| `albumentationsx_source_sample_id` | Source sample ID copied onto each generated sample. |
-| `albumentationsx_run_key` | Public plugin run key copied onto each generated sample. |
-| `albumentationsx_transform_summary` | Compact transform pipeline summary. |
-| `albumentationsx_output_tag` | Output tag used for the generated sample. |
+| `completed` | Output attempts finished without errors |
+| `partial` | Some samples were created and errors occurred |
+| `failed` | Errors occurred without created samples |
+| `cancelled` | Controlled cancellation; partial outputs may remain |
+| `cleaned` | History retains the audit record after cleanup |
 
-## Demo Data
+Availability such as missing files/manifests is reported separately from the
+execution outcome. Errors rejected before persistence do not create history.
 
-The default stable demo command creates `albumentationsx-demo`, a small local
-image dataset with `Classification`, `Detections`, `Keypoints`, `Polylines`,
-`Heatmap`, and `Segmentation` labels. This `basic` suite is intentionally kept
-to three samples so smoke checks stay fast and predictable.
+Generated samples use `albumentationsx-output` and
+`albumentationsx-run:<run-key>` tags. With a real run key copied from history:
 
-```bash
-uv run python scripts/create_demo_dataset.py list
-uv run fiftyone datasets info albumentationsx-demo
-uv run fiftyone app launch albumentationsx-demo
+```python
+all_outputs = dataset.match_tags("albumentationsx-output")
+run_key = "replace-with-the-run-key-from-history"
+run_outputs = dataset.match_tags(f"albumentationsx-run:{run_key}")
 ```
 
-The repository also includes focused suites for broader manual and automated
-checks:
+Provenance includes `albumentationsx_source_sample_id`,
+`albumentationsx_run_key`, `albumentationsx_transform_summary`, and
+`albumentationsx_output_tag`. Manifests are stored under
+`~/.fiftyone/albumentationsx-plugin/<dataset-name>/<run-key>/`.
+They retain configuration, versions, source/output IDs, relative generated
+paths, replay metadata, counters, and errors.
 
-| Suite | Dataset | Purpose |
-| --- | --- | --- |
-| `basic` | `albumentationsx-demo` | Stable three-sample first-run and smoke workflow. |
-| `annotations` | `albumentationsx-demo-annotations` | Supported label families, multiple labels, empty containers, and boundary geometry. |
-| `masks` | `albumentationsx-demo-masks` | Memory-backed and file-backed segmentation, detection masks, and heatmap assets. |
-| `validation` | `albumentationsx-demo-validation` | Intentional edge cases for validation and error UX checks. |
+Reuse loads configuration with fresh randomness. Exact reproduction of earlier
+sampled outputs is not implemented.
 
-Create focused suites individually:
+## Cleanup and data safety
 
-```bash
-uv run python scripts/create_demo_dataset.py create --suite annotations --overwrite
-uv run python scripts/create_demo_dataset.py create --suite masks --overwrite
-uv run python scripts/create_demo_dataset.py create --suite validation --overwrite
-```
+![Confirm deletion, inspect the result, and return to the original COCO images.](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/dev/docs/media/cleanup.gif)
 
-Create or inspect every suite at once:
+*Confirm deletion, inspect the result, and return to the original COCO images.*
 
-```bash
-uv run python scripts/create_demo_dataset.py create --suite all --overwrite
-uv run python scripts/create_demo_dataset.py list --suite all
-```
+Use **Run history → Review deletion of generated outputs**. Confirmation is
+bound to the selected run. Missing, invalid, or unsafe manifests block deletion.
+Cleanup resolves only manifest-listed paths inside the run directory and removes
+recorded generated sample IDs. It leaves sources and unrelated files intact.
 
-Use `annotations` when checking geometry-aware label handling, `masks` when
-checking file-backed and in-memory mask assets, and `validation` when checking
-structured failures such as missing media, missing mask files, unsupported label
-fields, heatmap/image-only conflicts, or crops larger than the source image.
-
-Delete generated demo datasets and local files with:
-
-```bash
-uv run python scripts/create_demo_dataset.py delete --delete-files
-uv run python scripts/create_demo_dataset.py delete --suite all --delete-files
-```
-
-The complete suite reference lives in [Demo dataset](demo-dataset.md).
+File-backed generated masks participate in the same allowlist. Partial runs can
+be cleaned. Completed cleanup retains the manifest; **Include cleaned runs**
+shows audit records. Preset deletion is independent of output cleanup.
+See [cleanup details](run-cleanup-operator.md).
 
 ## Troubleshooting
 
-### Operators Are Not Visible
-
-Check that the plugin is installed and enabled:
-
-```bash
-fiftyone plugins list --enabled --names-only
-```
-
-For local development, confirm `FIFTYONE_PLUGINS_DIR` points at the repository
-root that contains `fiftyone.yml`.
-
-### Missing Runtime Dependencies
-
-Install requirements into the same environment that launches FiftyOne:
-
-```bash
-fiftyone plugins requirements @albumentations/albumentationsx --install
-```
-
-If you run the App through `uv`, launch FiftyOne from the same project
-environment:
-
-```bash
-uv run fiftyone app launch albumentationsx-demo
-```
-
-### Annotation Compatibility Error
-
-Open the operator output and inspect:
-
-- `errors_json`;
-- `pipeline_config_json`;
-- `operator_params_json`.
-
-Those fields are designed to be copied into bug reports. The structured error
-usually names the field, label type, transform, stage, target, and reason.
-
-### Reload a saved pipeline
-
-Choose one source in **Load pipeline**, then click **Replace draft with selected
-pipeline** or **Reload and replace draft**. Selecting a source alone keeps
-current edits. Missing or incompatible annotation fields are explained beside
-the editor; select replacements explicitly if needed.
-
-## How This Differs From The Older Voxel51 Page
-
-| Older page concept | Current plugin behavior |
+| Problem | What to do |
 | --- | --- |
-| Install `jacobmarks/fiftyone-albumentations-plugin`. | Install `albumentations-team/voxel51-plugin/<release-tag>`. |
-| Apply mostly classic Albumentations transforms. | Expose catalog-backed AlbumentationsX choices from albu-spec. |
-| Temporary generated batches by default. | Materialized runs are persistent until explicitly deleted by run key. |
-| Separate save-generated-augmentations operator. | Generated samples are already saved and tracked by manifest. |
-| View or inspect the last augmentation run. | Inspect any available run by run key with `View AlbumentationsX Run`. |
-| Dataset-bound saved transform pipelines. | Shared named presets live in plugin storage and can be reused across datasets. |
-| Quickstart dataset plus optional model inference examples. | Repository-owned deterministic demo suites avoid external downloads and cover first-run, annotation, mask, and validation checks. |
-| Claim broad support for all target label classes. | Supported labels are explicit and safety-checked before execution. |
+| Toolbar/action missing | Check the enabled plugin list, environment, dataset type, and overflow menu; restart the App after installation. |
+| Missing runtime dependency | Run the plugin requirements command in the environment launching FiftyOne. |
+| Preview blocked | Select source images; inspect highlighted fields and compatibility details. |
+| Crop rejected | Reduce dimensions, enable supported padding, or resize before cropping; inspect every selected source. |
+| Heatmap conflict | Use geometry only, use color only, or deselect the heatmap for a mixed pipeline. |
+| Saved settings do not replace the editor | Use **Replace draft with selected pipeline**; selecting a source alone preserves edits. |
+| Imported JSON rejected | Paste the complete exported object, not the overview table; check schema, file location, size, and overwrite confirmation. |
+| Outputs hidden by filters | Use **Open generated samples** or the selected run in history. |
+| Failed/partial run | Read the action and cause in the result; use technical details for full errors and inspect failed sources. |
+| Cleanup blocked | Verify the selected manifest and its recorded scope; do not substitute broad filesystem deletion. |
 
-## Parity And Follow-Up Roadmap
+For a report, include plugin/dependency versions, the action, source scope,
+parameters, and the copyable technical diagnostics. JSON fields include
+`errors_json`, `pipeline_config_json`, `operator_params_json`, and the
+available debug bundle. Avoid attaching private images or paths unnecessarily.
 
-The current plugin is already stricter and more reproducible than the older
-page's flow in several important ways: it uses explicit run keys instead of
-"last run" state, keeps manifest-listed outputs available for audit, validates
-annotation compatibility before writing data, exposes a catalog capability
-browser, and separates reusable named presets from dataset-specific runs.
+## Migration from the older community plugin
 
-There are also old-page conveniences that should return as explicit follow-up
-features rather than implicit behavior:
+The new plugin has a different package identity and operator URIs. Inventory
+existing plugins with `fiftyone plugins list`; if both are installed, distinguish
+them by name. To avoid using the old actions, disable the old plugin using its
+exact name from that listing. Do not delete old datasets or plugin storage.
 
-- Temporary augmentation sessions with a promote-or-discard workflow should be
-  added separately from persistent runs.
-- A first-class run library should make previous runs easier to browse than a
-  raw run-key dropdown.
-- A recommended preset gallery should help users start from safe pipelines
-  without knowing AlbumentationsX transform names up front.
-- Portable preset or run bundles should replace copy/paste workflows for
-  sharing reusable augmentation recipes.
-- Richer preview galleries and saved preview sessions can build on the current
-  annotation-aware side-by-side preview output.
-- Optional examples using the FiftyOne zoo or external model integrations can
-  be added after the deterministic demo flow remains stable.
+| Older community workflow | AlbumentationsX workflow |
+| --- | --- |
+| Temporary batches replaced by later runs | Persistent outputs, removed through explicit run cleanup |
+| Separate save-generated-augmentations action | Created samples are already persisted |
+| Last-run shortcuts | Searchable history of saved runs |
+| Dataset-bound saved transforms | Shared saved pipelines with editable loading and import/export |
 
-## Visual Asset Checklist
+There is no automatic migration of old saved transforms, runs, or output
+metadata. Recreate configurations, validate a small selection, and preserve
+older data until you have confirmed the new result.
 
-The first version of this guide is text-only. Before using it as a polished
-public docs page, capture screenshots or short GIFs for:
+## Python operator reference
 
-- the operator list or actions menu;
-- general augmentation settings;
-- multi-stage pipeline configuration;
-- selected-sample preview output;
-- generated samples filtered by plugin output tag or run tag;
-- run summary inspection;
-- preset management;
-- delete confirmation;
-- capability browser filters.
+All URI suffixes below are relative to `@albumentations/albumentationsx/`.
 
-## More References
+| URI suffix | Entry |
+| --- | --- |
+| `augment_with_albumentationsx` | Augment images |
+| `manage_albumentationsx_presets` | Saved pipelines |
+| `view_albumentationsx_run` | Run history |
+| `analyze_albumentationsx_dataset_compatibility` | Unlisted detailed compatibility report |
+| `show_albumentationsx_capabilities` | Unlisted full catalog report |
+| `delete_albumentationsx_run` | Run-bound cleanup reached from history |
 
-- [Root README](../README.md)
-- [First-run onboarding](first-run-onboarding.md)
-- [Demo dataset](demo-dataset.md)
-- [Verification](verification.md)
-- [Capability browser](capability-browser.md)
-- [albu-spec catalog](albu-spec-catalog.md)
-- [Pipeline presets](pipeline-presets.md)
-- [Run manifest](run-manifest.md)
-- [Run cleanup operator](run-cleanup-operator.md)
-- [FiftyOne operator debugging](fiftyone-operator-debugging.md)
-- [Older Voxel51 Albumentations page](https://docs.voxel51.com/integrations/albumentations.html)
+The repository's `docs/operator-api.md` documents flat parameters and legacy
+Python migration. UI labels do not change these six registered Python URIs.
+
+Demo image sources and recording details: [media credits](https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/media/README.md).

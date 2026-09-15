@@ -1,4 +1,4 @@
-"""Temporary fixed-transform contract for the first executable MVP slice."""
+"""Compatibility contract for the original flat transform parameters."""
 
 from __future__ import annotations
 

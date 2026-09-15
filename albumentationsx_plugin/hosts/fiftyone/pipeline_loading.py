@@ -69,6 +69,12 @@ def pipeline_draft_prompt_params(draft: Mapping[str, object]) -> dict[str, objec
     initial params. Match the editor's data paths instead of relying on defaults.
     """
     params = dict(draft)
+    # FiftyOne 1.19 initializes missing text inputs through delayed onChange
+    # callbacks. In a nested draft those callbacks can replace the entire draft
+    # with only the empty save fields. Populate the mounted text controls before
+    # the prompt opens, including controls inside collapsed sections.
+    for name in ("save_preset_name", "save_preset_description", "run_label"):
+        params.setdefault(name, "")
     schema_provider = AlbuSpecParameterSchemaProvider()
     for step in range(1, MAX_PIPELINE_STEPS + 1):
         transform = params.get(pipeline_step_field_name(step, "transform"))

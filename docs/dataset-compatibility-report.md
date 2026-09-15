@@ -1,6 +1,6 @@
 # Dataset Compatibility Report
 
-VOX-61 adds the read-only `Analyze AlbumentationsX Compatibility` operator. It
+The read-only `Analyze AlbumentationsX Compatibility` operator reports dataset support. It
 answers a dataset-specific question before users build a pipeline: which
 annotation fields can the plugin safely copy or transform, and which
 AlbumentationsX target families are available in the current catalog.
@@ -43,14 +43,14 @@ the report is advisory and should not break App rendering.
 Target family rows summarize the current albu-spec catalog by target:
 
 - target name;
-- whether the target has executable MVP transforms;
+- whether the target has executable executable transforms;
 - executable and excluded transform counts;
 - image-only and geometry transform counts;
 - representative executable transform names;
 - how the FiftyOne adapter uses the target;
 - current limitations.
 
-The primary MVP target families are:
+The primary supported target families are:
 
 - `image`: source images and heatmap geometry maps;
 - `bboxes`: `Detections` bounding boxes;
@@ -65,7 +65,7 @@ Catalog targets that are not wired into the FiftyOne adapter are still shown as
 The operator emits short recommendations that point users toward safer next
 steps, such as:
 
-- using `Preview only` on a small selection before materializing outputs;
+- using **Action → Preview** on a small selection before materializing outputs;
 - filtering transform capabilities by the required target for spatial labels;
 - keeping heatmap pipelines geometry-only or disabling heatmap fields;
 - handling unsupported labels outside the plugin.

@@ -1,8 +1,8 @@
 # AlbumentationsX plugin for FiftyOne: design and roadmap
 
-**Status:** the image augmentation MVP is implemented. Publication readiness and broader execution coverage remain open.
+**Status:** image augmentation is implemented. Publication readiness and broader execution coverage remain open.
 
-**Last reviewed:** 2026-08-22
+**Last reviewed:** 2026-09-15
 
 This document records the current product boundary, the decisions that protect user data, and the work that remains. It is not a historical task list. Detailed implementation notes live in [docs/](docs/README.md); the root [README](README.md) is the installation and usage guide.
 
@@ -12,7 +12,7 @@ The plugin helps a FiftyOne user inspect an AlbumentationsX augmentation on thei
 
 Each saved run records the pipeline, package versions, source and output sample IDs, generated relative file paths, sampled replay metadata, counters, and structured errors. A user can inspect a saved run, use its pipeline as a template for a new run, save the pipeline as a named shared preset, or delete only that run's generated outputs.
 
-## Current MVP
+## Current implementation
 
 The current implementation supports the following workflow.
 
@@ -27,9 +27,9 @@ The current implementation supports the following workflow.
    samples, manifests, custom runs, or presets.
 6. Create one to three outputs per source sample, optionally saving the
    resolved pipeline as a named shared preset.
-7. Manage shared presets with **Manage AlbumentationsX Presets**.
+7. Manage shared configurations with **Saved pipelines**.
 8. Inspect the new samples with **Run history**.
-9. Remove generated samples and files with **Delete AlbumentationsX Run** after confirmation.
+9. Review and confirm generated-output deletion from **Run history**.
 
 The form is generated from the `albu-spec` catalog. With the locked `albumentationsx 2.3.8` and `albu-spec 0.0.6` dependencies, the catalog finds 134 transforms. The normal selector exposes 113 transforms classified as `supported` or `supported_with_defaults`; the capability report records each excluded transform and its reason. The executable set includes the reference-image transforms `FDA`, `HistogramMatching`, and `PixelDistributionAdaptation`; they use the current execution scope as a deterministic reference pool and save per-output reference source ids in replay metadata.
 
@@ -63,7 +63,7 @@ metadata, and transformed label JSON through the operator output only.
 
 ## Product limits
 
-The MVP is deliberately narrower than the full AlbumentationsX catalog.
+The plugin is deliberately narrower than the full AlbumentationsX catalog.
 
 - It processes image samples from selected samples, the active view, or the full dataset. It does not process video or 3D media.
 - The augmentation operator supports immediate and delegated execution. Distributed execution is not implemented.
@@ -72,7 +72,7 @@ The MVP is deliberately narrower than the full AlbumentationsX catalog.
   cancellation/interruption preserves source data and leaves an inspectable
   partial run for cleanup.
 - The FiftyOne operator API does not provide a drag-and-drop repeater, so the
-  MVP uses a bounded ten-slot editor with explicit enable and execution-order
+  The plugin uses a bounded ten-slot editor with explicit enable and execution-order
   controls.
 - Preview is selected-samples only and shows one result per selected source
   sample, capped at three preview results.
@@ -119,7 +119,7 @@ The code keeps four boundaries explicit.
 
 ### Keep the integration in Python
 
-FiftyOne can render operator forms from Python. The current controls do not require a custom frontend, so the plugin avoids a TypeScript build and a second UI API. A frontend is justified only when it unlocks a concrete workflow that Python-backed dynamic forms cannot provide.
+FiftyOne renders the editor and result forms from Python. A small bundled JavaScript ComponentView supplies the three branded toolbar launchers using FiftyOne's shared React and MUI; it has no separate TypeScript build. Keep form state and execution policy in the Python host layer.
 
 ### Derive the transform catalog from `albu-spec`
 
@@ -164,33 +164,13 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 | Local verification | The repository has unit, integration, and smoke tests, deterministic demo datasets, headless operator user-scenario coverage, a supported-transform smoke helper, and a documented local verification gate. |
 | Publication automation | The publication-readiness pull request adds lockfile, full pre-commit, and test checks across Ubuntu, macOS, and Windows; Python 3.10–3.14 are required. |
 
-## Remaining plan
+## Extension boundaries
 
-Work is ordered by release risk and user impact. Each item has an observable completion condition so that it can become a focused pull request.
-
-### P0 — prove and publish the current MVP
-
-| Work | Why now | Completion condition |
-|---|---|---|
-| Add visual regression coverage for transform families | The selector exposes 113 transforms and the smoke helper executes each choice, but it does not compare every visual output for semantic correctness. | Representative transform families have synthetic visual assertions or snapshot-style checks with documented fixture data and dependency versions. |
-| Complete manual App acceptance | Automated tests cannot confirm that the operator is discoverable and that generated labels look correct in the App. | The release candidate follows the [manual App checklist](docs/release-v0.1.0.md#manual-fiftyone-app-gate) on the demo dataset, including previous-run prefill and cleanup. The PR records the commands and observations. |
-| Publish one coherent tagged release | The existing `0.1.1` tag predates release metadata validation and the source metadata still says `0.1.0`. Existing tags must remain immutable. | Choose the next version, align `pyproject.toml` and `fiftyone.yml`, pass `scripts/verify_release_tag.py <tag>`, merge required CI checks, and create a new GitHub release from that exact commit. |
-
-### P1 — extend label support safely
-
-| Work | Why now | Completion condition |
-|---|---|---|
-| Extend segmentation variants | Some datasets need additional mask variants beyond semantic `Segmentation(mask=...)` and `Segmentation(mask_path=...)`. | Each new variant has an explicit adapter, transform compatibility rules, synthetic geometry tests, provenance fields, and cleanup coverage. |
-| Add more spatial label variants | Some production datasets use label classes beyond the current classification, detection, keypoint, polyline, heatmap, and segmentation adapters. | Each label type has an explicit adapter, transform compatibility rules, synthetic geometry tests, provenance fields, and cleanup coverage. |
-| Strengthen transform-to-target validation | A transform's declared targets can be narrower than the active dataset schema. | The form blocks unsafe combinations before execution whenever catalog metadata is conclusive; remaining runtime mismatches return a structured error without writing partial labels. |
-
-### P2 — broaden media and transform classes deliberately
-
-| Work | Prerequisite | Completion condition |
-|---|---|---|
-| Additional external-data variants and multi-image samples | Reference-image support for FDA, HistogramMatching and PixelDistributionAdaptation is already implemented; new variants need their own input and resource policy. | Each additional input has explicit selection, validation and provenance, with tests proving source/reference files remain unchanged. |
-| Preview-safe tensor and normalized outputs | A display policy for non-`uint8` model inputs. | The plugin either renders a documented display conversion or labels the result as model-only; it never silently writes misleading PNG or JPEG data. |
-| Video and 3D media | Media-specific sample adapters and a target-synchronization model. | Each media type has a separate design note, deterministic fixtures, temporal or volumetric alignment tests, and an App acceptance scenario. |
+Additional label classes, donor-object/mosaic inputs, tensor outputs, video, and
+3D require explicit adapters, display rules, source-preservation tests, and App
+acceptance before they can be advertised as supported. The current limitations
+are documented in the integration guide. Release readiness follows the
+[verification checklist](docs/verification.md#release-app-acceptance).
 
 ## Release and quality policy
 

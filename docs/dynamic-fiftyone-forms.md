@@ -1,6 +1,6 @@
 # Dynamic FiftyOne Forms
 
-VOX-13 renders transform input forms in FiftyOne from the albu-spec capability
+The host layer renders transform input forms in FiftyOne from the albu-spec capability
 catalog and neutral parameter schemas.
 
 ## Runtime Boundary
@@ -41,13 +41,11 @@ blocked until they have safe schema support.
 
 ## Execution Scope
 
-VOX-14 adds a catalog-driven backend pipeline factory. The execution path now
-uses that shared factory internally. VOX-22 adds ordered pipeline editing, and
-VOX-39 expands it to a bounded ten-slot editor with explicit enable and
-execution-order controls. VOX-25 exposes catalog-backed normal MVP transform
-choices in the executable App flow.
+The execution path uses a shared catalog-driven pipeline factory. The editor
+supports ten stage slots with enable and execution-order controls and exposes
+catalog-backed transform choices in the App.
 
-VOX-38 adds an explicit `Execution scope` control to the general settings. The
+An explicit `Execution scope` control selects the source collection. The
 supported scopes are:
 
 - `selected_samples`: process only the selected sample IDs in the active view;
@@ -61,13 +59,13 @@ Materialized runs store the chosen scope and resolved source count in
 `manifest.metadata`; dry runs report the resolved source scope in the operator
 output.
 
-VOX-32 enables FiftyOne delegated execution for the augmentation operator while
-leaving immediate execution as the default choice. The general settings section
+The augmentation operator supports FiftyOne delegated execution, with
+immediate execution as the default choice. The general settings section
 shows guidance that immediate execution is best for small bounded selections,
 while delegated execution is recommended for larger views or datasets so the
 App can stay responsive and display progress.
 
-VOX-47 keeps delegated interruption safe for source data. If a materialized run
+Delegated interruption preserves source data. If a materialized run
 is cancelled through a supported host signal or interrupted by
 `KeyboardInterrupt`, the executor records `execution_status = "cancelled"` in
 the manifest and retains already-listed partial outputs for View/Delete
@@ -97,14 +95,12 @@ created. Disabled stages retain their raw values but hide inactive parameter
 controls so they cannot block submission. Errors expand their containing section
 and focus the first invalid text or number field.
 
-VOX-27 groups the prompt into a general settings section followed by one
-visible section for each configured augmentation stage slot. General settings
-include the optional named preset selector, optional previous-run preset
-selector, execution scope, stage-slot count, output count, run label, dry-run
-flag, preview-only flag, and named preset save fields. Only visible slots are
-rendered, so later-stage validation is not shown before those slots are added.
+The editor starts with Action and source scope, followed by stage count, output
+count, transforms, and annotations. Optional load/save/run settings and reports
+use expandable sections. Only visible stages are rendered. See
+[Python operator parameters](operator-api.md) for flat fields and legacy modes.
 
-VOX-66 adds a compact compatibility section inside the augmentation form. It
+The augmentation form includes a compact compatibility section. It
 reuses the standalone dataset compatibility report backend plus the execution
 pipeline validation rules, then renders only the high-signal preflight summary:
 source scope/count, schema availability, selected annotation field counts, and
@@ -160,8 +156,8 @@ an error notice preserved. The legacy boolean Python API retains its existing
 mode-conflict checks. UI actions are exclusive; a retained saved-pipeline name
 has no saving effect unless Save pipeline is selected.
 
-VOX-48 keeps preset lifecycle management out of the augmentation form. The
-separate `Manage AlbumentationsX Saved Pipelines` operator handles inspect, export,
+Preset lifecycle management has a dedicated entry point. The
+separate **Saved pipelines** action handles inspect, export,
 import, rename, and delete actions against the same shared preset storage.
 
 Stage headings identify the stable slot. `Execution order` provides the
@@ -174,8 +170,8 @@ on desktop and one column below the desktop breakpoint. The host adapter
 flattens these visual groups before execution, so saved runs and the pipeline
 factory keep their existing parameter names.
 
-The fixed execution form applies MVP-specific defaults over the raw albu-spec
+The fixed execution form applies App defaults over the raw albu-spec
 schema without mutating catalog metadata: transform probability defaults to
 `1.0`, `RandomCrop` height and width use selected-sample image metadata when
 available and otherwise fall back to `32`, and optional JSON fallback advanced
-parameters are hidden for `supported_with_defaults` transforms.
+parameters are rendered in **Advanced parameters**.

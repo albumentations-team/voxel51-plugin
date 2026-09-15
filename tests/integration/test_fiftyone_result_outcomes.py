@@ -48,7 +48,9 @@ def _fields(schema):
 def _assert_clean_report(ctx, result):
     op = AugmentWithAlbumentationsX()
     ctx.results = result
-    schema = op.resolve_output(ctx).to_json()
+    output = op.resolve_output(ctx)
+    assert output is not None
+    schema = output.to_json()
     fields = _fields(schema)
     assert next(iter(schema["type"]["properties"])) == "_outcome"
     assert "errors" not in fields  # No editable list or empty-list invitation.

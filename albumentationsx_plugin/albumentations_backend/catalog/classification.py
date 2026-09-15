@@ -143,7 +143,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
             status=CapabilityStatus.BLOCKED_MEDIA_TARGET,
             targets=targets,
             reason_code="not_image_2d",
-            message="Transform is not available for 2D image inputs in the MVP.",
+            message="Transform is not available for 2D image inputs in this plugin.",
             metadata=base_metadata,
         )
 
@@ -173,7 +173,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
             status=CapabilityStatus.UNSUPPORTED_TARGET,
             targets=targets,
             reason_code="requires_annotation_target",
-            message="Transform depends on bbox or mask targets that are not wired into the image-only MVP.",
+            message="Transform depends on bbox or mask targets that are not wired into the image pipeline.",
             metadata=base_metadata,
         )
 
@@ -235,7 +235,7 @@ def classify_transform_metadata(metadata: Any) -> TransformCapability:
 
 
 def is_mvp_supported_status(status: CapabilityStatus) -> bool:
-    """Return whether a capability should appear in normal MVP transform choices."""
+    """Return whether a capability should appear in executable transform choices."""
 
     return status in {CapabilityStatus.SUPPORTED, CapabilityStatus.SUPPORTED_WITH_DEFAULTS}
 

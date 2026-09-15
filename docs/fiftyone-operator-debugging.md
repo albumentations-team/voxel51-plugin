@@ -26,7 +26,7 @@ uv run pytest \
 Before opening a PR, run the full local gate from
 [Verification](verification.md).
 
-## Debugging `Augment with AlbumentationsX`
+## Debugging Augment images
 
 When execution fails, the operator output should include structured diagnostic
 fields instead of only a raw traceback:
@@ -50,8 +50,9 @@ usually need to distinguish expected validation blocks from plugin bugs.
 ## Debugging run and preset selectors
 
 Run-key and preset selectors are dynamic. If a previously selected key was
-deleted or became unavailable, the form should fall back to a currently
-available key or show a read-only empty-state message.
+deleted or became unavailable, inspect the reported empty/missing state. A loaded
+editable snapshot remains independent of its source. Do not silently substitute a
+different saved pipeline or a different run for deletion.
 
 The delete operator should not render the confirmation checkbox when there are
 no deletable runs. This avoids asking the user to confirm an impossible action.

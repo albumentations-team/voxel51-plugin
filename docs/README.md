@@ -1,37 +1,40 @@
-# Project documentation
+# Documentation
 
-## User workflows
+## User guide
 
-- [Installation and overview](../README.md)
-- [Integration guide](albumentationsx-fiftyone-integration.md)
-- [First run](first-run-onboarding.md) and [demo datasets](demo-dataset.md)
-- [Navigation](plugin-navigation.md)
-- [Pipeline loading, saving and management](pipeline-presets.md)
-- [Preview](augmentation-preview.md) and [annotation-aware execution](annotation-aware-execution.md)
-- [Dataset compatibility](dataset-compatibility-report.md) and [capability browser](capability-browser.md)
-- [External-data transforms](external-data-transforms.md)
-- [Run history](run-summary-operator.md), [cleanup](run-cleanup-operator.md), and [cancellation](cancellation.md)
+Start with the [integration guide](albumentationsx-fiftyone-integration.md).
+It covers installation, a standalone demo, the three App actions, supported
+annotations, execution, and migration from the older community plugin.
 
-## Contributor reference
+Detailed references:
 
-- [Design and roadmap](../DESIGN.md)
-- [Architecture and module ownership](architecture.md)
-- [Catalog](albu-spec-catalog.md), [parameter schemas](parameter-schema.md), and [pipeline factory](pipeline-factory.md)
-- [Dynamic forms](dynamic-fiftyone-forms.md) and [execution compatibility](fixed-transform-slice.md)
-- [Manifest format](run-manifest.md)
-- [Operator debugging](fiftyone-operator-debugging.md)
-- [Verification](verification.md), [PR checklist](pr-checklist.md), and [Git workflow](gitflow.md)
-- [Upstream integration draft](https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/voxel51-albumentationsx-integration-template.rst): contributor draft with placeholders, excluded from the plugin ZIP.
+- [Pipeline loading, saving, import, and management](pipeline-presets.md)
+- [Preview behavior and display](augmentation-preview.md)
+- [Annotation support and output metadata](annotation-aware-execution.md)
+- [Navigation and operator compatibility](plugin-navigation.md)
+- [Dataset compatibility](dataset-compatibility-report.md)
+- [Transform capabilities](capability-browser.md)
+- [Reference-image inputs and resource limits](external-data-transforms.md)
+- [Run history](run-summary-operator.md), [cleanup](run-cleanup-operator.md),
+  and [cancellation](cancellation.md)
+- [Release ZIP installation](release-artifacts.md)
 
-## Releases and historical reference
+## Contributors
 
-- [Artifact contents and release process](release-artifacts.md)
-- [Release 0.1.2 changes](release-v0.1.2.md)
-- [First-release notes](release-v0.1.0.md) and [versioned capability snapshot](capability-report-v0.1.0.md)
-- [albu-spec integration assessment](albu-spec-integration-audit.md): dependency-specific reference, not a current release gate.
+Contributor files are maintained in the
+[repository docs directory](https://github.com/albumentations-team/voxel51-plugin/tree/dev/docs).
+Use a checkout of the release tag for release-specific source and commands.
 
-Historical App audit dumps and screenshots were removed from the current source
-and release tree in VOX-79. They remain available in the
-[reviewed source snapshot](https://github.com/albumentations-team/voxel51-plugin/tree/99b594bdcca16990f174d0bfa9f3a228f9f0a960/docs/audits).
-The reusable preview DOM assertion is maintained in `tests/manual`; acceptance
-requires a fresh App session and fresh captures for the release candidate.
+- `architecture.md`: implementation ownership and dependency boundaries
+- `dynamic-fiftyone-forms.md` and `operator-api.md`: forms and Python callers
+- `albu-spec-catalog.md`, `parameter-schema.md`, `pipeline-factory.md`: backend contracts
+- `run-manifest.md`: persisted run format
+- `demo-dataset.md`: generated annotation/validation suites
+- `verification.md`: canonical checks and fresh App acceptance
+- `gitflow.md`, `pr-checklist.md`: contribution and release workflow
+- `fiftyone-integration.rst`: maintained source for the upstream integration page
+- `release-v0.1.2.md`: current candidate release notes
+- `release-preparation.md`: file disposition, evidence, and publication handoff
+
+The original `release-v0.1.0.md` and `capability-report-v0.1.0.md` are historical
+records. They are not current installation instructions or release gates.

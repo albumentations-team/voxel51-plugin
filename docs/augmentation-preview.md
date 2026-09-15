@@ -1,6 +1,6 @@
 # Augmentation Preview
 
-VOX-29 adds a non-persistent preview path to `Augment images`.
+**Augment images → Preview** provides an in-memory preview.
 Preview is for judging an augmentation configuration before adding generated
 samples to a FiftyOne dataset.
 
@@ -9,11 +9,11 @@ samples to a FiftyOne dataset.
 1. Select one to three source samples in the FiftyOne App.
 2. Open **Augment images**.
 3. Configure the same pipeline settings that would be used for a normal run.
-4. Enable `Preview only` and execute the operator.
+4. Choose **Action → Preview** and submit.
 5. Inspect the source image, augmented image, annotated before/after comparison,
    sampled replay parameters, transformed labels, and annotation comparison JSON
    returned in the operator output.
-6. Disable `Preview only` and run the same form to create persistent samples.
+6. Choose **Review and create samples**, review the scope, and submit creation.
 
 Preview currently requires selected samples. It ignores broader execution
 scopes and runs against the selected sample IDs only, capped at three samples.
@@ -66,9 +66,11 @@ The first implementation renders one preview output per selected source sample.
 `outputs_per_sample` still controls the later materialized run, but preview is
 bounded to one result per selected sample so the App output remains readable.
 
-## Verification
+## Contributor verification
 
-Focused checks:
+The commands in this section require the repository checkout and its test suite.
+
+Contributor checks (run from a repository checkout):
 
 ```bash
 uv run pytest tests/unit/test_fiftyone_augment_operator.py
@@ -79,14 +81,13 @@ Manual App check:
 
 1. Create or open the demo dataset.
 2. Select one to three images.
-3. Run `Augment images` with `Preview only` enabled.
+3. Run **Augment images → Action → Preview**.
 4. Confirm source, augmented, and annotated comparison preview images render.
 5. Confirm replay, transformed label JSON, and annotation comparison JSON are
    shown.
 6. Refresh the dataset and confirm no generated samples or custom runs were
    created by preview.
-7. Disable `Preview only`, run the same configuration, and confirm persistent
-   outputs are created normally.
+7. Use **Review and create samples**, submit, and confirm persistent outputs.
 
 ## Image Layout
 

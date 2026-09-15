@@ -6,6 +6,10 @@ FiftyOne dataset. It does not download external data.
 
 ## Create
 
+These commands require a repository checkout and its development environment.
+For an installed-plugin demo, use the standalone
+[integration quickstart](albumentationsx-fiftyone-integration.md#quickstart).
+
 ```bash
 uv run python scripts/create_demo_dataset.py create --overwrite
 ```
@@ -88,7 +92,7 @@ catalog selector against deterministic synthetic inputs. It is intended for
 release/full-smoke checks rather than every small documentation-only pull
 request.
 
-## MVP Smoke Check
+## Operator smoke check
 
 Run the headless smoke workflow without opening the App:
 
@@ -104,15 +108,60 @@ and source files remain unchanged.
 
 For manual App verification, create the dataset, launch the App, then run:
 
-1. `Augment with AlbumentationsX` with a non-dry fixed transform.
-2. `View AlbumentationsX Run` for the created run key.
-3. `Delete AlbumentationsX Run` with confirmation checked.
+1. **Augment images → Create augmented samples** with a geometry transform.
+2. **Run history** for the created run.
+3. **Review deletion of generated outputs**, inspect the scope, and confirm.
 
 After cleanup, generated samples/files should be gone, and the three source demo
 samples/files should remain.
 
-Use the focused [VOX-41 annotation acceptance](verification.md#vox-41-annotation-acceptance)
+Use the focused [annotation acceptance](verification.md#annotation-acceptance)
 checklist when validating broadened label support in the App.
+
+## COCO acceptance
+
+Use a source checkout for the optional real-image acceptance suite. It is
+separate from the three-image quickstart and does not replace visual App checks.
+Download the official COCO 2017 annotation archive once (about 241 MiB); the
+helper downloads only the selected JPEGs, about a few MiB, and reuses cached
+images. It never downloads the full image split or overwrites an existing dataset.
+
+```bash
+mkdir -p sample_data/generated/coco
+curl -fL https://s3.us-east-1.amazonaws.com/images.cocodataset.org/annotations/annotations_trainval2017.zip \
+  -o sample_data/generated/coco/annotations_trainval2017.zip
+uv run --with pycocotools==2.0.11 python scripts/create_coco_acceptance.py \
+  --annotations sample_data/generated/coco/annotations_trainval2017.zip \
+  --data-dir sample_data/generated/coco/images
+```
+
+Launch the unique dataset name printed by the helper with
+`fiftyone app launch <printed-dataset-name>`. The fixed IDs are
+`138979, 130586, 260106, 448076, 81988, 119445, 261888, 231508, 570756, 378116,
+350148, 48564`. The first eleven are a seed-51 selection from CC BY images with
+person keypoints; 48564 is an additional portrait regression case. This is a
+documented selection, not an attempt to reconstruct an older unpublished sample.
+
+The helper explicitly imports instance masks from `instances_val2017.json` and
+person keypoints from `person_keypoints_val2017.json`. It requires nonempty masks,
+actual poses, and missing joints before persisting the dataset. The recorded
+12-image import contains 131 nonempty masks, 33 person poses, and 142 missing
+joints. Bbox-only loading does not establish this coverage.
+
+Use `--recording-only` with a new `--name` for the three-photograph studio:
+130586, 261888, and 378116. Preserve the original image URLs and licenses in the
+printed baseline manifest when sharing recordings. The private regression image
+48564 has a different license and is excluded from this studio.
+
+The baseline manifest records source-file SHA-256 values and complete serialized
+labels. Compare them after preview, creation, and run cleanup. Also verify that
+the original source sample count is unchanged and that only generated outputs
+were removed. Keep the manifest outside the plugin's run directory.
+
+Delete an acceptance dataset by its printed unique name after verification.
+Cached source images and the baseline remain separate; generated-output cleanup
+must never remove them. See [Release acceptance](verification.md#release-app-acceptance)
+for the UI scenarios and [media capture](media/README.md) for the recording recipe.
 
 ## Delete
 

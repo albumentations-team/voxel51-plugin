@@ -1,6 +1,6 @@
 # External-Data Transforms
 
-VOX-43 tracks AlbumentationsX transforms that cannot run from a single source
+Some AlbumentationsX transforms cannot run from a single source
 image plus ordinary annotation targets. These transforms need reference images,
 donor objects, overlay assets, text metadata, fonts, or other external inputs.
 
@@ -30,7 +30,7 @@ The catalog still classifies these unresolved transforms as
 - `OverlayElements`
 - `TextImage`
 
-VOX-43 adds a host-neutral `ExternalInputRequirement` contract to
+The host-neutral `ExternalInputRequirement` contract extends
 `TransformCapability`. Capability entries can describe the external inputs they
 need whether the transform is already executable or still blocked behind a
 future adapter.
@@ -71,3 +71,12 @@ The first execution slice supports the shared reference-image family:
 should handle donor-object, mosaic, overlay, and text/font data separately
 because their metadata shapes and cleanup risks differ from simple reference
 image pools.
+
+## Resource limits
+
+The current implementation reads the complete reference pool and constructs a
+list of other sources for each input. Image memory scales with the full pool;
+reference lists and provenance grow quadratically with source count. Preparation
+precedes output progress/cancellation checkpoints. Use small selected scopes
+and do not assume delegated execution bounds memory or makes preparation
+immediately cancellable.

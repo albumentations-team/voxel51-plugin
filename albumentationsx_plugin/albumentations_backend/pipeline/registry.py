@@ -40,7 +40,7 @@ class AlbumentationsTransformRegistry:
         if not is_mvp_supported_status(capability.status):
             raise UnsupportedTransformError(
                 transform_name,
-                message=f"Transform {transform_name} is not available for image-only MVP execution.",
+                message=f"Transform {transform_name} is not available for image pipeline execution.",
                 context={
                     "reason_code": capability.reason_code or capability.status.value,
                     "status": capability.status.value,

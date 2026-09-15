@@ -1,6 +1,6 @@
 # Run Cleanup Operator
 
-VOX-17 adds `delete_albumentationsx_run`, a destructive but narrow FiftyOne
+`delete_albumentationsx_run` is a destructive but narrow FiftyOne
 operator for cleaning up generated outputs from one AlbumentationsX plugin run.
 
 ## Behavior
@@ -66,9 +66,11 @@ Statuses:
 - `not_found`: neither manifest nor matching custom run exists;
 - `input_required`: no run key was selected.
 
-## Verification
+## Contributor verification
 
-Use the complete local gate in [Verification](verification.md). Focused checks:
+The commands in this section require the repository checkout and its test suite.
+
+Use the complete local gate in [Verification](https://github.com/albumentations-team/voxel51-plugin/blob/dev/docs/verification.md). Contributor checks (run from a repository checkout):
 
 ```bash
 uv run pytest tests/unit/test_fiftyone_run_cleanup.py tests/unit/test_fiftyone_delete_run_operator.py tests/integration/test_fiftyone_delete_run_operator_integration.py

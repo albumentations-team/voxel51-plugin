@@ -86,9 +86,9 @@ These tests instantiate the same operator classes used by the FiftyOne App with
 synthetic operator contexts. They do not replace manual visual checks, but they
 catch regressions in the end-to-end parameter flow before opening the App.
 
-## VOX-41 Annotation Acceptance
+## Annotation acceptance
 
-Use this checklist before closing VOX-41 or GitHub issue #40. The automated
+Use this annotation-focused checklist when verifying supported label families. The automated
 tests verify conversion and geometry, but this manual pass confirms that the
 expanded label-family support is usable in the FiftyOne App.
 
@@ -124,7 +124,7 @@ expanded label-family support is usable in the FiftyOne App.
    samples, source images, and source annotation files remain unchanged.
 
 Record the dataset name, transform names, created run key, cleanup result, and
-any visual issues in the PR description or Linear comment.
+any visual issues in the PR description or verification record.
 
 ## Demo Validation Dataset Suite
 
@@ -168,3 +168,36 @@ Use `--transform` for a focused check while debugging one transform:
 ```bash
 uv run python scripts/smoke_supported_transforms.py --transform RandomResizedCrop
 ```
+
+## Release App acceptance
+
+Use a fresh App session and the final candidate. Record the exact source commit,
+plugin/dependency versions, OS/browser, dataset identity, commands, observed
+results, and captures. Historical screenshots and headless contexts do not prove
+the current App workflow.
+
+1. Complete the standalone integration-guide quickstart in the installed-plugin
+   environment, then preview, create, inspect history, and clean only its outputs.
+2. Load a saved pipeline, change Probability from 1 to 0, and verify that the
+   visible value controls preview and creation. Return through the continuation
+   actions and verify draft parameters and annotations remain intact.
+3. Check crop padding, multiple stages, current-view/dataset scope, advanced JSON
+   validation, and incompatible heatmap pipelines. Known invalid source inputs
+   must fail before materialization.
+4. Save a new pipeline, update an explicitly selected ID, export/import full JSON,
+   duplicate, and edit metadata. Verify that equal names do not silently overwrite.
+5. Inspect completed/partial/failed/cancelled outcomes where reproducible; open
+   outputs under active source filters; inspect cleanup scope and retained audits.
+6. Run the annotation checklist above plus the small COCO acceptance scope in
+   [Demo dataset](demo-dataset.md#coco-acceptance). Verify nonempty instance
+   masks and actual person keypoints, including missing joints. Record fixed image
+   IDs and any optional dependencies. Bbox-only imports do not establish mask or
+   keypoint coverage.
+7. Compare source-file hashes and source annotation values before and after
+   execution and cleanup. Keep source datasets separate from acceptance outputs.
+8. Review six current demo recordings and the rendered upstream page at desktop
+   and narrow widths. Media must pass the repository asset policy.
+
+Record local results and outstanding CI/publication work in
+[Release preparation](release-preparation.md). Do not mark acceptance complete
+for unexecuted scenarios or substitute the old 0.1.0 checklist.
