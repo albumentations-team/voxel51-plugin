@@ -66,11 +66,10 @@ executable status until all of these are true:
 - focused execution tests cover at least one happy path and one missing-input
   failure for the transform family.
 
-The first execution slice supports the shared reference-image family:
-`FDA`, `HistogramMatching`, and `PixelDistributionAdaptation`. Next slices
-should handle donor-object, mosaic, overlay, and text/font data separately
-because their metadata shapes and cleanup risks differ from simple reference
-image pools.
+The supported adapters cover `FDA`, `HistogramMatching`, and
+`PixelDistributionAdaptation`. Donor-object, mosaic, overlay, and text/font
+inputs require separate adapters because their data and cleanup rules differ
+from reference-image pools.
 
 ## Resource limits
 

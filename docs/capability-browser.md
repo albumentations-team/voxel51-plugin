@@ -15,6 +15,11 @@ samples; it is unlisted in the general picker and has no toolbar action. It show
 - one row per matching transform with supported targets, advanced-parameter
   status, external input requirements, reason code, and explanation.
 
+See the executable [Python query example](albumentationsx-fiftyone-integration.md#python-operator-reference).
+Programmatic calls must supply both `status_filter` and `target_filter`;
+use `"all"` for either unfiltered choice. App defaults do not fill missing
+required parameters in an SDK call.
+
 ## Filters
 
 - `Search`: case-insensitive transform-name substring search.

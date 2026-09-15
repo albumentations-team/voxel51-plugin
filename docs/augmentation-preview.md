@@ -62,7 +62,7 @@ For each preview slot the operator returns:
 - annotation comparison JSON with field-level copied, transformed, dropped, and
   overlay status.
 
-The first implementation renders one preview output per selected source sample.
+Preview renders one output per selected source sample.
 `outputs_per_sample` still controls the later materialized run, but preview is
 bounded to one result per selected sample so the App output remains readable.
 

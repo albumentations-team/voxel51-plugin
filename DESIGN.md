@@ -25,8 +25,8 @@ The current implementation supports the following workflow.
    a template.
 5. Optionally preview up to three selected samples without creating files,
    samples, manifests, custom runs, or presets.
-6. Create one to three outputs per source sample, optionally saving the
-   resolved pipeline as a named shared preset.
+6. Choose creation to produce one to three outputs per source sample, or choose
+   **Save pipeline** to store the configuration without creating samples.
 7. Manage shared configurations with **Saved pipelines**.
 8. Inspect the new samples with **Run history**.
 9. Review and confirm generated-output deletion from **Run history**.
@@ -49,10 +49,12 @@ The executable path handles these FiftyOne label types:
 - `Segmentation` masks, converted through Albumentations mask targets. File-backed
   source masks write plugin-owned output mask PNGs.
 
-Selecting a previous run loads its pipeline configuration as a template. A new run samples new random values; it does not replay the prior outputs exactly.
+Selecting a previous run in the load picker preserves the draft until the user
+chooses **Replace draft with selected pipeline**. A new run samples new random
+values; it does not replay the prior outputs exactly.
 
-Selecting a named preset loads a shared pipeline configuration from plugin
-storage and can be reused across datasets. Named presets store pipeline data and
+Explicitly loading a named preset copies a shared pipeline configuration from
+plugin storage for reuse across datasets. Named presets store pipeline data and
 dependency metadata only, not source IDs, generated output paths, or replay
 records. Shared presets can be inspected, exported, imported, renamed, and
 deleted from the App without touching materialized runs or source data.
@@ -71,8 +73,7 @@ The plugin is deliberately narrower than the full AlbumentationsX catalog.
   not expose a stable public cancellation flag to operators. Controlled
   cancellation/interruption preserves source data and leaves an inspectable
   partial run for cleanup.
-- The FiftyOne operator API does not provide a drag-and-drop repeater, so the
-  The plugin uses a bounded ten-slot editor with explicit enable and execution-order
+- The plugin uses a bounded ten-slot editor with explicit enable and execution-order
   controls.
 - Preview is selected-samples only and shows one result per selected source
   sample, capped at three preview results.
@@ -134,7 +135,7 @@ The form rejects values it can prove invalid. The final validation happens when 
 Execution writes new images under:
 
 ```text
-~/.fiftyone/albumentationsx-plugin/<dataset-name>/<run-key>/
+~/.fiftyone/albumentationsx-plugin/<normalized-dataset-name>-<hash>/<run-key>/
 ```
 
 The manifest stores relative output paths and acts as the cleanup allowlist. Cleanup checks that every resolved path remains within the exact run directory, deletes only manifest-listed files and created sample IDs, and retains the manifest for auditability and idempotence. Broad globs and deletion outside the plugin-owned run directory are prohibited.
@@ -162,7 +163,7 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 | Preset lifecycle | Named shared presets can be saved from the augmentation form and managed with a dedicated App operator for inspect, export, import, rename, and delete actions. |
 | Safe cancellation semantics | Controlled cancellation/interruption marks materialized runs as `cancelled`, retains manifest-listed partial outputs, and keeps cleanup allowlist guarantees. |
 | Local verification | The repository has unit, integration, and smoke tests, deterministic demo datasets, headless operator user-scenario coverage, a supported-transform smoke helper, and a documented local verification gate. |
-| Publication automation | The publication-readiness pull request adds lockfile, full pre-commit, and test checks across Ubuntu, macOS, and Windows; Python 3.10–3.14 are required. |
+| Publication automation | Release workflows verify the lockfile, full pre-commit configuration, and tests across Ubuntu, macOS, and Windows; Python 3.10–3.14 are required. |
 
 ## Extension boundaries
 

@@ -8,8 +8,12 @@ manifest, registering the same data in FiftyOne's generic custom run store.
 For local runs, generated data lives under:
 
 ```text
-~/.fiftyone/albumentationsx-plugin/<dataset-name>/<run-key>/
+~/.fiftyone/albumentationsx-plugin/<normalized-dataset-name>-<hash>/<run-key>/
 ```
+
+The dataset directory ends with the first ten characters of the SHA256 hash
+of its original name. Use the exact manifest path from Run history rather than
+constructing it from the dataset name.
 
 The run directory contains:
 
@@ -84,8 +88,7 @@ no manifest. Diagnostics include the operation's execution status.
 and `errors` counts error records, so these counters need not sum to a source
 count when there are multiple outputs per source.
 
- A cancelled run is intentionally
-retained as an inspectable partial run; generated samples and files already
+A cancelled run is intentionally retained as an inspectable partial run; generated samples and files already
 listed in the manifest can be removed with **Run history → Review deletion of generated outputs**.
 
 Run history is available in **Load pipeline**. An explicit load copies the
@@ -132,5 +135,7 @@ uv run pytest tests/unit/test_manifest_store.py tests/integration/test_fiftyone_
 Manual inspection after running the demo operator:
 
 ```bash
-cat ~/.fiftyone/albumentationsx-plugin/<dataset-name>/<run-key>/manifest.json
+# Replace this value with the manifest path copied from Run history
+MANIFEST_PATH="/absolute/path/from/run/history/manifest.json"
+cat "$MANIFEST_PATH"
 ```

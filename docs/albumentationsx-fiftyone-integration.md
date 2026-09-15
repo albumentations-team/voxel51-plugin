@@ -157,6 +157,11 @@ editor or result ends it; use **Save pipeline** for later reuse.
 | **Current view** | All samples in the filtered view |
 | **Entire dataset** | The dataset, regardless of current filters |
 
+Previously generated samples are not automatically excluded from these scopes.
+To augment only originals on a repeat run, select those sources explicitly or
+filter out the `albumentationsx-output` tag and use **Current view**. Choosing
+**Entire dataset** includes generated samples still present in the dataset.
+
 Preview uses selected samples only, with one result per source and a maximum
 of three displayed results. It does not preview the entire current view.
 
@@ -315,6 +320,7 @@ and per-output replay. Open generated or failed source samples, or use
 
 | Outcome | Meaning |
 | --- | --- |
+| `running` | Output processing is in progress; wait before cleanup |
 | `completed` | Output attempts finished without errors |
 | `partial` | Some samples were created and errors occurred |
 | `failed` | Errors occurred without created samples |
@@ -352,14 +358,17 @@ sampled outputs is not implemented.
 
 ### Correct an invalid crop without creating outputs
 
-1. Select one source and choose **RandomCrop**. Enter a width and height larger
-   than that image, with **Pad if needed** disabled.
-2. Choose **Validate without creating samples**. Read the error's source and
-   requested dimensions. This preparation failure creates no samples or run.
-3. Use **Back to editor**. Reduce the crop dimensions to fit the source, or enable
-   **Pad if needed**. For example, a 640 × 640 crop of a 480 × 320 image needs
-   padding. Review fill values if your labels include masks.
-4. Validate again, then preview. Inspect the crop and its selected annotations
+1. Select one source, choose **Validate without creating samples**, and configure
+   **RandomCrop** with width and height larger than the image and
+   **Pad if needed** disabled.
+2. If source dimensions are already known, the editor highlights the invalid
+   dimensions and blocks submission. Correct the fields there. If the problem
+   is found only after submission, read the returned error and use **Back to editor**.
+   Neither case creates samples or a run record.
+3. Reduce the crop dimensions to fit the source, or enable **Pad if needed**.
+   For example, a 640 × 640 crop of a 480 × 320 image needs padding.
+   Review fill values if your labels include masks.
+4. Submit validation once the form is valid, then preview. Inspect the crop and its selected annotations
    before choosing **Create augmented samples**.
 
 If an advanced parameter contains malformed JSON, correct the highlighted field
@@ -371,7 +380,8 @@ For an annotation compatibility error, follow the heatmap example in
 
 1. In **Run history**, select the affected run. Read the outcome, output/error
    counters, failed source IDs, and technical details. Error counts describe
-   output attempts; they are not necessarily counts of distinct source images.
+   error records, including separate failures for multiple outputs from one
+   source; they are not necessarily counts of distinct source images.
 2. Use **Open failed source samples** and inspect the reported cause. Repair the
    source access, annotation, or pipeline setting that caused it.
 3. Return to that run and choose **Use pipeline from this run**. Review the
@@ -387,6 +397,9 @@ versions of those outputs. Review existing outputs before retrying. A failure
 rejected before persistence has no history entry; correct it in the editor.
 
 ## Cleanup and data safety
+
+Finish the execution, or confirm that its worker has stopped, before cleanup.
+Cleanup does not cancel an active run or prevent it from writing later outputs.
 
 1. Open **Run history**, select the intended run, and choose
    **Review deletion of generated outputs**.
@@ -538,7 +551,7 @@ print(execution.result["transforms"])
 
 This query creates no samples or run. In a notebook with an active event loop,
 await the returned task before reading `execution.result`. The
-[Python operator contract](https://github.com/albumentations-team/voxel51-plugin/blob/feature/release-docs-and-demos/docs/operator-api.md) documents flat parameters and
+[Python operator contract](https://github.com/albumentations-team/voxel51-plugin/blob/6bbde0947adb07c1fc970671561bc0fdca235ec2/docs/operator-api.md) documents flat parameters and
 legacy Python migration. UI labels do not change these six registered URIs.
 
 Demo image sources and recording details: [media credits](https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/README.md).

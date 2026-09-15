@@ -161,13 +161,16 @@ caption. The exported ID is retained; a new display name does not change it.
 
 ### 7. Crop error and correction
 
-1. On one selected COCO source, configure `RandomCrop` with width and height
-   1024 and **Pad if needed** disabled. These images are smaller than the crop.
-2. Choose **Validate without creating samples**. Hold the actual error and
-   source dimensions for 3 seconds. Caption: “The crop exceeds the source size”.
-3. Use **Back to editor** and enable **Pad if needed** or reduce dimensions
-   to fit. Show the changed control clearly.
-4. Validate successfully, then preview and hold the corrected result.
+1. On one selected COCO source, choose **Validate without creating samples**,
+   then configure `RandomCrop` with width and height 1024 and **Pad if needed**
+   disabled. These images are smaller than the crop.
+2. The helper supplies image metadata, so the form can highlight the invalid
+   dimensions and disable submission immediately. Hold the real inline error
+   for 3 seconds. Caption: “The crop exceeds the source size”.
+3. Enable **Pad if needed** or reduce dimensions to fit, showing the changed
+   control clearly. If a different dataset instead returns a server-side
+   validation error, use **Back to editor** before making that correction.
+4. Submit validation successfully, then preview and hold the corrected result.
    Caption: “Correct the pipeline before creating outputs”.
 
 This is a preflight error: no samples or history record are created. It must
@@ -175,6 +178,8 @@ not be presented as a partial run or as a failed source that can be opened
 from history.
 
 ### 8. Cleanup
+
+Use a finished demo run; cleanup does not stop an active worker.
 
 1. Select the demo run and choose **Review deletion of generated outputs**.
 2. Hold the run identity, sample/file counts, and output scope for 3 seconds.

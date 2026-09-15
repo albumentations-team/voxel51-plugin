@@ -5,6 +5,10 @@ operator for cleaning up generated outputs from one AlbumentationsX plugin run.
 
 ## Behavior
 
+Wait for execution to finish or confirm that the worker has stopped before
+cleanup. The cleanup operator does not cancel a running execution or lock it
+against later writes.
+
 Open cleanup from **Run history → Review deletion of generated outputs**.
 The preview shows the selected label/date, sample/file counts and manifest file
 scope. App confirmation is bound to this run. API callers retain the explicit

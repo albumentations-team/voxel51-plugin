@@ -279,7 +279,7 @@ variants should be added incrementally with round-trip tests.
 Generated files belong under a plugin-owned directory:
 
 ```text
-~/.fiftyone/albumentationsx-plugin/<dataset-name>/<run-key>/
+~/.fiftyone/albumentationsx-plugin/<normalized-dataset-name>-<hash>/<run-key>/
 ```
 
 Each run stores a manifest with relative paths. Cleanup resolves each path,

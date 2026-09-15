@@ -14,10 +14,6 @@ images and annotations, and create new samples while keeping source data intact.
 Read the [complete integration guide](docs/albumentationsx-fiftyone-integration.md)
 for installation, annotation support, and the full workflow.
 
-![Preview a COCO image with aligned annotations](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif)
-
-*Preview HorizontalFlip on COCO with detections and keypoints.*
-
 ## Install
 
 Requirements: Python 3.10–3.14 and FiftyOne `>=1.19,<2`. Install the plugin and
@@ -52,7 +48,12 @@ For manual ZIP installation, see [Release artifacts](docs/release-artifacts.md).
 
 Preview creates no samples or files. Created outputs persist until explicitly
 deleted. The [quickstart](docs/albumentationsx-fiftyone-integration.md#quickstart)
-includes a small demo that works without downloading models or datasets.
+links to an optional small demo that works without downloading models or datasets.
+
+<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif" width="480" alt="Preview a COCO image with aligned annotations"></a>
+
+*Preview HorizontalFlip on COCO with detections and keypoints. Select the image
+to view it at full size.*
 
 ## Capabilities and limits
 
@@ -78,6 +79,7 @@ includes a small demo that works without downloading models or datasets.
 ```bash
 git clone https://github.com/albumentations-team/voxel51-plugin.git
 cd voxel51-plugin
+git switch dev
 uv sync --group dev
 uv run pre-commit install
 export FIFTYONE_PLUGINS_DIR="$PWD"
@@ -86,7 +88,7 @@ uv run fiftyone operators list
 
 Keep `FIFTYONE_PLUGINS_DIR` scoped to this checkout to avoid scanning unrelated
 repositories. Use the repository's
-[contributor documentation](https://github.com/albumentations-team/voxel51-plugin/tree/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs)
+[contributor documentation](https://github.com/albumentations-team/voxel51-plugin/tree/6bbde0947adb07c1fc970671561bc0fdca235ec2/docs)
 for architecture, demo scripts, the canonical verification gate, and release
 procedures. The installed plugin ZIP contains user documentation; contributor
 commands require a checkout.

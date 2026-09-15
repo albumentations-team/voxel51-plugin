@@ -10,6 +10,11 @@ It reads the active dataset schema, selected sample IDs, current view metadata
 where available, and the same albu-spec capability catalog used by the
 augmentation form and capability browser.
 
+This is a schema-level advisory report. It does not read every image and label
+payload or execute the chosen pipeline; use **Validate without creating samples**
+for that check. The detailed operator is unlisted in the App picker; its URI is
+included in the [Python reference](albumentationsx-fiftyone-integration.md#python-operator-reference).
+
 ## Scope
 
 The form exposes the shared `Source scope` selector:
@@ -43,7 +48,7 @@ the report is advisory and should not break App rendering.
 Target family rows summarize the current albu-spec catalog by target:
 
 - target name;
-- whether the target has executable executable transforms;
+- whether the target has executable transforms;
 - executable and excluded transform counts;
 - image-only and geometry transform counts;
 - representative executable transform names;

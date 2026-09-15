@@ -1,7 +1,6 @@
 # Gitflow
 
-The project uses an integration-branch workflow. The first milestone is the plugin
-release, but the same branch pattern applies to later releases.
+The project uses an integration-branch workflow for features and releases.
 
 ## Branch roles
 
@@ -50,8 +49,8 @@ git checkout -b feature/task-short-name
 Examples:
 
 ```bash
-git checkout -b feature/-plugin-metadata
-git checkout -b feature/-empty-augment-operator
+git checkout -b feature/plugin-metadata
+git checkout -b feature/augmentation-validation
 ```
 
 ## Finish a task

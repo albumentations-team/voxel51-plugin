@@ -1,7 +1,7 @@
 # Annotation-Aware Execution
 
 This guide describes annotation-aware execution through the FiftyOne
-augmentation slice. Geometry is delegated to Albumentations target handling; the
+augmentation workflow. Geometry is delegated to Albumentations target handling; the
 plugin only converts FiftyOne labels into target data and reconstructs FiftyOne
 labels from the transformed targets.
 
@@ -115,10 +115,9 @@ media are unchanged.
 
 ## Unsupported Scope
 
-The current slice does not claim full annotation coverage. Unsupported label
-classes, custom embedded documents, video labels, 3D labels, and
-transform-specific target requirements should be added in follow-up tasks with
-focused tests.
+Unsupported label classes, custom embedded documents, video labels, and 3D
+labels are outside the current annotation adapter. Some transforms also require
+additional target handling that the adapter does not provide.
 
 Unsupported label fields are excluded from generated output samples. The run
 manifest stores excluded fields and reason codes under `metadata.annotations` so

@@ -7,7 +7,7 @@ All documentation, release text, captions, and PR content are in English.
 
 - Baseline: `dev` at
   `ca5507b5df3df8c816b16a0f5230b9bc235d0826` after fetching `origin/dev`.
-- Recorded runtime and documentation content: `2f8aa79c4acad7d5efa41e8554161b15828ec9ee`.
+- Recorded runtime and original documentation content: `2f8aa79c4acad7d5efa41e8554161b15828ec9ee`.
 - Latest published release checked: `0.1.1`. Existing candidate version: `0.1.2`.
 - Version sources: `pyproject.toml`, `fiftyone.yml`, runtime `_version.py`, and
   the root package entry in `uv.lock`. No speculative version bump.
@@ -162,10 +162,47 @@ include its final media paths. Build it with the upstream preview script and
 review desktop and narrow layouts before merging. Release publication and
 upstream merge remain separate from this preparation branch.
 
+## Editorial review and recording follow-up
+
+A separate review of PR #75 compared the current guides with operator forms,
+execution, storage, annotation policy, release packaging, and contributor commands.
+The documentation now starts with the user's dataset and provides an optional
+standalone example, explicit JSON sharing and delegation, and worked recovery steps.
+
+| Finding | Correction |
+| --- | --- |
+| A large inline GIF obscured the upstream PR description | Replaced it with concise changes, publication gates, and preview links. |
+| Creation recording appeared under cleanup; source fields differed from the quickstart | Moved media after its matching instructions and explained COCO versus standalone fields. |
+| Crop validation can block submission directly in the editor | Documented both inline and server-side recovery; the COCO storyboard uses the real inline error. |
+| Retry could be understood as resuming individual failed outputs | Explained a new run, source-level retries, and possible additional outputs from partly successful sources. |
+| Existing generated samples remain eligible as inputs | Added explicit source filtering guidance for repeat runs. |
+| Cleanup does not stop or lock a running worker | Required a finished or stopped execution before cleanup. |
+| Storage examples omitted the dataset-name hash | Corrected the main guide, manifest reference, architecture, and design contract. |
+| Python invocation needed explicit required filters and the SDK's dataset context key | Executed the corrected catalog query and compatibility query on a fresh disposable dataset. |
+| Delegated Open Source setup omitted its configuration flag | Added App/worker setup, Schedule, queue listing, and operation inspection. |
+| Public release prose contained low-level UI details and contributor examples retained cleanup artifacts | Reworded user outcomes, corrected branch examples, and fixed duplicate wording. |
+| GIF timing metadata and upstream target branch were stale | Measured encoded durations and recorded the current community target. |
+
+[Recording guide](recording-guide.md) specifies eight focused replacement GIFs,
+an overview video, optional advanced failure coverage, editing rules, and the
+exact update flow for both existing Draft PRs. Existing GIF pixels are unchanged;
+the new recordings remain a follow-up for the maintainer. The six current GIFs
+are displayed at 480 px with full-size links. Recording tools and contributor
+instructions remain outside the runtime ZIP.
+
+The editorial pass checked 33 Markdown documents, 101 local links/anchors,
+31 referenced test paths/nodes, all eight rendered media assets, and the preserved
+upstream anchors. All resolved. The standalone dataset setup, catalog query,
+and compatibility query passed in an isolated database. The 71 affected
+validation, padded-crop, loading, storage, documentation, and artifact tests
+passed; pre-commit and the strict Sphinx build also passed. These checks
+supplement the earlier complete runtime gate above. No runtime code changed
+in this editorial pass, and no CI completion was awaited.
+
 ## Review links and external gates
 
 - [Plugin preparation PR](https://github.com/albumentations-team/voxel51-plugin/pull/75), targeting `dev`.
-- [FiftyOne integration PR](https://github.com/voxel51/fiftyone/pull/8471), targeting `main`, with eight public media assets.
+- [FiftyOne integration PR](https://github.com/voxel51/fiftyone/pull/8471), targeting `community` (retargeted by the upstream repository), with eight public media assets.
 - Both PRs must remain drafts until the maintainer finishes their own detailed
   review and changes the status. Required CI runs and release publication remain external
   gates; local acceptance is not a claim that the OS/Python matrix has passed.
