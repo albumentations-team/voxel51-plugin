@@ -24,11 +24,17 @@ def register(plugin: PluginRegistrar) -> None:
     """
 
     from albumentationsx_plugin.hosts.fiftyone.operators import (
+        AnalyzeAlbumentationsXCompatibility,
         AugmentWithAlbumentationsX,
         DeleteAlbumentationsXRun,
+        ManageAlbumentationsXPresets,
+        ShowAlbumentationsXCapabilities,
         ViewAlbumentationsXRun,
     )
 
     plugin.register(AugmentWithAlbumentationsX)
+    plugin.register(AnalyzeAlbumentationsXCompatibility)
+    plugin.register(ShowAlbumentationsXCapabilities)
+    plugin.register(ManageAlbumentationsXPresets)
     plugin.register(ViewAlbumentationsXRun)
     plugin.register(DeleteAlbumentationsXRun)

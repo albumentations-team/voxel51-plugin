@@ -1,48 +1,94 @@
 # AlbumentationsX plugin for FiftyOne: design and roadmap
 
-**Status:** the image augmentation MVP is implemented. Publication readiness and broader execution coverage remain open.
+**Status:** image augmentation is implemented. Publication readiness and broader execution coverage remain open.
 
-**Last reviewed:** 2026-08-05
+**Last reviewed:** 2026-09-15
 
-This document records the current product boundary, the decisions that protect user data, and the work that remains. It is not a historical task list. Detailed implementation notes live in [docs/](docs/README.md); the root [README](README.md) is the installation and usage guide.
+This document records the current product boundary, architecture, and decisions that protect user data. [docs/](docs/README.md) contains the user documentation.
 
 ## Product goal
 
 The plugin helps a FiftyOne user inspect an AlbumentationsX augmentation on their own labelled images before they commit to a training run. The user selects image samples, configures an ordered pipeline in the FiftyOne App, and receives new samples. The plugin retains the source samples, source media, and supported labels unchanged.
 
-Each saved run records the pipeline, package versions, source and output sample IDs, generated relative file paths, sampled replay metadata, counters, and structured errors. A user can inspect a saved run, use its pipeline as a template for a new run, or delete only that run's generated outputs.
+Each saved run records the pipeline, package versions, source and output sample IDs, generated relative file paths, sampled replay metadata, counters, and structured errors. A user can inspect a saved run, use its pipeline as a template for a new run, save the pipeline as a named shared preset, or delete only that run's generated outputs.
 
-## Current MVP
+## Current implementation
 
 The current implementation supports the following workflow.
 
-1. Select one or more image samples in the FiftyOne App.
-2. Open **Augment with AlbumentationsX**.
-3. Configure one to three ordered transform stages and create one to three outputs per selected sample.
-4. Inspect the new samples with **View AlbumentationsX Run**.
-5. Remove generated samples and files with **Delete AlbumentationsX Run** after confirmation.
+1. Select one or more image samples in the FiftyOne App, open a filtered image
+   view, or use the full image dataset.
+2. Open **Augment images**.
+3. Configure up to ten transform stage slots, enable the stages to execute,
+   and order them.
+4. Optionally load a shared named preset or a previous run's saved pipeline as
+   a template.
+5. Optionally preview up to three selected samples without creating files,
+   samples, manifests, custom runs, or presets.
+6. Choose creation to produce one to three outputs per source sample, or choose
+   **Save pipeline** to store the configuration without creating samples.
+7. Manage shared configurations with **Saved pipelines**.
+8. Inspect the new samples with **Run history**.
+9. Review and confirm generated-output deletion from **Run history**.
 
-The form is generated from the `albu-spec` catalog. With the locked `albumentationsx 2.3.8` and `albu-spec 0.0.6` dependencies, the catalog finds 134 transforms. The normal selector exposes 110 transforms classified as `supported` or `supported_with_defaults`; the capability report records each excluded transform and its reason.
+The form is generated from the `albu-spec` catalog. With the locked `albumentationsx 2.3.8` and `albu-spec 0.0.6` dependencies, the catalog finds 134 transforms. The normal selector exposes 113 transforms classified as `supported` or `supported_with_defaults`; the capability report records each excluded transform and its reason. The executable set includes the reference-image transforms `FDA`, `HistogramMatching`, and `PixelDistributionAdaptation`; they use the current execution scope as a deterministic reference pool and save per-output reference source ids in replay metadata.
 
 The executable path handles these FiftyOne label types:
 
 - `Classification`, copied unchanged;
-- `Detections`, converted through Albumentations bounding-box targets;
+- `Detections`, converted through Albumentations bounding-box targets.
+  `Detection(mask=...)` and `Detection(mask_path=...)` instance masks are
+  transformed through Albumentations mask targets and cropped back to the
+  transformed boxes. Detection mask outputs are stored in memory;
 - `Keypoints`, converted through Albumentations keypoint targets;
-- in-memory `Segmentation` masks, converted through Albumentations mask targets.
+- `Polylines`, converted through Albumentations keypoint targets with
+  vertex-based crop/drop semantics;
+- `Heatmap`, converted through Albumentations image-like targets for
+  geometry-only synchronization. Transformed heatmap outputs are stored as
+  in-memory `Heatmap.map` values;
+- `Segmentation` masks, converted through Albumentations mask targets. File-backed
+  source masks write plugin-owned output mask PNGs.
 
-Selecting a previous run loads its pipeline configuration as a template. A new run samples new random values; it does not replay the prior outputs exactly.
+Selecting a previous run in the load picker preserves the draft until the user
+chooses **Replace draft with selected pipeline**. A new run samples new random
+values; it does not replay the prior outputs exactly.
+
+Explicitly loading a named preset copies a shared pipeline configuration from
+plugin storage for reuse across datasets. Named presets store pipeline data and
+dependency metadata only, not source IDs, generated output paths, or replay
+records. Shared presets can be inspected, exported, imported, renamed, and
+deleted from the App without touching materialized runs or source data.
+
+Preview mode uses the same pipeline factory and label conversion path as
+materialized execution, but returns in-memory source/augmented images, replay
+metadata, and transformed label JSON through the operator output only.
 
 ## Product limits
 
-The MVP is deliberately narrower than the full AlbumentationsX catalog.
+The plugin is deliberately narrower than the full AlbumentationsX catalog.
 
-- It processes selected image samples only. It does not process video, 3D media, or unselected datasets in the background.
-- The operator allows immediate execution only. Delegated and distributed execution are not implemented.
-- The normal selector excludes transforms that require external reference data, use unsupported media or targets, or produce unsafe image outputs.
-- External segmentation-mask paths, detection instance masks, polylines, custom embedded documents, and unsupported FiftyOne label classes are excluded from annotation-aware execution.
-- `supported_with_defaults` transforms keep some advanced optional parameters at their library defaults until the form has safe controls for them.
-- A catalog status proves that the plugin can render and construct a transform under the current dependency set. It does not yet provide a visual regression test for every one of the 110 transform choices.
+- It processes image samples from selected samples, the active view, or the full dataset. It does not process video or 3D media.
+- The augmentation operator supports immediate and delegated execution. Distributed execution is not implemented.
+- Cancellation detection is best-effort because supported FiftyOne versions do
+  not expose a stable public cancellation flag to operators. Controlled
+  cancellation/interruption preserves source data and leaves an inspectable
+  partial run for cleanup.
+- The plugin uses a bounded ten-slot editor with explicit enable and execution-order
+  controls.
+- Preview is selected-samples only and shows one result per selected source
+  sample, capped at three preview results.
+- The normal selector excludes unresolved external-data transforms, unsupported media or target transforms, and transforms that produce unsafe image outputs.
+- Custom embedded documents and unsupported FiftyOne label classes are excluded from annotation-aware execution.
+- `supported_with_defaults` transforms expose simple typed controls plus optional advanced JSON fields for complex parameters that do not yet have first-class schema controls.
+- A catalog status proves that the plugin can render and construct a transform
+  under the current dependency set. The supported-transform smoke helper also
+  executes every normal selector choice once against deterministic synthetic
+  inputs. It does not yet provide a visual regression test for every one of the
+  113 transform choices.
+- Heatmap support is limited to geometry-only target synchronization. Mixed
+  pipelines that would transform a selected heatmap and also apply image-only
+  color/intensity stages are rejected until per-target replay can keep heatmap
+  values separate from image effects.
 
 ## Architecture
 
@@ -70,11 +116,25 @@ The code keeps four boundaries explicit.
 | `hosts/fiftyone` | Operator registration, dynamic forms, selected-sample conversion, output samples, run inspection, and cleanup actions. |
 | `storage` | Plugin-owned paths, image writes, manifests, and containment-checked cleanup. |
 
+`core` must not import FiftyOne, Albumentations, or albu-spec. The backend must
+not import FiftyOne; storage must not import its UI/operator modules. Operators
+compose services without owning catalog parsing, pipeline construction, or
+cleanup path validation. Keep annotation conversion and editor state in the
+FiftyOne host layer, and retain legacy import facades only for compatibility.
+
+Metadata ownership stays with albu-spec: runtime class names, target declarations,
+parameter shapes/defaults, and dependency snapshots. The plugin owns editor policy,
+image-aware defaults, selected labels, output validation, and persistence.
+Metadata workarounds belong in the backend with reason codes and focused tests;
+reassess them after dependency updates. Do not duplicate the transform catalog or
+load arbitrary classes from unchecked names. Forms may validate constructors,
+but must not execute transforms on images or persist outputs while rendering.
+
 ## Decisions that constrain future work
 
 ### Keep the integration in Python
 
-FiftyOne can render operator forms from Python. The current controls do not require a custom frontend, so the plugin avoids a TypeScript build and a second UI API. A frontend is justified only when it unlocks a concrete workflow that Python-backed dynamic forms cannot provide.
+FiftyOne renders the editor and result forms from Python. A small bundled JavaScript ComponentView supplies the three branded toolbar launchers using FiftyOne's shared React and MUI; it has no separate TypeScript build. Keep form state and execution policy in the Python host layer.
 
 ### Derive the transform catalog from `albu-spec`
 
@@ -89,7 +149,7 @@ The form rejects values it can prove invalid. The final validation happens when 
 Execution writes new images under:
 
 ```text
-~/.fiftyone/albumentationsx-plugin/<dataset-name>/<run-key>/
+~/.fiftyone/albumentationsx-plugin/<normalized-dataset-name>-<hash>/<run-key>/
 ```
 
 The manifest stores relative output paths and acts as the cleanup allowlist. Cleanup checks that every resolved path remains within the exact run directory, deletes only manifest-listed files and created sample IDs, and retains the manifest for auditability and idempotence. Broad globs and deletion outside the plugin-owned run directory are prohibited.
@@ -108,47 +168,24 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 |---|---|
 | Plugin integration | The repository registers augmentation, run-summary, and run-cleanup operators for FiftyOne `>=1.19,<2`. |
 | Catalog and forms | The dynamic form consumes the versioned `albu-spec` catalog, renders supported parameter types, shows target guidance, and reports excluded transforms. |
-| Pipeline execution | The executor builds catalog-backed `ReplayCompose` pipelines with up to three stages and creates new image samples without modifying selected sources. |
-| Annotation handling | Classification, detections, keypoints, and in-memory semantic masks travel through the supported execution path. |
+| Pipeline execution | The executor builds catalog-backed `ReplayCompose` pipelines from up to ten ordered stage slots and creates new image samples without modifying selected sources. |
+| Annotation handling | Classification, detections, keypoints, polylines, heatmaps, and semantic masks travel through the supported execution path. File-backed semantic mask outputs are materialized as plugin-owned PNGs. |
+| Annotation compatibility | Selected spatial labels are checked against transform target support from both schema-level label types and runtime payload requirements. |
 | Provenance and cleanup | Manifests, FiftyOne custom runs, source links, replay metadata, run inspection, and containment-checked cleanup are implemented. |
-| Local verification | The repository has unit, integration, and smoke tests, a deterministic demo dataset, and a documented local verification gate. |
-| Publication automation | The publication-readiness pull request adds lockfile, full pre-commit, and test checks across Ubuntu, macOS, and Windows; Python 3.10–3.14 are required. |
+| Larger-run execution | The augmentation operator can run immediately or through FiftyOne delegated execution and reports processed sources, planned outputs, created outputs, skipped sources, and errors. |
+| Non-persistent preview | Selected samples can be previewed in memory with source/augmented images, replay metadata, and transformed label JSON before creating persistent outputs. |
+| Preset lifecycle | Named shared presets can be saved from the augmentation form and managed with a dedicated App operator for inspect, export, import, rename, and delete actions. |
+| Safe cancellation semantics | Controlled cancellation/interruption marks materialized runs as `cancelled`, retains manifest-listed partial outputs, and keeps cleanup allowlist guarantees. |
+| Local verification | The repository has unit, integration, and smoke tests, deterministic demo datasets, headless operator user-scenario coverage, and a supported-transform smoke helper. |
+| Publication automation | Release workflows verify the lockfile, full pre-commit configuration, and tests across Ubuntu, macOS, and Windows; Python 3.10–3.14 are required. |
 
-## Remaining plan
+## Extension boundaries
 
-Work is ordered by release risk and user impact. Each item has an observable completion condition so that it can become a focused pull request.
-
-### P0 — prove and publish the current MVP
-
-| Work | Why now | Completion condition |
-|---|---|---|
-| Exercise every normal catalog choice | The selector exposes 110 transforms, but the existing tests do not execute a representative image through every choice. | A deterministic smoke suite constructs and runs each catalog-supported transform with defaults or a documented fixture, then reports failures by transform name and dependency versions. |
-| Complete manual App acceptance | Automated tests cannot confirm that the operator is discoverable and that generated labels look correct in the App. | The release candidate follows the [manual App checklist](docs/release-v0.1.0.md#manual-fiftyone-app-gate) on the demo dataset, including previous-run prefill and cleanup. The PR records the commands and observations. |
-| Publish one coherent tagged release | The existing `0.1.1` tag predates release metadata validation and the source metadata still says `0.1.0`. Existing tags must remain immutable. | Choose the next version, align `pyproject.toml` and `fiftyone.yml`, pass `scripts/verify_release_tag.py <tag>`, merge required CI checks, and create a new GitHub release from that exact commit. |
-
-### P1 — make the image workflow useful on larger and repeated jobs
-
-| Work | Why now | Completion condition |
-|---|---|---|
-| Add delegated execution with progress and cancellation | Immediate execution is appropriate for a few selected samples, but it blocks larger jobs. | A user can choose immediate or delegated execution. Both paths preserve the same manifest contract, show progress and partial failures, and have integration tests for cancellation and recovery. |
-| Add a first-class preset library | Previous runs provide templates inside one dataset, but they are not named, portable presets. | Users can save, rename, import, and export validated pipeline presets without storing per-sample replay data. Tests prove that a preset loads into the form and produces a valid fresh run. |
-| Add a non-persistent preview | Users need to inspect a configuration before adding many samples to a dataset. | The App renders a preview for selected samples without creating output samples or run directories. The preview path has a clear limit and does not alter source data. |
-
-### P1 — extend label support safely
-
-| Work | Why now | Completion condition |
-|---|---|---|
-| Support external segmentation-mask paths | Many FiftyOne datasets store masks as paths instead of in-memory arrays. | The adapter reads supported external masks, preserves class IDs through geometric transforms, writes an owned output mask, and proves alignment with synthetic-image tests. |
-| Add instance masks and polylines | These labels are common in production vision datasets and cannot be copied through geometric transforms. | Each label type has an explicit adapter, transform compatibility rules, synthetic geometry tests, provenance fields, and cleanup coverage. |
-| Strengthen transform-to-target validation | A transform's declared targets can be narrower than the active dataset schema. | The form blocks unsafe combinations before execution whenever catalog metadata is conclusive; remaining runtime mismatches return a structured error without writing partial labels. |
-
-### P2 — broaden media and transform classes deliberately
-
-| Work | Prerequisite | Completion condition |
-|---|---|---|
-| External-reference transforms and multi-image samples | A safe way to select, validate, and record reference media. | The UI exposes each required input, the manifest records its provenance, and an integration test proves sources and reference files remain unchanged. |
-| Preview-safe tensor and normalized outputs | A display policy for non-`uint8` model inputs. | The plugin either renders a documented display conversion or labels the result as model-only; it never silently writes misleading PNG or JPEG data. |
-| Video and 3D media | Media-specific sample adapters and a target-synchronization model. | Each media type has a separate design note, deterministic fixtures, temporal or volumetric alignment tests, and an App acceptance scenario. |
+Additional label classes, donor-object/mosaic inputs, tensor outputs, video, and
+3D require explicit adapters, display rules, source-preservation tests, and App
+acceptance before they can be advertised as supported. The current limitations
+are documented in the integration guide. Release readiness requires automated
+checks and fresh App acceptance.
 
 ## Release and quality policy
 
@@ -159,8 +196,5 @@ Work is ordered by release risk and user impact. Each item has an observable com
 ## References
 
 - [README: install, first run, limits, and local development](README.md)
-- [Architecture](docs/architecture.md)
-- [Capability report v0.1.0](docs/capability-report-v0.1.0.md)
 - [Annotation-aware execution](docs/annotation-aware-execution.md)
-- [Run manifest and cleanup contract](docs/run-manifest.md)
-- [Verification](docs/verification.md)
+- [Run history, storage, and cleanup](docs/run-history.md)

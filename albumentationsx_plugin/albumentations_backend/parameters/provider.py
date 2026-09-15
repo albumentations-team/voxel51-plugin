@@ -28,21 +28,15 @@ class AlbuSpecParameterSchemaProvider:
 
     def __init__(self, catalog_provider: TransformCatalogProvider | None = None) -> None:
         self._catalog_provider = catalog_provider or AlbuSpecCatalogProvider()
+        self._schemas_by_name: dict[str, tuple[FormFieldSchema, ...]] = {}
 
     @cached_property
     def _metadata_by_name(self) -> dict[str, Any]:
         collection = get_all_transforms_metadata()
         return {metadata.name: metadata for metadata in collection.get_all()}
 
-    @cached_property
-    def _schemas_by_name(self) -> dict[str, tuple[FormFieldSchema, ...]]:
-        return {
-            transform_name: build_transform_parameter_schema(metadata)
-            for transform_name, metadata in sorted(self._metadata_by_name.items())
-        }
-
     def get_parameter_schema(self, transform_name: str) -> tuple[FormFieldSchema, ...]:
-        """Return neutral fields for a transform that is exposed by the MVP catalog."""
+        """Return neutral fields for a transform that is exposed by the current catalog."""
 
         capability = self._catalog_provider.get_transform_capability(transform_name)
         if capability is None:
@@ -54,11 +48,15 @@ class AlbuSpecParameterSchemaProvider:
         if not is_mvp_supported_status(capability.status):
             raise UnsupportedTransformError(
                 transform_name,
-                message=f"Transform {transform_name} is not available for MVP parameter schema generation.",
+                message=f"Transform {transform_name} is not available for parameter schema generation.",
                 context={
                     "reason_code": capability.reason_code or capability.status.value,
                     "status": capability.status.value,
                 },
+            )
+        if transform_name not in self._schemas_by_name:
+            self._schemas_by_name[transform_name] = build_transform_parameter_schema(
+                self._metadata_by_name[transform_name]
             )
         return self._schemas_by_name[transform_name]
 

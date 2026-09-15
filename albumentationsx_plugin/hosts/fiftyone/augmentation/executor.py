@@ -1,80 +1,52 @@
-"""Run the fixed Albumentations MVP slice against FiftyOne image samples."""
+"""Execute catalog-backed augmentation with recoverable run checkpoints."""
 
 from __future__ import annotations
 
-import importlib.metadata
+import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from datetime import datetime, timezone
 from os import PathLike
 from pathlib import Path
 from typing import Any
 
 import fiftyone as fo
 
-import albumentationsx_plugin
-from albumentationsx_plugin.albumentations_backend.fixed import (
-    FixedImagePipeline,
-    build_fixed_pipeline_config,
-    create_fixed_image_pipeline,
-)
+from albumentationsx_plugin.albumentations_backend.image_pipeline import FixedImagePipeline
 from albumentationsx_plugin.core import (
+    RUN_EXECUTION_STATUS_CANCELLED,
+    RUN_EXECUTION_STATUS_COMPLETED,
+    RUN_EXECUTION_STATUS_DRY_RUN,
+    RUN_EXECUTION_STATUS_RUNNING,
     RUN_LABEL_FIELD_NAME,
-    RUN_LABEL_SLUG_METADATA_KEY,
+    AugmentationCancelledError,
     AugmentationInput,
-    AugmentationResult,
     InvalidParameterError,
     JSONDict,
-    MediaIOError,
     PipelineConfig,
     PluginError,
-    RunManifest,
 )
-from albumentationsx_plugin.core.serialization import normalize_json_mapping
-from albumentationsx_plugin.hosts.fiftyone.annotations import (
-    ANNOTATION_EXCLUDED_FIELDS_KEY,
-    ANNOTATION_PAYLOAD_KEY,
-    target_data_from_annotation_payload,
-    transformed_annotation_payload,
+from albumentationsx_plugin.core.contracts.runs import terminal_execution_status
+from albumentationsx_plugin.hosts.fiftyone.augmentation.checkpoints import RunCheckpoint
+from albumentationsx_plugin.hosts.fiftyone.augmentation.outputs import PreparedOutput, apply_output, prepare_output
+from albumentationsx_plugin.hosts.fiftyone.augmentation.results import (
+    FixedAugmentationExecutionResult as FixedAugmentationExecutionResult,
+)
+from albumentationsx_plugin.hosts.fiftyone.augmentation.runtime import build_fixed_augmentation_runtime
+from albumentationsx_plugin.hosts.fiftyone.cancellation import CancellationChecker, NoOpCancellationChecker
+from albumentationsx_plugin.hosts.fiftyone.output_metadata import (
+    policy_from_annotation_metadata,
+)
+from albumentationsx_plugin.hosts.fiftyone.progress import (
+    AugmentationProgress,
+    NoOpProgressReporter,
+    ProgressReporter,
 )
 from albumentationsx_plugin.hosts.fiftyone.runs import build_fiftyone_run_key, register_fiftyone_run
-from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG, FiftyOneSampleAdapter
-from albumentationsx_plugin.storage.images import build_output_image_relative_path, load_rgb_image, write_rgb_image
-from albumentationsx_plugin.storage.manifest import FileRunStore, resolve_manifest_output_path
+from albumentationsx_plugin.hosts.fiftyone.samples import DEFAULT_OUTPUT_TAG
+from albumentationsx_plugin.storage.manifest import FileRunStore
 from albumentationsx_plugin.storage.paths import build_run_key, slugify_run_label
 
-
-@dataclass(frozen=True, slots=True)
-class FixedAugmentationExecutionResult:
-    """User-facing summary of one fixed-transform augmentation run."""
-
-    run_key: str
-    processed_count: int
-    created_count: int
-    skipped_count: int
-    error_count: int
-    dry_run: bool
-    output_tag: str
-    output_dir: str
-    manifest_path: str = ""
-    fiftyone_run_key: str = ""
-    errors: tuple[JSONDict, ...] = ()
-
-    def to_dict(self) -> JSONDict:
-        """Serialize the summary for FiftyOne operator output."""
-
-        return {
-            "run_key": self.run_key,
-            "processed_count": self.processed_count,
-            "created_count": self.created_count,
-            "skipped_count": self.skipped_count,
-            "error_count": self.error_count,
-            "dry_run": self.dry_run,
-            "output_tag": self.output_tag,
-            "output_dir": self.output_dir,
-            "manifest_path": self.manifest_path,
-            "fiftyone_run_key": self.fiftyone_run_key,
-            "errors": [dict(error) for error in self.errors],
-        }
+_LOGGER = logging.getLogger(__name__)
 
 
 def execute_fixed_augmentation(
@@ -85,409 +57,327 @@ def execute_fixed_augmentation(
     selected_sample_ids: Sequence[str] = (),
     output_tag: str = DEFAULT_OUTPUT_TAG,
     storage_root: str | PathLike[str] | None = None,
+    progress_reporter: ProgressReporter | None = None,
+    cancellation_checker: CancellationChecker | None = None,
 ) -> FixedAugmentationExecutionResult:
-    """Execute the temporary fixed-transform image augmentation flow."""
+    """Execute the catalog-backed image augmentation flow."""
 
-    config = build_fixed_pipeline_config(params)
-    pipeline = create_fixed_image_pipeline(config)
+    progress_reporter = progress_reporter or NoOpProgressReporter()
+    cancellation_checker = cancellation_checker or NoOpCancellationChecker()
+    runtime = build_fixed_augmentation_runtime(
+        dataset=dataset,
+        params=params,
+        view=view,
+        selected_sample_ids=selected_sample_ids,
+        output_tag=output_tag,
+    )
+    config = runtime.config
+    pipeline = runtime.pipeline
+    source_scope = runtime.source_scope
+    adapter = runtime.adapter
+    source_inputs = runtime.source_inputs
+    annotation_metadata = runtime.annotation_metadata
+    external_inputs = runtime.external_inputs
     dry_run = _bool_param(params, "dry_run", default=False)
     run_label = _optional_str_param(params, RUN_LABEL_FIELD_NAME)
     run_label_slug = slugify_run_label(run_label)
     run_key = build_run_key(run_label=run_label)
     run_store = FileRunStore(dataset_name=dataset.name, storage_root=storage_root)
     run_dir = run_store.run_dir(run_key)
-    adapter = FiftyOneSampleAdapter(
-        dataset=dataset,
-        view=view,
-        selected_sample_ids=selected_sample_ids,
-        output_tag=output_tag,
+    source_count = len(source_inputs)
+    planned_outputs = source_count * config.outputs_per_sample
+    _report_progress(
+        progress_reporter,
+        stage="starting",
+        total_sources=source_count,
+        processed_sources=0,
+        planned_outputs=planned_outputs,
+        created_outputs=0,
+        skipped_sources=0,
+        errors=0,
     )
-    source_inputs = tuple(adapter.iter_inputs())
-    annotation_metadata = _annotation_run_metadata(source_inputs)
     if dry_run:
+        for source in source_inputs:
+            for output_index in range(config.outputs_per_sample):
+                _raise_if_cancelled(cancellation_checker)
+                try:
+                    apply_output(
+                        source=source,
+                        pipeline=pipeline,
+                        config=config,
+                        output_index=output_index,
+                        external_targets=external_inputs.targets_for_source(source.sample_id),
+                        external_input_metadata=external_inputs.metadata_for_source(source.sample_id),
+                    )
+                except PluginError as error:
+                    raise PluginError(
+                        error.code,
+                        f"Sample {source.sample_id}: {error.message}",
+                        {**error.context, "sample_id": source.sample_id, "output_index": output_index},
+                    ) from error
+        _report_progress(
+            progress_reporter,
+            stage="dry_run_complete",
+            total_sources=source_count,
+            processed_sources=source_count,
+            planned_outputs=planned_outputs,
+            created_outputs=0,
+            skipped_sources=0,
+            errors=0,
+            dry_run=True,
+        )
         return FixedAugmentationExecutionResult(
             run_key=run_key,
-            processed_count=len(source_inputs),
+            source_scope=source_scope,
+            processed_count=source_count,
             created_count=0,
             skipped_count=0,
             error_count=0,
             dry_run=True,
             output_tag=output_tag,
             output_dir=str(run_dir),
+            execution_status=RUN_EXECUTION_STATUS_DRY_RUN,
             fiftyone_run_key=build_fiftyone_run_key(run_key),
+            metadata_policy=policy_from_annotation_metadata(annotation_metadata),
         )
 
-    created_sample_ids: list[str] = []
-    output_paths: list[str] = []
-    replay_records: list[JSONDict] = []
-    errors: list[JSONDict] = []
-    skipped_count = 0
-    source_sample_ids = tuple(source.sample_id for source in source_inputs)
-    _save_current_manifest(
+    checkpoint = RunCheckpoint(
         run_store=run_store,
         run_key=run_key,
         config=config,
-        source_sample_ids=source_sample_ids,
-        created_sample_ids=created_sample_ids,
-        output_paths=output_paths,
-        replay_records=replay_records,
-        processed_count=len(source_inputs),
-        skipped_count=skipped_count,
-        errors=errors,
+        source_sample_ids=tuple(source.sample_id for source in source_inputs),
         output_dir=run_dir,
         output_tag=output_tag,
         annotation_metadata=annotation_metadata,
+        source_scope=source_scope,
         run_label=run_label,
         run_label_slug=run_label_slug,
     )
+    checkpoint.save(execution_status=RUN_EXECUTION_STATUS_RUNNING)
 
-    for source in source_inputs:
-        created_before_sample = len(created_sample_ids)
-        for output_index in range(config.outputs_per_sample):
-            checkpoint_current_state = True
-            try:
-                output = _prepare_one_output(
-                    source=source,
-                    pipeline=pipeline,
-                    run_dir=run_dir,
-                    output_index=output_index,
-                )
-            except PluginError as error:
-                errors.append(_sample_error(source, output_index, error.to_dict()))
-            else:
-                output_paths.append(output.relative_path)
-                replay_records.append(output.replay_record)
-                manifest = _checkpoint_prepared_output(
-                    run_store=run_store,
-                    run_key=run_key,
-                    config=config,
-                    source_sample_ids=source_sample_ids,
-                    created_sample_ids=created_sample_ids,
-                    output_paths=output_paths,
-                    replay_records=replay_records,
-                    processed_count=len(source_inputs),
-                    skipped_count=skipped_count,
-                    errors=errors,
-                    output_dir=run_dir,
-                    output_tag=output_tag,
-                    output=output,
-                    annotation_metadata=annotation_metadata,
-                    run_label=run_label,
-                    run_label_slug=run_label_slug,
-                )
+    try:
+        for source_number, source in enumerate(source_inputs, start=1):
+            _raise_if_cancelled(cancellation_checker)
+            checkpoint.processed_count = source_number
+            created_before_sample = len(checkpoint.created_sample_ids)
+            for output_index in range(config.outputs_per_sample):
+                checkpoint_current_state = True
+                _raise_if_cancelled(cancellation_checker)
                 try:
-                    created_sample_id = adapter.create_output_sample(output.result, manifest)
+                    output = _prepare_one_output(
+                        source=source,
+                        pipeline=pipeline,
+                        config=config,
+                        run_dir=run_dir,
+                        output_index=output_index,
+                        external_targets=external_inputs.targets_for_source(source.sample_id),
+                        external_input_metadata=external_inputs.metadata_for_source(source.sample_id),
+                    )
                 except PluginError as error:
-                    errors.append(_sample_error(source, output_index, error.to_dict()))
+                    checkpoint.errors.append(_sample_error(source, output_index, error.to_dict()))
+                    _report_progress(
+                        progress_reporter,
+                        stage="running",
+                        total_sources=source_count,
+                        processed_sources=checkpoint.processed_count,
+                        planned_outputs=planned_outputs,
+                        created_outputs=len(checkpoint.created_sample_ids),
+                        skipped_sources=checkpoint.skipped_count,
+                        errors=len(checkpoint.errors),
+                    )
                 else:
-                    created_sample_ids.append(created_sample_id)
-                    try:
-                        _save_current_manifest(
-                            run_store=run_store,
-                            run_key=run_key,
-                            config=config,
-                            source_sample_ids=source_sample_ids,
-                            created_sample_ids=created_sample_ids,
-                            output_paths=output_paths,
-                            replay_records=replay_records,
-                            processed_count=len(source_inputs),
-                            skipped_count=skipped_count,
-                            errors=errors,
-                            output_dir=run_dir,
-                            output_tag=output_tag,
-                            annotation_metadata=annotation_metadata,
-                            run_label=run_label,
-                            run_label_slug=run_label_slug,
+                    checkpoint.output_paths.extend(output.manifest_relative_paths)
+                    checkpoint.replay_records.append(output.replay_record)
+                    manifest = checkpoint.prepared(output)
+                    _raise_if_cancelled(cancellation_checker)
+                    error = checkpoint.commit_sample(adapter, output, manifest)
+                    if error is not None:
+                        checkpoint.errors.append(_sample_error(source, output_index, error.to_dict()))
+                        _report_progress(
+                            progress_reporter,
+                            stage="running",
+                            total_sources=source_count,
+                            processed_sources=checkpoint.processed_count,
+                            planned_outputs=planned_outputs,
+                            created_outputs=len(checkpoint.created_sample_ids),
+                            skipped_sources=checkpoint.skipped_count,
+                            errors=len(checkpoint.errors),
                         )
-                    except PluginError:
-                        _delete_created_sample(dataset, created_sample_id)
-                        created_sample_ids.pop()
-                        raise
-                    checkpoint_current_state = False
-            if checkpoint_current_state:
-                _save_current_manifest(
-                    run_store=run_store,
-                    run_key=run_key,
-                    config=config,
-                    source_sample_ids=source_sample_ids,
-                    created_sample_ids=created_sample_ids,
-                    output_paths=output_paths,
-                    replay_records=replay_records,
-                    processed_count=len(source_inputs),
-                    skipped_count=skipped_count,
-                    errors=errors,
-                    output_dir=run_dir,
-                    output_tag=output_tag,
-                    annotation_metadata=annotation_metadata,
-                    run_label=run_label,
-                    run_label_slug=run_label_slug,
-                )
-        if len(created_sample_ids) == created_before_sample:
-            skipped_count += 1
-            _save_current_manifest(
-                run_store=run_store,
-                run_key=run_key,
-                config=config,
-                source_sample_ids=source_sample_ids,
-                created_sample_ids=created_sample_ids,
-                output_paths=output_paths,
-                replay_records=replay_records,
-                processed_count=len(source_inputs),
-                skipped_count=skipped_count,
-                errors=errors,
-                output_dir=run_dir,
-                output_tag=output_tag,
-                annotation_metadata=annotation_metadata,
-                run_label=run_label,
-                run_label_slug=run_label_slug,
+                    else:
+                        checkpoint_current_state = False
+                        _report_progress(
+                            progress_reporter,
+                            stage="running",
+                            total_sources=source_count,
+                            processed_sources=checkpoint.processed_count,
+                            planned_outputs=planned_outputs,
+                            created_outputs=len(checkpoint.created_sample_ids),
+                            skipped_sources=checkpoint.skipped_count,
+                            errors=len(checkpoint.errors),
+                        )
+                if checkpoint_current_state:
+                    checkpoint.save(execution_status=RUN_EXECUTION_STATUS_RUNNING)
+            if len(checkpoint.created_sample_ids) == created_before_sample:
+                checkpoint.skipped_count += 1
+                checkpoint.save(execution_status=RUN_EXECUTION_STATUS_RUNNING)
+            _report_progress(
+                progress_reporter,
+                stage="running",
+                total_sources=source_count,
+                processed_sources=checkpoint.processed_count,
+                planned_outputs=planned_outputs,
+                created_outputs=len(checkpoint.created_sample_ids),
+                skipped_sources=checkpoint.skipped_count,
+                errors=len(checkpoint.errors),
             )
+    except AugmentationCancelledError as error:
+        return _cancelled_result(
+            checkpoint=checkpoint,
+            dataset=dataset,
+            source_count=source_count,
+            planned_outputs=planned_outputs,
+            progress_reporter=progress_reporter,
+            cancellation_error=error,
+        )
+    except KeyboardInterrupt:
+        return _cancelled_result(
+            checkpoint=checkpoint,
+            dataset=dataset,
+            source_count=source_count,
+            planned_outputs=planned_outputs,
+            progress_reporter=progress_reporter,
+            cancellation_error=AugmentationCancelledError(
+                message="Augmentation was interrupted before completion.",
+                context={"reason": "keyboard_interrupt"},
+            ),
+        )
 
-    final_manifest = _save_current_manifest(
-        run_store=run_store,
-        run_key=run_key,
-        config=config,
-        source_sample_ids=source_sample_ids,
-        created_sample_ids=created_sample_ids,
-        output_paths=output_paths,
-        replay_records=replay_records,
-        processed_count=len(source_inputs),
-        skipped_count=skipped_count,
-        errors=errors,
-        output_dir=run_dir,
-        output_tag=output_tag,
-        annotation_metadata=annotation_metadata,
-        run_label=run_label,
-        run_label_slug=run_label_slug,
+    execution_status = terminal_execution_status(
+        succeeded=len(checkpoint.created_sample_ids), errors=len(checkpoint.errors)
     )
+    final_manifest = checkpoint.save(processed_count=source_count, execution_status=execution_status)
     manifest_path = run_store.manifest_path(run_key)
     fiftyone_run_key = register_fiftyone_run(dataset, final_manifest, manifest_path=manifest_path)
+    _report_progress(
+        progress_reporter,
+        stage="complete" if execution_status == RUN_EXECUTION_STATUS_COMPLETED else execution_status,
+        total_sources=source_count,
+        processed_sources=source_count,
+        planned_outputs=planned_outputs,
+        created_outputs=len(checkpoint.created_sample_ids),
+        skipped_sources=checkpoint.skipped_count,
+        errors=len(checkpoint.errors),
+    )
 
     return FixedAugmentationExecutionResult(
         run_key=run_key,
-        processed_count=len(source_inputs),
-        created_count=len(created_sample_ids),
-        skipped_count=skipped_count,
-        error_count=len(errors),
+        source_scope=source_scope,
+        processed_count=source_count,
+        created_count=len(checkpoint.created_sample_ids),
+        skipped_count=checkpoint.skipped_count,
+        error_count=len(checkpoint.errors),
         dry_run=False,
         output_tag=output_tag,
         output_dir=str(run_dir),
+        execution_status=execution_status,
         manifest_path=str(manifest_path),
         fiftyone_run_key=fiftyone_run_key,
-        errors=tuple(errors),
+        errors=tuple(checkpoint.errors),
+        metadata_policy=policy_from_annotation_metadata(annotation_metadata),
     )
 
 
-def _save_current_manifest(
+def _cancelled_result(
     *,
-    run_store: FileRunStore,
-    run_key: str,
-    config: PipelineConfig,
-    source_sample_ids: tuple[str, ...],
-    created_sample_ids: list[str],
-    output_paths: list[str],
-    replay_records: list[JSONDict],
-    processed_count: int,
-    skipped_count: int,
-    errors: list[JSONDict],
-    output_dir: Path,
-    output_tag: str,
-    annotation_metadata: Mapping[str, object] | None = None,
-    run_label: str = "",
-    run_label_slug: str = "",
-) -> RunManifest:
-    manifest = _manifest(
-        run_key=run_key,
-        config=config,
-        source_sample_ids=source_sample_ids,
-        created_sample_ids=tuple(created_sample_ids),
-        output_paths=tuple(output_paths),
-        replay_records=tuple(replay_records),
-        processed_count=processed_count,
-        skipped_count=skipped_count,
-        errors=tuple(errors),
-        output_dir=output_dir,
-        output_tag=output_tag,
-        annotation_metadata=annotation_metadata,
-        run_label=run_label,
-        run_label_slug=run_label_slug,
+    dataset: fo.Dataset,
+    checkpoint: RunCheckpoint,
+    source_count: int,
+    planned_outputs: int,
+    progress_reporter: ProgressReporter,
+    cancellation_error: AugmentationCancelledError,
+) -> FixedAugmentationExecutionResult:
+    checkpoint.errors.append(cancellation_error.to_dict())
+    cancelled_at = _utc_now()
+    final_manifest = checkpoint.save(execution_status=RUN_EXECUTION_STATUS_CANCELLED, cancelled_at=cancelled_at)
+    manifest_path = checkpoint.run_store.manifest_path(checkpoint.run_key)
+    fiftyone_run_key = register_fiftyone_run(dataset, final_manifest, manifest_path=manifest_path)
+    _report_progress(
+        progress_reporter,
+        stage="cancelled",
+        total_sources=source_count,
+        processed_sources=checkpoint.processed_count,
+        planned_outputs=planned_outputs,
+        created_outputs=len(checkpoint.created_sample_ids),
+        skipped_sources=checkpoint.skipped_count,
+        errors=len(checkpoint.errors),
     )
-    run_store.save_manifest(manifest)
-    return manifest
+    return FixedAugmentationExecutionResult(
+        run_key=checkpoint.run_key,
+        source_scope=checkpoint.source_scope,
+        processed_count=checkpoint.processed_count,
+        created_count=len(checkpoint.created_sample_ids),
+        skipped_count=checkpoint.skipped_count,
+        error_count=len(checkpoint.errors),
+        dry_run=False,
+        output_tag=checkpoint.output_tag,
+        output_dir=str(checkpoint.output_dir),
+        execution_status=RUN_EXECUTION_STATUS_CANCELLED,
+        manifest_path=str(manifest_path),
+        fiftyone_run_key=fiftyone_run_key,
+        errors=tuple(checkpoint.errors),
+        metadata_policy=policy_from_annotation_metadata(checkpoint.annotation_metadata),
+    )
 
 
-def _checkpoint_prepared_output(
+def _report_progress(
+    progress_reporter: ProgressReporter,
     *,
-    run_store: FileRunStore,
-    run_key: str,
-    config: PipelineConfig,
-    source_sample_ids: tuple[str, ...],
-    created_sample_ids: list[str],
-    output_paths: list[str],
-    replay_records: list[JSONDict],
-    processed_count: int,
-    skipped_count: int,
-    errors: list[JSONDict],
-    output_dir: Path,
-    output_tag: str,
-    output: _PreparedOutput,
-    annotation_metadata: Mapping[str, object] | None = None,
-    run_label: str = "",
-    run_label_slug: str = "",
-) -> RunManifest:
+    stage: str,
+    total_sources: int,
+    processed_sources: int,
+    planned_outputs: int,
+    created_outputs: int,
+    skipped_sources: int,
+    errors: int,
+    dry_run: bool = False,
+) -> None:
     try:
-        return _save_current_manifest(
-            run_store=run_store,
-            run_key=run_key,
-            config=config,
-            source_sample_ids=source_sample_ids,
-            created_sample_ids=created_sample_ids,
-            output_paths=output_paths,
-            replay_records=replay_records,
-            processed_count=processed_count,
-            skipped_count=skipped_count,
-            errors=errors,
-            output_dir=output_dir,
-            output_tag=output_tag,
-            annotation_metadata=annotation_metadata,
-            run_label=run_label,
-            run_label_slug=run_label_slug,
+        progress_reporter.report(
+            AugmentationProgress(
+                stage=stage,
+                total_sources=total_sources,
+                processed_sources=processed_sources,
+                planned_outputs=planned_outputs,
+                created_outputs=created_outputs,
+                skipped_sources=skipped_sources,
+                errors=errors,
+                dry_run=dry_run,
+            )
         )
-    except PluginError:
-        output_paths.pop()
-        replay_records.pop()
-        _delete_pre_manifest_output_file(output_dir, output.relative_path)
-        raise
-
-
-def _delete_pre_manifest_output_file(run_dir: Path, relative_path: str) -> None:
-    try:
-        resolve_manifest_output_path(run_dir, relative_path).unlink(missing_ok=True)
-    except (MediaIOError, OSError):
-        return
-
-
-def _delete_created_sample(dataset: fo.Dataset, sample_id: str) -> None:
-    try:
-        dataset.delete_samples((sample_id,))
     except Exception:
+        _LOGGER.debug("Error while reporting augmentation progress", exc_info=True)
         return
-
-
-@dataclass(frozen=True, slots=True)
-class _PreparedOutput:
-    result: AugmentationResult
-    relative_path: str
-    replay_record: JSONDict
 
 
 def _prepare_one_output(
     *,
     source: AugmentationInput,
     pipeline: FixedImagePipeline,
+    config: PipelineConfig,
     run_dir: Path,
     output_index: int,
-) -> _PreparedOutput:
-    loaded = load_rgb_image(source.filepath)
-    source_annotation_payload = _source_annotation_payload(source)
-    annotation_targets = target_data_from_annotation_payload(source_annotation_payload, loaded.data.shape)
-    pipeline_result = pipeline.apply(loaded.data, targets=annotation_targets.values)
-    transformed_labels = transformed_annotation_payload(
-        source_annotation_payload,
-        annotation_targets,
-        pipeline_result.targets,
-        pipeline_result.image.shape,
-    )
-    relative_path = build_output_image_relative_path(
-        source.filepath,
-        sample_id=source.sample_id,
+    external_targets: Mapping[str, object] | None = None,
+    external_input_metadata: Mapping[str, object] | None = None,
+) -> PreparedOutput:
+    return prepare_output(
+        source=source,
+        pipeline=pipeline,
+        config=config,
+        run_dir=run_dir,
         output_index=output_index,
+        external_targets=external_targets,
+        external_input_metadata=external_input_metadata,
     )
-    written_path = write_rgb_image(pipeline_result.image, run_dir, relative_path)
-    replay = pipeline_result.replay
-    relative_path_text = relative_path.as_posix()
-    return _PreparedOutput(
-        result=AugmentationResult(
-            source_sample_id=source.sample_id,
-            output_filepath=str(written_path),
-            labels=transformed_labels,
-            replay=replay,
-            metadata={
-                "output_index": output_index,
-                "output_relative_path": relative_path_text,
-                "annotations": _annotation_result_metadata(transformed_labels),
-            },
-        ),
-        relative_path=relative_path_text,
-        replay_record=_replay_record(
-            source=source,
-            output_index=output_index,
-            relative_path=relative_path_text,
-            replay=replay,
-            annotation_metadata=_annotation_result_metadata(transformed_labels),
-        ),
-    )
-
-
-def _manifest(
-    *,
-    run_key: str,
-    config: PipelineConfig,
-    source_sample_ids: tuple[str, ...],
-    created_sample_ids: tuple[str, ...],
-    output_paths: tuple[str, ...],
-    replay_records: tuple[JSONDict, ...],
-    processed_count: int,
-    skipped_count: int,
-    errors: tuple[JSONDict, ...],
-    output_dir: Path,
-    output_tag: str,
-    annotation_metadata: Mapping[str, object] | None = None,
-    run_label: str = "",
-    run_label_slug: str = "",
-) -> RunManifest:
-    counters = {
-        "processed": processed_count,
-        "created": len(created_sample_ids),
-        "skipped": skipped_count,
-        "errors": len(errors),
-        "outputs": len(output_paths),
-    }
-    metadata: JSONDict = {
-        "output_dir": str(output_dir),
-        "output_tag": output_tag,
-        "manifest_filename": "manifest.json",
-        "fiftyone_run_key": build_fiftyone_run_key(run_key),
-    }
-    if annotation_metadata is not None:
-        metadata["annotations"] = normalize_json_mapping(annotation_metadata)
-    if run_label_slug:
-        metadata[RUN_LABEL_FIELD_NAME] = run_label
-        metadata[RUN_LABEL_SLUG_METADATA_KEY] = run_label_slug
-
-    return RunManifest(
-        run_key=run_key,
-        plugin_version=albumentationsx_plugin.__version__,
-        dependency_versions={
-            "albumentationsx": _dependency_version("albumentationsx"),
-            "albu-spec": _dependency_version("albu-spec"),
-            "fiftyone": _dependency_version("fiftyone"),
-        },
-        pipeline=config,
-        source_sample_ids=source_sample_ids,
-        created_sample_ids=created_sample_ids,
-        output_paths=output_paths,
-        replay_records=replay_records,
-        counters=counters,
-        errors=errors,
-        metadata=metadata,
-    )
-
-
-def _dependency_version(package_name: str) -> str:
-    try:
-        return importlib.metadata.version(package_name)
-    except importlib.metadata.PackageNotFoundError:
-        return "0+unknown"
 
 
 def _bool_param(params: Mapping[str, object], parameter_name: str, *, default: bool) -> bool:
@@ -524,52 +414,9 @@ def _sample_error(source: AugmentationInput, output_index: int, error: JSONDict)
     return error
 
 
-def _source_annotation_payload(source: AugmentationInput) -> Mapping[str, object]:
-    value = source.metadata.get(ANNOTATION_PAYLOAD_KEY)
-    return value if isinstance(value, Mapping) else {}
+def _raise_if_cancelled(cancellation_checker: CancellationChecker) -> None:
+    cancellation_checker.raise_if_cancelled()
 
 
-def _annotation_run_metadata(source_inputs: Sequence[AugmentationInput]) -> JSONDict:
-    fields = sorted({field_name for source in source_inputs for field_name in source.selected_label_fields})
-    excluded_fields: list[JSONDict] = []
-    seen_excluded: set[tuple[str, str]] = set()
-    for source in source_inputs:
-        value = source.metadata.get(ANNOTATION_EXCLUDED_FIELDS_KEY)
-        if not isinstance(value, list | tuple):
-            continue
-        for item in value:
-            if not isinstance(item, Mapping):
-                continue
-            field_name = str(item.get("field_name", ""))
-            reason = str(item.get("reason", ""))
-            key = (field_name, reason)
-            if key in seen_excluded:
-                continue
-            excluded_fields.append(normalize_json_mapping(item))
-            seen_excluded.add(key)
-
-    return normalize_json_mapping({"fields": fields, "excluded_fields": excluded_fields})
-
-
-def _annotation_result_metadata(labels: Mapping[str, object]) -> JSONDict:
-    value = labels.get("metadata")
-    return normalize_json_mapping(value) if isinstance(value, Mapping) else {}
-
-
-def _replay_record(
-    *,
-    source: AugmentationInput,
-    output_index: int,
-    relative_path: str,
-    replay: JSONDict,
-    annotation_metadata: Mapping[str, object] | None = None,
-) -> JSONDict:
-    record: JSONDict = {
-        "source_sample_id": source.sample_id,
-        "output_index": output_index,
-        "output_path": relative_path,
-        "replay": replay,
-    }
-    if annotation_metadata:
-        record["annotations"] = normalize_json_mapping(annotation_metadata)
-    return record
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

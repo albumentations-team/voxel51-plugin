@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 
 from albumentationsx_plugin.hosts.fiftyone.form_params import (
+    ANNOTATION_FIELD_GROUP_NAME,
+    flatten_fiftyone_form_groups,
     flatten_stage_parameter_groups,
     stage_parameter_group_name,
 )
@@ -31,4 +33,23 @@ def test_flatten_stage_parameter_groups_preserves_execution_field_names() -> Non
         "p": 0.8,
         "step_2_height": 24,
         "step_2_width": 20,
+    }
+
+
+@pytest.mark.unit
+def test_flatten_fiftyone_form_groups_preserves_annotation_checkbox_values() -> None:
+    params = {
+        "transform": "HorizontalFlip",
+        stage_parameter_group_name(1): {"p": 0.8},
+        ANNOTATION_FIELD_GROUP_NAME: {
+            "annotation_field__ZGV0ZWN0aW9ucw": True,
+            "annotation_field__aGVhdG1hcA": False,
+        },
+    }
+
+    assert flatten_fiftyone_form_groups(params) == {
+        "transform": "HorizontalFlip",
+        "p": 0.8,
+        "annotation_field__ZGV0ZWN0aW9ucw": True,
+        "annotation_field__aGVhdG1hcA": False,
     }

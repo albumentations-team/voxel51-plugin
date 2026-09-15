@@ -24,6 +24,7 @@ SUPPORTED_FIELD_KINDS: Final[frozenset[FieldKind]] = frozenset(
     },
 )
 UNSUPPORTED_REQUIRED_SCHEMA_STATUS: Final[str] = "unsupported_required"
+JSON_STRING_DEFAULT_METADATA_KEY: Final[str] = "json_string_default"
 OPENCV_INTERPOLATION_LABELS: Final[dict[int, str]] = {
     0: "Nearest",
     1: "Linear",
@@ -231,6 +232,9 @@ def _json_property_kwargs(field: FormFieldSchema, kwargs: dict[str, object]) -> 
 
 
 def _json_string_default(field: FormFieldSchema) -> str:
+    raw_string_default = field.metadata.get(JSON_STRING_DEFAULT_METADATA_KEY)
+    if isinstance(raw_string_default, str):
+        return raw_string_default
     if field.default is None:
         return ""
     return json.dumps(field.default, sort_keys=True)

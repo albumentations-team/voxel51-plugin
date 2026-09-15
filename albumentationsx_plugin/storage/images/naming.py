@@ -30,12 +30,40 @@ def build_output_image_relative_path(
     return Path("images") / filename
 
 
+def build_output_mask_relative_path(
+    source_filepath: str | PathLike[str],
+    *,
+    sample_id: str,
+    output_index: int,
+    field_name: str,
+    extension: str = ".png",
+) -> Path:
+    """Build a deterministic run-manifest relative path for one output mask."""
+
+    if output_index < 0:
+        raise ValueError("output_index must be greater than or equal to zero")
+
+    normalized_extension = _normalize_mask_extension(extension)
+    source_stem = _safe_component(Path(source_filepath).stem, default="image")
+    sample_component = _safe_component(sample_id, default="sample")
+    field_component = _safe_component(field_name, default="field")
+    filename = f"{source_stem}-{sample_component}-{output_index:04d}-{field_component}{normalized_extension}"
+    return Path("masks") / filename
+
+
 def _normalize_extension(extension: str) -> str:
     normalized = extension.lower()
     if not normalized.startswith("."):
         normalized = f".{normalized}"
     if normalized not in SUPPORTED_OUTPUT_EXTENSIONS:
         raise ValueError(f"Unsupported output image extension: {extension}")
+    return normalized
+
+
+def _normalize_mask_extension(extension: str) -> str:
+    normalized = _normalize_extension(extension)
+    if normalized != ".png":
+        raise ValueError(f"Unsupported output mask extension: {extension}")
     return normalized
 
 

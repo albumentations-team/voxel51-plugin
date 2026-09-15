@@ -1,12 +1,25 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from types import SimpleNamespace
 
 import pytest
 
-from albumentationsx_plugin.core import PipelineConfig, RunManifest, TransformConfig
+from albumentationsx_plugin.core import (
+    RUN_EXECUTION_CANCELLED_AT_METADATA_KEY,
+    RUN_EXECUTION_STATUS_CANCELLED,
+    RUN_EXECUTION_STATUS_COMPLETED,
+    RUN_EXECUTION_STATUS_METADATA_KEY,
+    PipelineConfig,
+    RunManifest,
+    TransformConfig,
+)
 from albumentationsx_plugin.hosts.fiftyone.run_summary import (
+    RUN_OUTPUT_STATUS_AVAILABLE,
+    RUN_OUTPUT_STATUS_CLEANED,
+    RUN_OUTPUT_STATUS_MISSING_FILE,
+    RUN_STATUS_CANCELLED,
     RUN_STATUS_CLEANED,
     RUN_STATUS_INVALID,
     RUN_STATUS_MISSING,
@@ -64,11 +77,14 @@ def _manifest(
     run_label_slug: str = "",
     cleanup_status: str = "",
     cleaned_at: str = "",
+    execution_status: str = RUN_EXECUTION_STATUS_COMPLETED,
+    cancelled_at: str = "",
 ) -> RunManifest:
     metadata = {
         "output_dir": "/tmp/outputs",
         "output_tag": "albumentationsx-output",
         "fiftyone_run_key": build_fiftyone_run_key(run_key),
+        RUN_EXECUTION_STATUS_METADATA_KEY: execution_status,
     }
     if run_label_slug:
         metadata["run_label"] = run_label
@@ -77,6 +93,8 @@ def _manifest(
         metadata["cleanup_status"] = cleanup_status
     if cleaned_at:
         metadata["cleaned_at"] = cleaned_at
+    if cancelled_at:
+        metadata[RUN_EXECUTION_CANCELLED_AT_METADATA_KEY] = cancelled_at
 
     return RunManifest(
         run_key=run_key,
@@ -104,7 +122,7 @@ def _manifest(
 
 @pytest.mark.unit
 def test_build_run_summary_reads_values_from_manifest(tmp_path) -> None:
-    dataset = _Dataset()
+    dataset = _Dataset(sample_ids=("created-1",))
     store = FileRunStore(dataset.name, storage_root=tmp_path)
     manifest = _manifest()
     store.save_manifest(manifest)
@@ -127,10 +145,174 @@ def test_build_run_summary_reads_values_from_manifest(tmp_path) -> None:
     assert summary.output_tag == "albumentationsx-output"
     assert summary.cleanup_status == ""
     assert summary.cleaned_at == ""
+    assert summary.execution_status == RUN_EXECUTION_STATUS_COMPLETED
+    assert summary.cancelled_at == ""
     assert summary.run_label == ""
     assert summary.run_label_slug == ""
     assert summary.pipeline_summary == "HorizontalFlip(p=1.0)"
     assert '"HorizontalFlip"' in summary.pipeline_config_json
+    assert summary.generated_sample_ids == ("created-1",)
+    assert summary.available_generated_sample_ids == ("created-1",)
+    assert len(summary.generated_outputs) == 1
+    output = summary.generated_outputs[0]
+    assert output.status == RUN_OUTPUT_STATUS_AVAILABLE
+    assert output.source_sample_id == "source-1"
+    assert output.output_index == 0
+    assert output.output_path == "images/output.png"
+    assert output.generated_sample_id == "created-1"
+    assert output.generated_sample_available is True
+    assert output.output_file_available is True
+    assert output.replay_available is True
+    assert output.replay_record == {
+        "source_sample_id": "source-1",
+        "output_index": 0,
+        "output_path": "images/output.png",
+        "replay": {"applied": True},
+    }
+    assert summary.selected_output == output
+    summary_json = summary.to_dict()
+    assert json.loads(str(summary_json["generated_sample_ids_json"])) == ["created-1"]
+    assert json.loads(str(summary_json["available_generated_sample_ids_json"])) == ["created-1"]
+    assert json.loads(str(summary_json["selected_replay_json"]))["replay"] == {"applied": True}
+    assert summary_json["execution_status"] == RUN_EXECUTION_STATUS_COMPLETED
+    assert summary_json["cancelled_at"] == ""
+
+
+@pytest.mark.unit
+def test_build_run_summary_reports_cancelled_partial_run(tmp_path) -> None:
+    dataset = _Dataset(sample_ids=("created-1",))
+    store = FileRunStore(dataset.name, storage_root=tmp_path)
+    manifest = _manifest(
+        execution_status=RUN_EXECUTION_STATUS_CANCELLED,
+        cancelled_at="2026-08-19T12:00:00Z",
+    )
+    store.save_manifest(manifest)
+    output_path = store.run_dir(manifest.run_key) / "images/output.png"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(b"fake image bytes")
+
+    summary = build_run_summary(dataset, manifest.run_key, storage_root=tmp_path)
+
+    assert summary.status == RUN_STATUS_CANCELLED
+    assert "cancelled" in summary.message
+    assert summary.execution_status == RUN_EXECUTION_STATUS_CANCELLED
+    assert summary.cancelled_at == "2026-08-19T12:00:00Z"
+    assert summary.available_output_count == 1
+    assert summary.generated_sample_ids == ("created-1",)
+
+
+@pytest.mark.unit
+def test_build_run_summary_selects_requested_output_replay(tmp_path) -> None:
+    dataset = _Dataset(sample_ids=("created-1", "created-2"))
+    store = FileRunStore(dataset.name, storage_root=tmp_path)
+    manifest = RunManifest(
+        run_key="albumentationsx-20260731T150000Z-summary",
+        plugin_version="0.0.0",
+        dependency_versions={"albumentationsx": "2.3.7", "albu-spec": "0.0.6", "fiftyone": "1.19.0"},
+        pipeline=PipelineConfig(
+            transforms=(TransformConfig(name="HorizontalFlip", params={"p": 1.0}),),
+            outputs_per_sample=2,
+        ),
+        source_sample_ids=("source-1",),
+        created_sample_ids=("created-1", "created-2"),
+        output_paths=("images/output-1.png", "images/output-2.png"),
+        replay_records=(
+            {
+                "source_sample_id": "source-1",
+                "output_index": 0,
+                "output_path": "images/output-1.png",
+                "replay": {"output": 1},
+            },
+            {
+                "source_sample_id": "source-1",
+                "output_index": 1,
+                "output_path": "images/output-2.png",
+                "replay": {"output": 2},
+            },
+        ),
+        counters={"processed": 1, "created": 2, "skipped": 0, "errors": 0, "outputs": 2},
+        metadata={
+            "output_dir": "/tmp/outputs",
+            "output_tag": "albumentationsx-output",
+            "fiftyone_run_key": build_fiftyone_run_key("albumentationsx-20260731T150000Z-summary"),
+        },
+    )
+    store.save_manifest(manifest)
+    for relative_path in manifest.output_paths:
+        output_path = store.run_dir(manifest.run_key) / relative_path
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"fake image bytes")
+
+    requested_key = "1|source-1|1|images/output-2.png"
+    summary = build_run_summary(dataset, manifest.run_key, storage_root=tmp_path, selected_output_key=requested_key)
+
+    assert summary.selected_output_key == requested_key
+    assert summary.selected_output is not None
+    assert summary.selected_output.output_index == 1
+    assert summary.selected_output.replay_record == {
+        "source_sample_id": "source-1",
+        "output_index": 1,
+        "output_path": "images/output-2.png",
+        "replay": {"output": 2},
+    }
+    assert json.loads(str(summary.to_dict()["selected_replay_json"]))["replay"] == {"output": 2}
+
+
+@pytest.mark.unit
+def test_build_run_summary_keeps_annotation_assets_with_their_generated_output(tmp_path) -> None:
+    dataset = _Dataset(sample_ids=("created-1",))
+    store = FileRunStore(dataset.name, storage_root=tmp_path)
+    run_key = "albumentationsx-20260731T150000Z-summary-assets"
+    manifest = RunManifest(
+        run_key=run_key,
+        plugin_version="0.0.0",
+        dependency_versions={"albumentationsx": "2.3.7", "albu-spec": "0.0.6", "fiftyone": "1.19.0"},
+        pipeline=PipelineConfig(
+            transforms=(TransformConfig(name="HorizontalFlip", params={"p": 1.0}),),
+            outputs_per_sample=1,
+        ),
+        source_sample_ids=("source-1",),
+        created_sample_ids=("created-1",),
+        output_paths=("images/output.png", "masks/output-segmentation.png"),
+        replay_records=(
+            {
+                "source_sample_id": "source-1",
+                "output_index": 0,
+                "output_path": "images/output.png",
+                "annotation_asset_paths": ["masks/output-segmentation.png"],
+                "replay": {"applied": True},
+            },
+        ),
+        counters={"processed": 1, "created": 1, "skipped": 0, "errors": 0, "outputs": 1, "output_files": 2},
+        metadata={
+            "output_dir": "/tmp/outputs",
+            "output_tag": "albumentationsx-output",
+            "fiftyone_run_key": build_fiftyone_run_key(run_key),
+        },
+    )
+    store.save_manifest(manifest)
+    for relative_path in manifest.output_paths:
+        output_path = store.run_dir(manifest.run_key) / relative_path
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"fake bytes")
+
+    summary = build_run_summary(dataset, manifest.run_key, storage_root=tmp_path)
+
+    assert summary.output_count == 1
+    assert summary.available_output_count == 1
+    assert summary.missing_output_count == 0
+    assert len(summary.generated_outputs) == 1
+    assert summary.generated_outputs[0].output_path == "images/output.png"
+    assert summary.generated_outputs[0].status == RUN_OUTPUT_STATUS_AVAILABLE
+
+    (store.run_dir(manifest.run_key) / "masks/output-segmentation.png").unlink()
+    stale_summary = build_run_summary(dataset, manifest.run_key, storage_root=tmp_path)
+
+    assert stale_summary.status == RUN_STATUS_STALE
+    assert stale_summary.output_count == 1
+    assert stale_summary.available_output_count == 0
+    assert stale_summary.missing_output_count == 1
+    assert stale_summary.generated_outputs[0].status == RUN_OUTPUT_STATUS_MISSING_FILE
 
 
 @pytest.mark.unit
@@ -167,6 +349,9 @@ def test_build_run_summary_reports_cleaned_manifest(tmp_path) -> None:
     assert summary.cleaned_at == "2026-07-31T15:00:00Z"
     assert summary.to_dict()["cleanup_status"] == "cleaned"
     assert summary.to_dict()["cleaned_at"] == "2026-07-31T15:00:00Z"
+    assert summary.generated_outputs[0].status == RUN_OUTPUT_STATUS_CLEANED
+    assert summary.generated_outputs[0].replay_available is True
+    assert json.loads(str(summary.to_dict()["selected_replay_json"]))["replay"] == {"applied": True}
 
 
 @pytest.mark.unit
@@ -182,6 +367,8 @@ def test_build_run_summary_reports_stale_missing_outputs(tmp_path) -> None:
     assert summary.available_output_count == 0
     assert summary.missing_output_count == 1
     assert "output file(s) are missing" in summary.message
+    assert summary.generated_outputs[0].status == RUN_OUTPUT_STATUS_MISSING_FILE
+    assert summary.generated_outputs[0].output_file_available is False
 
 
 @pytest.mark.unit

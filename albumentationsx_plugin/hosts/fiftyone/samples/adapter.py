@@ -46,6 +46,7 @@ class FiftyOneSampleAdapter:
     view: Any | None = None
     selected_sample_ids: Sequence[str] = ()
     selected_label_fields: Sequence[str] = ()
+    include_all_label_fields: bool = True
     output_tag: str = DEFAULT_OUTPUT_TAG
     _selected_sample_ids: tuple[str, ...] = field(init=False, repr=False)
     _selected_label_fields: tuple[str, ...] = field(init=False, repr=False)
@@ -74,6 +75,7 @@ class FiftyOneSampleAdapter:
         label_fields, excluded_label_fields = resolve_annotation_fields(
             self.dataset,
             selected_label_fields=self._selected_label_fields,
+            include_all_label_fields=self.include_all_label_fields,
         )
 
         if not self._selected_sample_ids:
@@ -87,11 +89,8 @@ class FiftyOneSampleAdapter:
             return
 
         samples_by_id: dict[str, fo.Sample] = {}
-        selected_ids = set(self._selected_sample_ids)
-        for sample in collection:
-            sample_id = str(sample.id)
-            if sample_id in selected_ids:
-                samples_by_id[sample_id] = sample
+        for sample in collection.select(self._selected_sample_ids):
+            samples_by_id[str(sample.id)] = sample
 
         missing_ids = tuple(sample_id for sample_id in self._selected_sample_ids if sample_id not in samples_by_id)
         if missing_ids:
@@ -211,7 +210,7 @@ def _ensure_image_collection(collection: Any) -> None:
     if media_type not in (None, IMAGE_MEDIA_TYPE):
         raise HostAdapterError(
             host=FIFTYONE_HOST_NAME,
-            message="Only image datasets are supported by the AlbumentationsX MVP adapter.",
+            message="Only image datasets are supported by the AlbumentationsX adapter.",
             context={
                 "reason": "unsupported_media_type",
                 "dataset_name": dataset_name,

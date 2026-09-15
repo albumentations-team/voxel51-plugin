@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -129,6 +130,13 @@ def test_delete_run_operator_removes_outputs_without_touching_source_and_is_idem
         assert view_summary["status"] == RUN_STATUS_CLEANED
         assert view_summary["cleanup_status"] == "cleaned"
         assert isinstance(view_summary["cleaned_at"], str)
+        cleaned_outputs = json.loads(str(view_summary["generated_outputs_json"]))
+        cleaned_replay = json.loads(str(view_summary["selected_replay_json"]))
+        assert cleaned_outputs[0]["status"] == "cleaned"
+        assert cleaned_outputs[0]["generated_sample_available"] is False
+        assert cleaned_outputs[0]["output_file_available"] is False
+        assert cleaned_replay["source_sample_id"] == source_id
+        assert isinstance(cleaned_replay["replay"], dict)
 
         repeated_result = DeleteAlbumentationsXRun().execute(context)
 

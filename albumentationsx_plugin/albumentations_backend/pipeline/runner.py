@@ -15,6 +15,7 @@ from albumentationsx_plugin.core import InvalidParameterError, JSONDict, Pipelin
 
 RGBArray: TypeAlias = npt.NDArray[np.uint8]
 _ImageShape: TypeAlias = tuple[int, int, int]
+_IMAGE_SEQUENCE_TARGETS = frozenset({"heatmaps"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +47,7 @@ class AlbumentationsImagePipelineRunner:
         target_values = dict(targets or {})
         compose = A.ReplayCompose(
             list(self.transforms),
+            additional_targets=_additional_targets(target_values),
             bbox_params=_bbox_params(target_values),
             keypoint_params=_keypoint_params(target_values),
             seed=self.config.seed,
@@ -136,6 +138,10 @@ def _keypoint_params(targets: Mapping[str, object]) -> A.KeypointParams | None:
         remove_invisible=True,
         label_mapping={},
     )
+
+
+def _additional_targets(targets: Mapping[str, object]) -> dict[str, str]:
+    return {name: "images" for name in targets if name in _IMAGE_SEQUENCE_TARGETS}
 
 
 def _output_targets(output: Mapping[str, Any], input_targets: Mapping[str, object]) -> dict[str, object]:

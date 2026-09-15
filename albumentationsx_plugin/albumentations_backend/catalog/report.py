@@ -6,6 +6,7 @@ from collections import Counter, defaultdict
 
 from albumentationsx_plugin.albumentations_backend.catalog.classification import is_mvp_supported_status
 from albumentationsx_plugin.albumentations_backend.catalog.provider import AlbuSpecCatalogProvider
+from albumentationsx_plugin.core import CapabilityStatus
 
 
 def build_capability_report(provider: AlbuSpecCatalogProvider | None = None) -> str:
@@ -20,6 +21,19 @@ def build_capability_report(provider: AlbuSpecCatalogProvider | None = None) -> 
     names_by_status: dict[str, list[str]] = defaultdict(list)
     for capability in capabilities:
         names_by_status[capability.status.value].append(capability.name)
+    json_editable_advanced_names = [
+        capability.name
+        for capability in capabilities
+        if capability.status is CapabilityStatus.SUPPORTED_WITH_DEFAULTS and capability.advanced_parameters
+    ]
+    external_input_lines = [
+        f"- {capability.name}: "
+        + ", ".join(
+            f"{external_input.name} ({external_input.kind.value})" for external_input in capability.external_inputs
+        )
+        for capability in capabilities
+        if capability.external_inputs
+    ]
 
     version_key = (
         f"albumentationsx-{catalog.version_info['albumentationsx']}__albu-spec-{catalog.version_info['albu_spec']}"
@@ -34,6 +48,14 @@ def build_capability_report(provider: AlbuSpecCatalogProvider | None = None) -> 
     ]
     for status_name, count in sorted(status_counts.items()):
         lines.append(f"- {status_name}: {count}")
+
+    lines.extend(["", "Advanced parameter editability:"])
+    lines.append(f"- json_editable: {len(json_editable_advanced_names)}")
+    lines.append("- default_only: 0")
+
+    if external_input_lines:
+        lines.extend(["", "External input requirements:"])
+        lines.extend(external_input_lines)
 
     lines.extend(["", "Supported transform names:"])
     for name in supported_transform_names:

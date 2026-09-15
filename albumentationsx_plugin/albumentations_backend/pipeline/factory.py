@@ -77,4 +77,8 @@ class AlbumentationsPipelineFactory:
 def build_default_pipeline_factory() -> AlbumentationsPipelineFactory:
     """Create the default catalog-driven AlbumentationsX pipeline factory."""
 
-    return AlbumentationsPipelineFactory()
+    catalog = AlbuSpecCatalogProvider()
+    return AlbumentationsPipelineFactory(
+        registry=AlbumentationsTransformRegistry(catalog),
+        parameter_schema_provider=AlbuSpecParameterSchemaProvider(catalog),
+    )

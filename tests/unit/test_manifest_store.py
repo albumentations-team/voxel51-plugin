@@ -10,7 +10,7 @@ from albumentationsx_plugin.storage import MANIFEST_FILENAME, FileRunStore, reso
 
 def _manifest(
     *,
-    run_key: str = "albumentationsx-20260731T150000Z-vox15",
+    run_key: str = "albumentationsx-20260731T150000Z-manifest-fixture",
     output_paths: tuple[str, ...] = ("images/output.png",),
 ) -> RunManifest:
     return RunManifest(

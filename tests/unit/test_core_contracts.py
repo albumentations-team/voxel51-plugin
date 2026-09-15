@@ -11,11 +11,14 @@ from albumentationsx_plugin.core import (
     AugmentationInput,
     AugmentationResult,
     CapabilityStatus,
+    ExternalInputKind,
+    ExternalInputRequirement,
     FieldKind,
     FormFieldSchema,
     InvalidParameterError,
     MediaIOError,
     PipelineConfig,
+    PipelinePreset,
     PluginError,
     RunManifest,
     TransformCapability,
@@ -80,6 +83,16 @@ def test_capability_and_form_schema_round_trip_through_json() -> None:
         reason_code="advanced_defaults",
         message="Some optional parameters use defaults.",
         advanced_parameters=("pad_if_needed",),
+        external_inputs=(
+            ExternalInputRequirement(
+                name="reference_images",
+                kind=ExternalInputKind.METADATA_SEQUENCE,
+                parameter_name="metadata_key",
+                metadata_key="hm_metadata",
+                resolver="reference_image_pool",
+                description="Reference image pool.",
+            ),
+        ),
         metadata={"source": "albu-spec"},
     )
     field = FormFieldSchema(
@@ -135,6 +148,32 @@ def test_augmentation_input_result_and_manifest_round_trip_through_json() -> Non
     assert AugmentationInput.from_dict(_json_round_trip(source.to_dict())) == source
     assert AugmentationResult.from_dict(_json_round_trip(result.to_dict())) == result
     assert RunManifest.from_dict(_json_round_trip(manifest.to_dict())) == manifest
+
+
+@pytest.mark.unit
+def test_pipeline_preset_round_trips_through_versioned_json() -> None:
+    preset = PipelinePreset(
+        key="training-defaults",
+        name="Training defaults",
+        description="Reusable geometry baseline.",
+        tags=("geometry", "portable"),
+        plugin_version="0.1.0",
+        dependency_versions={"fiftyone": "1.19.0", "albumentationsx": "2.3.8", "albu-spec": "0.0.6"},
+        pipeline=PipelineConfig(
+            transforms=(TransformConfig(name="HorizontalFlip", params={"p": 1.0}),),
+            outputs_per_sample=2,
+        ),
+        created_at="2026-08-21T12:00:00Z",
+        updated_at="2026-08-21T12:30:00Z",
+        metadata={"source": "test"},
+    )
+
+    decoded = _json_round_trip(preset.to_dict())
+
+    assert decoded["schema_version"] == 1
+    assert "source_sample_ids" not in decoded
+    assert "replay_records" not in decoded
+    assert PipelinePreset.from_dict(decoded) == preset
 
 
 @pytest.mark.unit

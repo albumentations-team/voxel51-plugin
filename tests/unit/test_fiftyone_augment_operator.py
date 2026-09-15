@@ -1,27 +1,93 @@
 from __future__ import annotations
 
 import importlib
+import json
+import logging
 import pathlib
 import sys
 from collections.abc import Iterable, Iterator
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
+import fiftyone as fo
 import pytest
 import yaml
 
+import albumentationsx_plugin.hosts.fiftyone.forms.compatibility as form_compatibility_module
 import albumentationsx_plugin.hosts.fiftyone.operators.augment as augment_operator_module
-from albumentationsx_plugin.core import PipelineConfig, RunManifest, TransformConfig
+from albumentationsx_plugin.core import (
+    MAX_PIPELINE_STEPS,
+    RUN_EXECUTION_STATUS_COMPLETED,
+    HostAdapterError,
+    PipelineConfig,
+    PipelinePreset,
+    RunManifest,
+    TransformConfig,
+    pipeline_stage_enabled_field_name,
+    pipeline_stage_order_field_name,
+    pipeline_step_field_name,
+)
+from albumentationsx_plugin.hosts.fiftyone.annotations import annotation_field_param_name
+from albumentationsx_plugin.hosts.fiftyone.augment_validation import (
+    DUPLICATE_STAGE_ORDER_CODE,
+    INVALID_EXECUTION_MODE_CODE,
+    PRESET_SOURCE_CONFLICT_CODE,
+)
 from albumentationsx_plugin.hosts.fiftyone.augmentation import FixedAugmentationExecutionResult
-from albumentationsx_plugin.hosts.fiftyone.form_params import stage_parameter_group_name
+from albumentationsx_plugin.hosts.fiftyone.cancellation import FiftyOneCancellationChecker
+from albumentationsx_plugin.hosts.fiftyone.diagnostics import DEBUG_BUNDLE_FIELD_NAME
+from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
+    EXECUTION_SCOPE_CURRENT_VIEW,
+    EXECUTION_SCOPE_ENTIRE_DATASET,
+    EXECUTION_SCOPE_FIELD_NAME,
+    EXECUTION_SCOPE_SELECTED_SAMPLES,
+)
+from albumentationsx_plugin.hosts.fiftyone.form_params import flatten_fiftyone_form_groups, stage_parameter_group_name
+from albumentationsx_plugin.hosts.fiftyone.forms.compatibility import (
+    INLINE_COMPATIBILITY_RECOMMENDATIONS_FIELD_NAME,
+    INLINE_COMPATIBILITY_SECTION_FIELD_NAME,
+    INLINE_COMPATIBILITY_SUMMARY_FIELD_NAME,
+    INLINE_COMPATIBILITY_WARNING_FIELD_NAME,
+)
 from albumentationsx_plugin.hosts.fiftyone.operators.augment import (
     OPERATOR_NAME,
     AugmentWithAlbumentationsX,
 )
-from albumentationsx_plugin.hosts.fiftyone.presets import PREVIOUS_RUN_KEY_FIELD_NAME, STORAGE_ROOT_PARAM_NAME
-from albumentationsx_plugin.storage import FileRunStore
+from albumentationsx_plugin.hosts.fiftyone.pipeline_loading import LOAD_BUTTON, LOAD_SOURCE, load_pipeline_draft
+from albumentationsx_plugin.hosts.fiftyone.pipeline_presets import (
+    PIPELINE_PRESET_KEY_FIELD_NAME,
+    PRESET_SAVED_EXECUTION_STATUS,
+    SAVE_PRESET_DESCRIPTION_FIELD_NAME,
+    SAVE_PRESET_NAME_FIELD_NAME,
+    SAVE_PRESET_ONLY_FIELD_NAME,
+)
+from albumentationsx_plugin.hosts.fiftyone.presets import (
+    PREVIOUS_RUN_KEY_FIELD_NAME,
+    STORAGE_ROOT_PARAM_NAME,
+    operator_params_from_pipeline,
+)
+from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
+    MAX_PREVIEW_SAMPLES,
+    PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON,
+    PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON,
+    PREVIEW_FIELD_COMPARISON_IMAGE,
+    PREVIEW_FIELD_LABELS_JSON,
+    PREVIEW_FIELD_OUTPUT_IMAGE,
+    PREVIEW_FIELD_REPLAY_JSON,
+    PREVIEW_FIELD_SOURCE_IMAGE,
+    PREVIEW_FIELD_SOURCE_SAMPLE_ID,
+    PREVIEW_ONLY_FIELD_NAME,
+    PREVIEW_REQUIRES_SELECTION_ERROR_CODE,
+    preview_field_name,
+)
+from albumentationsx_plugin.hosts.fiftyone.progress import (
+    DELEGATED_EXECUTION_RECOMMENDED_SOURCE_COUNT,
+    FiftyOneProgressReporter,
+)
+from albumentationsx_plugin.storage import FilePipelinePresetStore, FileRunStore, build_preset_key
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+ANNOTATION_FIELD_GROUP_NAME = "_annotation_fields"
 
 
 class _ImageMetadata:
@@ -48,6 +114,29 @@ class _SampleCollection:
 
     def get_sample(self, sample_id: str) -> _Sample:
         return self._samples[sample_id]
+
+
+class _FieldSchemaDataset:
+    media_type = "image"
+
+    def __init__(self, schema: dict[str, object], *, name: str = "form-dataset", count: int = 5) -> None:
+        self.name = name
+        self._schema = schema
+        self._count = count
+
+    def get_field_schema(self) -> dict[str, object]:
+        return self._schema
+
+    def count(self) -> int:
+        return self._count
+
+
+class _CountedView:
+    def __init__(self, count: int) -> None:
+        self._count = count
+
+    def count(self) -> int:
+        return self._count
 
 
 def _load_manifest() -> dict[str, Any]:
@@ -78,6 +167,8 @@ def _preset_manifest(run_key: str = "albumentationsx-20260731T150000Z-preset") -
                     params={
                         "height": 12,
                         "width": 10,
+                        "fill": [1, 2, 3],
+                        "fill_mask": 4,
                         "p": 1.0,
                     },
                 ),
@@ -87,17 +178,26 @@ def _preset_manifest(run_key: str = "albumentationsx-20260731T150000Z-preset") -
     )
 
 
+def _pipeline_preset(name: str = "Training defaults") -> PipelinePreset:
+    return PipelinePreset(
+        key=build_preset_key(name),
+        name=name,
+        plugin_version="0.1.0",
+        dependency_versions={"albumentationsx": "2.3.8", "albu-spec": "0.0.6", "fiftyone": "1.19.0"},
+        pipeline=_preset_manifest().pipeline,
+    )
+
+
 def _form_properties(input_json: dict[str, Any]) -> dict[str, Any]:
     properties = dict(input_json["type"]["properties"])
-    for step_number in range(1, 4):
-        group = properties.get(stage_parameter_group_name(step_number))
-        if isinstance(group, dict):
-            group_type = group.get("type")
-            if isinstance(group_type, dict):
-                group_properties = group_type.get("properties")
-                if isinstance(group_properties, dict):
-                    properties.update(group_properties)
+    for prop in tuple(properties.values()):
+        if prop.get("type", {}).get("name") == "Object":
+            properties.update(_form_properties(prop))
     return properties
+
+
+def _field(label_type: type[fo.Label] | type[str]) -> SimpleNamespace:
+    return SimpleNamespace(document_type=label_type)
 
 
 @pytest.mark.unit
@@ -109,11 +209,14 @@ def test_augment_operator_config_matches_manifest() -> None:
 
     assert OPERATOR_NAME in manifest["operators"]
     assert config.name == OPERATOR_NAME
-    assert config.label == "Augment with AlbumentationsX"
-    assert config.description == "Build and apply AlbumentationsX augmentation pipelines to selected samples."
+    assert config.label == "AlbumentationsX · Augment images"
+    assert (
+        config.description == "Build and apply AlbumentationsX augmentation pipelines to samples, views, or datasets."
+    )
     assert config.dynamic is True
     assert config.allow_immediate_execution is True
-    assert config.allow_delegated_execution is False
+    assert config.allow_delegated_execution is True
+    assert config.default_choice_to_delegated is False
     assert config.allow_distributed_execution is False
     assert config.risk_level.value == "low"
 
@@ -134,14 +237,14 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     operator = AugmentWithAlbumentationsX()
 
     input_json = operator.resolve_input(ctx=None).to_json()
-    output_json = operator.resolve_output(ctx=None).to_json()
+    output = operator.resolve_output(ctx=None)
+    assert output is not None
+    output_json = output.to_json()
     input_properties = _form_properties(input_json)
 
-    assert input_json["view"]["label"] == "Augment with AlbumentationsX"
+    assert input_json["view"]["label"] == "AlbumentationsX · Augment images"
     assert input_json["view"]["name"] == "PromptView"
-    assert input_json["view"]["submit_button_label"] == "Run augmentation"
-    assert input_properties["_general_settings"]["view"]["name"] == "Header"
-    assert input_properties["_general_settings"]["view"]["label"] == "General"
+    assert input_json["view"]["submit_button_label"] == "Create augmented samples"
     assert input_properties["_pipeline_stage_1"]["view"]["name"] == "Header"
     assert input_properties["_pipeline_stage_1"]["view"]["label"] == "Stage 1"
     assert input_properties[stage_parameter_group_name(1)]["view"]["name"] == "GridView"
@@ -150,6 +253,16 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["pipeline_step_count"]["type"]["name"] == "Number"
     assert input_properties["pipeline_step_count"]["default"] == 1
     assert input_properties["pipeline_step_count"]["required"] is False
+    assert input_properties["pipeline_stage_enabled"]["type"]["name"] == "Boolean"
+    assert input_properties["pipeline_stage_enabled"]["default"] is True
+    assert input_properties["pipeline_stage_enabled"]["view"]["caption"] == (
+        "Skip this stage without clearing its transform settings."
+    )
+    assert input_properties["pipeline_stage_order"]["type"]["name"] == "Number"
+    assert input_properties["pipeline_stage_order"]["default"] == 1
+    assert input_properties["pipeline_stage_order"]["view"]["caption"] == (
+        "Lower values run earlier. Each enabled stage must have a different order."
+    )
     transform_values = input_properties["transform"]["type"]["values"]
     assert input_properties["transform"]["type"]["name"] == "Enum"
     assert input_properties["transform"]["default"] == "HorizontalFlip"
@@ -167,6 +280,20 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["run_label"]["type"]["name"] == "String"
     assert input_properties["run_label"]["default"] == ""
     assert input_properties["run_label"]["required"] is False
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["type"]["name"] == "Enum"
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["default"] == EXECUTION_SCOPE_CURRENT_VIEW
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["required"] is True
+    assert set(input_properties[EXECUTION_SCOPE_FIELD_NAME]["type"]["values"]) == {
+        EXECUTION_SCOPE_SELECTED_SAMPLES,
+        EXECUTION_SCOPE_CURRENT_VIEW,
+        EXECUTION_SCOPE_ENTIRE_DATASET,
+    }
+    assert input_properties["_execution_mode_guidance"]["view"]["name"] == "Notice"
+    assert input_properties["_execution_mode_guidance"]["view"]["label"] == "Execution mode"
+    assert (
+        str(DELEGATED_EXECUTION_RECOMMENDED_SOURCE_COUNT)
+        in input_properties["_execution_mode_guidance"]["view"]["description"]
+    )
     assert input_properties["p"]["type"]["name"] == "Number"
     assert input_properties["p"]["default"] == 1.0
     assert input_properties["p"]["view"]["label"] == "Probability"
@@ -175,13 +302,109 @@ def test_augment_operator_resolves_dynamic_default_input_and_output() -> None:
     assert input_properties["outputs_per_sample"]["type"]["name"] == "Number"
     assert input_properties["outputs_per_sample"]["required"] is False
     assert input_properties["outputs_per_sample"]["default"] == 1
-    assert input_properties["dry_run"]["type"]["name"] == "Boolean"
-    assert output_json["type"]["properties"]["run_key"]["type"]["name"] == "String"
-    assert output_json["type"]["properties"]["processed_count"]["type"]["name"] == "Number"
-    assert output_json["type"]["properties"]["created_count"]["type"]["name"] == "Number"
-    assert output_json["type"]["properties"]["error_count"]["type"]["name"] == "Number"
-    assert output_json["type"]["properties"]["manifest_path"]["type"]["name"] == "String"
-    assert output_json["type"]["properties"]["fiftyone_run_key"]["type"]["name"] == "String"
+    assert input_properties["_editor_action"]["default"] == "create"
+    assert set(input_properties["_editor_action"]["type"]["values"]) == {"preview", "create", "save", "validate"}
+    assert _form_properties(output_json)["run_key"]["type"]["name"] == "String"
+    assert _form_properties(output_json)["source_scope"]["type"]["name"] == "String"
+    assert _form_properties(output_json)["processed_count"]["type"]["name"] == "Number"
+    assert _form_properties(output_json)["created_count"]["type"]["name"] == "Number"
+    assert _form_properties(output_json)["error_count"]["type"]["name"] == "Number"
+    assert _form_properties(output_json)["execution_status"]["type"]["name"] == "String"
+    assert _form_properties(output_json)["errors_json"]["view"]["name"] == "JSONView"
+    assert _form_properties(output_json)["pipeline_config_json"]["view"]["name"] == "JSONView"
+    assert _form_properties(output_json)["operator_params_json"]["view"]["name"] == "JSONView"
+    assert _form_properties(output_json)[DEBUG_BUNDLE_FIELD_NAME]["view"]["name"] == "JSONView"
+    assert _form_properties(output_json)[PREVIEW_ONLY_FIELD_NAME]["type"]["name"] == "Boolean"
+    assert _form_properties(output_json)["preview_count"]["type"]["name"] == "Number"
+    assert _form_properties(output_json)["manifest_path"]["type"]["name"] == "String"
+    assert _form_properties(output_json)["fiftyone_run_key"]["type"]["name"] == "String"
+
+
+@pytest.mark.unit
+def test_augment_operator_resolves_preview_output_fields() -> None:
+    operator = AugmentWithAlbumentationsX()
+    context = SimpleNamespace(
+        params={PREVIEW_ONLY_FIELD_NAME: True},
+        results={
+            preview_field_name(slot, field): "data:image/png;base64,preview"
+            for slot in range(1, MAX_PREVIEW_SAMPLES + 1)
+            for field in (PREVIEW_FIELD_SOURCE_IMAGE, PREVIEW_FIELD_OUTPUT_IMAGE, PREVIEW_FIELD_COMPARISON_IMAGE)
+        },
+    )
+
+    context.results["preview_note"] = "No samples or files were created."
+    for slot in range(1, MAX_PREVIEW_SAMPLES + 1):
+        context.results[preview_field_name(slot, PREVIEW_FIELD_SOURCE_SAMPLE_ID)] = "sample-1"
+        for field in (
+            PREVIEW_FIELD_REPLAY_JSON,
+            PREVIEW_FIELD_LABELS_JSON,
+            PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON,
+            PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON,
+        ):
+            context.results[preview_field_name(slot, field)] = '{"available": true}'
+    output = operator.resolve_output(context)
+    assert output is not None
+    output_json = output.to_json()
+    output_properties = _form_properties(output_json)
+    source_image = output_properties[preview_field_name(1, PREVIEW_FIELD_SOURCE_IMAGE)]
+    output_image = output_properties[preview_field_name(1, PREVIEW_FIELD_OUTPUT_IMAGE)]
+    comparison_image = output_properties[preview_field_name(1, PREVIEW_FIELD_COMPARISON_IMAGE)]
+    replay_json = output_properties[preview_field_name(1, PREVIEW_FIELD_REPLAY_JSON)]
+    labels_json = output_properties[preview_field_name(1, PREVIEW_FIELD_LABELS_JSON)]
+    comparison_json = output_properties[preview_field_name(1, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON)]
+
+    assert output_properties["preview_note"]["view"]["read_only"] is True
+    assert output_properties[preview_field_name(1, PREVIEW_FIELD_SOURCE_SAMPLE_ID)]["type"]["name"] == "String"
+    assert source_image["type"]["name"] == "String"
+    assert source_image["view"]["name"] == "ImageView"
+    assert source_image["view"]["height"] == "auto"
+    assert output_image["type"]["name"] == "String"
+    assert output_image["view"]["name"] == "ImageView"
+    assert comparison_image["type"]["name"] == "String"
+    assert comparison_image["view"]["name"] == "ImageView"
+    for prop in (source_image, output_image, comparison_image):
+        assert prop["view"]["width"] == prop["view"]["height"] == "auto"
+        style = prop["view"]["componentsProps"]["image"]["style"]
+        assert style["objectFit"] == "contain"
+        assert style["maxWidth"] == "100%"
+    assert replay_json["view"]["name"] == "JSONView"
+    assert replay_json["view"]["read_only"] is True
+    assert labels_json["view"]["name"] == "JSONView"
+    assert comparison_json["view"]["name"] == "JSONView"
+    assert preview_field_name(MAX_PREVIEW_SAMPLES, PREVIEW_FIELD_ANNOTATION_SUMMARY_JSON) in output_properties
+    assert preview_field_name(MAX_PREVIEW_SAMPLES, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON) in output_properties
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("populated_slots", [(), (1,), (1, 2, 3), (2,)])
+def test_preview_schema_only_renders_populated_result_slots(populated_slots: tuple[int, ...]) -> None:
+    # Result images are authoritative, including partial failures and legacy
+    # payloads that contain empty strings for unused slots.
+    results = {
+        preview_field_name(slot, field): "data:image/png;base64,preview" if slot in populated_slots else ""
+        for slot in range(1, MAX_PREVIEW_SAMPLES + 1)
+        for field in (PREVIEW_FIELD_SOURCE_IMAGE, PREVIEW_FIELD_OUTPUT_IMAGE, PREVIEW_FIELD_COMPARISON_IMAGE)
+    }
+    results["preview_count"] = "3"
+    ctx = SimpleNamespace(params={PREVIEW_ONLY_FIELD_NAME: True}, results=results)
+    output = AugmentWithAlbumentationsX().resolve_output(ctx)
+    assert output is not None
+    properties = _form_properties(output.to_json())
+    for slot in range(1, MAX_PREVIEW_SAMPLES + 1):
+        assert (preview_field_name(slot, PREVIEW_FIELD_SOURCE_IMAGE) in properties) == (slot in populated_slots)
+        assert preview_field_name(slot, PREVIEW_FIELD_LABELS_JSON) not in properties
+    assert ("preview_display_policy" in properties) == bool(populated_slots)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("results", [None, {}, {"preview_count": 3}])
+def test_preview_schema_without_result_images_has_no_blank_image_regions(results: object) -> None:
+    ctx = SimpleNamespace(params={PREVIEW_ONLY_FIELD_NAME: True}, results=results)
+    output = AugmentWithAlbumentationsX().resolve_output(ctx)
+    assert output is not None
+    properties = _form_properties(output.to_json())
+    assert ("preview_note" in properties) == (results is None)
+    assert all(prop["view"]["name"] != "ImageView" for prop in properties.values())
 
 
 @pytest.mark.unit
@@ -206,9 +429,271 @@ def test_augment_operator_resolves_ordered_pipeline_steps() -> None:
     assert input_properties["step_2_brightness_range"]["type"]["name"] == "Tuple"
     assert input_properties["step_2_contrast_range"]["type"]["name"] == "Tuple"
     assert input_properties["step_2_p"]["default"] == 1.0
-    assert "step_2_brightness_by_max" not in input_properties
-    assert "step_2_ensure_safe_output" not in input_properties
+    assert input_properties["step_2_brightness_by_max"]["type"]["name"] == "Boolean"
+    assert input_properties["step_2_ensure_safe_output"]["type"]["name"] == "Boolean"
     assert "step_3_transform" not in input_properties
+
+
+@pytest.mark.unit
+def test_augment_operator_renders_flexible_stage_slots() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        params = {
+            "pipeline_step_count": 4,
+            "transform": "HorizontalFlip",
+            "step_2_transform": "RandomBrightnessContrast",
+            "step_2_pipeline_stage_enabled": False,
+            "step_3_transform": "VerticalFlip",
+            "step_4_transform": "ToGray",
+            "step_4_pipeline_stage_order": 1,
+        }
+
+    input_json = operator.resolve_input(Context()).to_json()
+    input_properties = _form_properties(input_json)
+
+    assert input_properties["pipeline_step_count"]["default"] == 4
+    assert input_properties["_pipeline_stage_4"]["view"]["label"] == "Stage 4"
+    assert input_properties["step_2_pipeline_stage_enabled"]["default"] is False
+    assert input_properties["step_4_pipeline_stage_order"]["default"] == 1
+    assert input_properties["step_4_transform"]["default"] == "ToGray"
+    assert input_properties["step_4_num_output_channels"]["default"] == 3
+    assert "step_5_transform" not in input_properties
+
+
+@pytest.mark.unit
+def test_augment_operator_renders_annotation_field_toggles() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = _FieldSchemaDataset(
+            {
+                "ground_truth": _field(fo.Classification),
+                "detections": _field(fo.Detections),
+                "polylines": _field(fo.Polylines),
+                "heatmap": _field(fo.Heatmap),
+            }
+        )
+        params: dict[str, object] = {}
+
+    input_json = operator.resolve_input(Context()).to_json()
+    input_properties = _form_properties(input_json)
+    ground_truth_param = annotation_field_param_name("ground_truth")
+    detections_param = annotation_field_param_name("detections")
+    polylines_param = annotation_field_param_name("polylines")
+    heatmap_param = annotation_field_param_name("heatmap")
+
+    assert input_properties["_annotation_settings"]["view"]["name"] == "Header"
+    assert input_properties["_annotation_settings"]["view"]["label"] == "Annotations"
+    assert input_properties[ANNOTATION_FIELD_GROUP_NAME]["view"]["name"] == "GridView"
+    assert input_properties[ground_truth_param]["type"]["name"] == "Boolean"
+    assert input_properties[ground_truth_param]["default"] is True
+    assert input_properties[ground_truth_param]["view"]["name"] == "CheckboxView"
+    assert input_properties[ground_truth_param]["view"]["caption"] == "Classification labels are copied."
+    assert input_properties[detections_param]["type"]["name"] == "Boolean"
+    assert input_properties[detections_param]["default"] is True
+    assert "bboxes targets" in input_properties[detections_param]["view"]["caption"]
+    assert input_properties[polylines_param]["type"]["name"] == "Boolean"
+    assert input_properties[polylines_param]["default"] is True
+    assert "keypoints targets" in input_properties[polylines_param]["view"]["caption"]
+    assert input_properties[heatmap_param]["type"]["name"] == "Boolean"
+    assert input_properties[heatmap_param]["default"] is True
+    assert "geometry-only synchronization" in input_properties[heatmap_param]["view"]["caption"]
+    assert "mixed color/intensity stages are blocked" in input_properties[heatmap_param]["view"]["caption"]
+
+
+@pytest.mark.unit
+def test_augment_operator_renders_inline_dataset_compatibility_summary() -> None:
+    operator = AugmentWithAlbumentationsX()
+    ground_truth_param = annotation_field_param_name("ground_truth")
+
+    class Context:
+        dataset = _FieldSchemaDataset(
+            {
+                "ground_truth": _field(fo.Classification),
+                "detections": _field(fo.Detections),
+                "regression": _field(fo.Regression),
+            }
+        )
+        view = _CountedView(7)
+        selected = ("sample-1",)
+        params = {
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW,
+            ground_truth_param: False,
+        }
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    summary = input_properties[INLINE_COMPATIBILITY_SUMMARY_FIELD_NAME]
+    recommendations = input_properties[INLINE_COMPATIBILITY_RECOMMENDATIONS_FIELD_NAME]
+
+    assert input_properties[INLINE_COMPATIBILITY_SECTION_FIELD_NAME]["view"]["label"] == "Compatibility"
+    assert summary["view"]["name"] == "Notice"
+    description = summary["view"]["description"]
+    assert "Scope: Current view; source samples: 7; selected samples: 1; schema: available." in description
+    assert "Annotations: 1 selected supported field(s), 1 transform-capable, 0 copy-only, 1 unsupported/excluded." in (
+        description
+    )
+    assert "Pipeline: HorizontalFlip; transforms `detections`." in description
+    assert "Unsupported label fields are excluded" in recommendations["view"]["description"]
+    assert INLINE_COMPATIBILITY_WARNING_FIELD_NAME not in input_properties
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("source_scope", "expected_count"),
+    (
+        (EXECUTION_SCOPE_SELECTED_SAMPLES, "2"),
+        (EXECUTION_SCOPE_CURRENT_VIEW, "7"),
+        (EXECUTION_SCOPE_ENTIRE_DATASET, "5"),
+    ),
+)
+def test_augment_operator_inline_compatibility_reflects_source_scope_counts(
+    source_scope: str,
+    expected_count: str,
+) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = _FieldSchemaDataset({"detections": _field(fo.Detections)}, count=5)
+        view = _CountedView(7)
+        selected = ("sample-1", "sample-2")
+        params = {EXECUTION_SCOPE_FIELD_NAME: source_scope}
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    description = input_properties[INLINE_COMPATIBILITY_SUMMARY_FIELD_NAME]["view"]["description"]
+
+    assert f"source samples: {expected_count}" in description
+    assert "selected samples: 2" in description
+
+
+@pytest.mark.unit
+def test_augment_operator_inline_compatibility_reports_report_builder_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    def broken_report_builder(**_kwargs: Any) -> object:
+        raise RuntimeError("catalog provider failed")
+
+    monkeypatch.setattr(form_compatibility_module, "build_dataset_compatibility_report", broken_report_builder)
+
+    class Context:
+        dataset = _FieldSchemaDataset({"detections": _field(fo.Detections)})
+        params: dict[str, object] = {}
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    summary = input_properties[INLINE_COMPATIBILITY_SUMMARY_FIELD_NAME]["view"]["description"]
+    warning = input_properties[INLINE_COMPATIBILITY_WARNING_FIELD_NAME]["view"]["description"]
+
+    assert "compatibility report could not be built" in summary
+    assert "Compatibility report could not be built: RuntimeError: catalog provider failed" in warning
+    assert "Annotation field choices could not be resolved" not in warning
+
+
+@pytest.mark.unit
+def test_augment_operator_inline_compatibility_handles_selection_fallback_report_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    def broken_selection(*_args: Any, **_kwargs: Any) -> object:
+        raise RuntimeError("annotation selection failed")
+
+    def broken_report_builder(**_kwargs: Any) -> object:
+        raise RuntimeError("source count failed")
+
+    monkeypatch.setattr(form_compatibility_module, "selected_annotation_fields_from_params", broken_selection)
+    monkeypatch.setattr(form_compatibility_module, "build_dataset_compatibility_report", broken_report_builder)
+
+    class Context:
+        dataset = _FieldSchemaDataset({"detections": _field(fo.Detections)})
+        params: dict[str, object] = {}
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    summary = input_properties[INLINE_COMPATIBILITY_SUMMARY_FIELD_NAME]["view"]["description"]
+    warning = input_properties[INLINE_COMPATIBILITY_WARNING_FIELD_NAME]["view"]["description"]
+
+    assert "compatibility report could not be built" in summary
+    assert "Annotation field choices could not be resolved: RuntimeError: annotation selection failed" in warning
+    assert "Compatibility report could not be built: RuntimeError: source count failed" in warning
+
+
+@pytest.mark.unit
+def test_augment_operator_warns_about_incompatible_selected_annotations() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = _FieldSchemaDataset({"heatmap": _field(fo.Heatmap)})
+        params = {
+            "pipeline_step_count": 2,
+            "transform": "HorizontalFlip",
+            "step_2_transform": "RandomBrightnessContrast",
+        }
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    inline_warning = input_properties[INLINE_COMPATIBILITY_WARNING_FIELD_NAME]
+    warning = input_properties["_annotation_compatibility_warning"]
+
+    assert inline_warning["view"]["name"] == "Warning"
+    assert inline_warning["view"]["label"] == "Compatibility warning"
+    assert "Open Analyze AlbumentationsX Compatibility" in inline_warning["view"]["description"]
+    assert warning["view"]["name"] == "Warning"
+    assert warning["view"]["label"] == "Annotation compatibility"
+    description = warning["view"]["description"]
+    assert "Selected annotation fields are not compatible with the active augmentation pipeline" in description
+    assert "`heatmap` (heatmap) requires target `image`" in description
+    assert "`RandomBrightnessContrast` at stage 2 cannot transform it safely" in description
+    assert "image-only stage" in description
+    assert "Disable the listed annotation fields or remove/replace the incompatible stage" in description
+
+
+@pytest.mark.unit
+def test_augment_operator_preserves_nested_annotation_field_toggle_values() -> None:
+    operator = AugmentWithAlbumentationsX()
+    heatmap_param = annotation_field_param_name("heatmap")
+
+    class Context:
+        dataset = _FieldSchemaDataset({"heatmap": _field(fo.Heatmap)})
+        params = {
+            ANNOTATION_FIELD_GROUP_NAME: {heatmap_param: False},
+            "pipeline_step_count": 2,
+            "transform": "HorizontalFlip",
+            "step_2_transform": "RandomBrightnessContrast",
+        }
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+
+    assert input_properties[heatmap_param]["default"] is False
+    assert INLINE_COMPATIBILITY_WARNING_FIELD_NAME not in input_properties
+    assert "_annotation_compatibility_warning" not in input_properties
+
+
+@pytest.mark.unit
+def test_augment_operator_preserves_annotation_field_toggle_values() -> None:
+    operator = AugmentWithAlbumentationsX()
+    detections_param = annotation_field_param_name("detections")
+
+    class Context:
+        dataset = _FieldSchemaDataset({"detections": _field(fo.Detections)})
+        params = {detections_param: False}
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+
+    assert input_properties[detections_param]["default"] is False
+
+
+@pytest.mark.unit
+def test_augment_operator_defaults_scope_to_selected_samples_when_selection_exists() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        selected = ("sample-1",)
+        params: dict[str, object] = {}
+
+    input_json = operator.resolve_input(Context()).to_json()
+    input_properties = input_json["type"]["properties"]
+
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["default"] == EXECUTION_SCOPE_SELECTED_SAMPLES
 
 
 @pytest.mark.unit
@@ -221,17 +706,16 @@ def test_augment_operator_prefills_form_from_previous_run_manifest(tmp_path) -> 
     context = SimpleNamespace(
         dataset=SimpleNamespace(name=dataset_name),
         params={
-            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            LOAD_SOURCE: f"run:{manifest.run_key}",
             STORAGE_ROOT_PARAM_NAME: str(tmp_path),
         },
     )
 
+    initial = _form_properties(operator.resolve_input(context).to_json())
+    context.params = initial[LOAD_BUTTON]["view"]["params"]
     input_json = operator.resolve_input(context).to_json()
     input_properties = _form_properties(input_json)
 
-    assert input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["type"]["name"] == "Enum"
-    assert input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["default"] == manifest.run_key
-    assert manifest.run_key in input_properties[PREVIOUS_RUN_KEY_FIELD_NAME]["type"]["values"]
     assert input_properties["pipeline_step_count"]["default"] == 2
     assert input_properties["outputs_per_sample"]["default"] == 2
     assert input_properties["transform"]["default"] == "RandomBrightnessContrast"
@@ -241,11 +725,113 @@ def test_augment_operator_prefills_form_from_previous_run_manifest(tmp_path) -> 
     assert input_properties["step_2_transform"]["default"] == "RandomCrop"
     assert input_properties["step_2_height"]["default"] == 12
     assert input_properties["step_2_width"]["default"] == 10
+    assert input_properties["step_2_fill"]["default"] == "[1, 2, 3]"
+    assert input_properties["step_2_fill_mask"]["default"] == "4"
     assert input_properties["step_2_p"]["default"] == 1.0
 
 
 @pytest.mark.unit
-def test_augment_operator_prefill_overrides_stale_submitted_form_values(tmp_path) -> None:
+def test_augment_operator_prefills_form_from_named_pipeline_preset(tmp_path) -> None:
+    operator = AugmentWithAlbumentationsX()
+    preset = _pipeline_preset()
+    FilePipelinePresetStore(storage_root=tmp_path).save_preset(preset)
+
+    context = SimpleNamespace(
+        dataset=SimpleNamespace(name="another-dataset"),
+        params={
+            LOAD_SOURCE: f"saved:{preset.key}",
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+        },
+    )
+
+    initial = _form_properties(operator.resolve_input(context).to_json())
+    context.params = initial[LOAD_BUTTON]["view"]["params"]
+    input_json = operator.resolve_input(context).to_json()
+    input_properties = _form_properties(input_json)
+
+    assert input_properties["pipeline_step_count"]["default"] == 2
+    assert input_properties["outputs_per_sample"]["default"] == 2
+    assert input_properties["transform"]["default"] == "RandomBrightnessContrast"
+    assert input_properties["brightness_range"]["default"] == [0.1, 0.2]
+    assert input_properties["contrast_range"]["default"] == [0.3, 0.4]
+    assert input_properties["p"]["default"] == 0.8
+    assert input_properties["step_2_transform"]["default"] == "RandomCrop"
+    assert input_properties["step_2_height"]["default"] == 12
+    assert input_properties["step_2_width"]["default"] == 10
+
+
+@pytest.mark.unit
+def test_augment_operator_warns_when_named_preset_and_previous_run_are_both_selected(tmp_path) -> None:
+    operator = AugmentWithAlbumentationsX()
+    preset = _pipeline_preset()
+    FilePipelinePresetStore(storage_root=tmp_path).save_preset(preset)
+    dataset_name = "conflicting-template-dataset"
+    manifest = _preset_manifest()
+    FileRunStore(dataset_name, storage_root=tmp_path).save_manifest(manifest)
+
+    context = SimpleNamespace(
+        dataset=SimpleNamespace(name=dataset_name),
+        params={
+            PIPELINE_PRESET_KEY_FIELD_NAME: preset.key,
+            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            "transform": "HorizontalFlip",
+        },
+    )
+
+    input_properties = _form_properties(operator.resolve_input(context).to_json())
+    warning = input_properties["_augment_validation_warning"]
+
+    assert warning["view"]["name"] == "Warning"
+    assert warning["view"]["label"] == "Configuration validation"
+    assert "Choose one source in Load pipeline" in warning["view"]["description"]
+    assert PIPELINE_PRESET_KEY_FIELD_NAME not in input_properties
+    assert PREVIOUS_RUN_KEY_FIELD_NAME not in input_properties
+    assert input_properties["transform"]["default"] == "HorizontalFlip"
+
+
+@pytest.mark.unit
+def test_augment_operator_warns_about_duplicate_enabled_stage_orders() -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        params = {
+            "pipeline_step_count": 3,
+            "transform": "HorizontalFlip",
+            "step_2_transform": "RandomBrightnessContrast",
+            "step_2_pipeline_stage_order": 1,
+            "step_3_transform": "RandomCrop",
+        }
+
+    input_properties = _form_properties(operator.resolve_input(Context()).to_json())
+    warning = input_properties["_augment_validation_warning"]
+
+    assert warning["view"]["label"] == "Configuration validation"
+    assert "Each enabled pipeline stage must have a unique execution order" in warning["view"]["description"]
+
+
+@pytest.mark.unit
+def test_operator_params_from_pipeline_preserves_stages_up_to_editor_limit() -> None:
+    pipeline = PipelineConfig(
+        transforms=tuple(
+            TransformConfig(name="HorizontalFlip", params={"p": 1.0}) for _step_number in range(MAX_PIPELINE_STEPS)
+        ),
+        outputs_per_sample=2,
+    )
+
+    params = operator_params_from_pipeline(pipeline)
+
+    assert params["pipeline_step_count"] == MAX_PIPELINE_STEPS
+    assert params["outputs_per_sample"] == 2
+    for step_number in range(1, MAX_PIPELINE_STEPS + 1):
+        assert params[pipeline_stage_enabled_field_name(step_number)] is True
+        assert params[pipeline_stage_order_field_name(step_number)] == step_number
+        assert params[pipeline_step_field_name(step_number, "transform")] == "HorizontalFlip"
+        assert params[pipeline_step_field_name(step_number, "p")] == 1.0
+
+
+@pytest.mark.unit
+def test_augment_operator_source_selection_keeps_unsaved_draft(tmp_path) -> None:
     operator = AugmentWithAlbumentationsX()
     dataset_name = "preset-stale-form-dataset"
     manifest = _preset_manifest()
@@ -254,7 +840,7 @@ def test_augment_operator_prefill_overrides_stale_submitted_form_values(tmp_path
     context = SimpleNamespace(
         dataset=SimpleNamespace(name=dataset_name),
         params={
-            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            LOAD_SOURCE: f"run:{manifest.run_key}",
             STORAGE_ROOT_PARAM_NAME: str(tmp_path),
             "pipeline_step_count": 1,
             "outputs_per_sample": 1,
@@ -266,15 +852,11 @@ def test_augment_operator_prefill_overrides_stale_submitted_form_values(tmp_path
     input_json = operator.resolve_input(context).to_json()
     input_properties = _form_properties(input_json)
 
-    assert input_properties["pipeline_step_count"]["default"] == 2
-    assert input_properties["outputs_per_sample"]["default"] == 2
-    assert input_properties["transform"]["default"] == "RandomBrightnessContrast"
-    assert input_properties["brightness_range"]["default"] == [0.1, 0.2]
-    assert input_properties["contrast_range"]["default"] == [0.3, 0.4]
-    assert input_properties["p"]["default"] == 0.8
-    assert input_properties["step_2_transform"]["default"] == "RandomCrop"
-    assert input_properties["step_2_height"]["default"] == 12
-    assert input_properties["step_2_width"]["default"] == 10
+    assert input_properties["pipeline_step_count"]["default"] == 1
+    assert input_properties["outputs_per_sample"]["default"] == 1
+    assert input_properties["transform"]["default"] == "HorizontalFlip"
+    assert input_properties["p"]["default"] == 1.0
+    assert flatten_fiftyone_form_groups(input_properties[LOAD_BUTTON]["view"]["params"])["pipeline_step_count"] == 2
 
 
 @pytest.mark.unit
@@ -297,8 +879,8 @@ def test_augment_operator_resolves_later_step_random_crop_defaults() -> None:
     assert input_properties["step_3_width"]["required"] is False
     assert input_properties["step_3_width"]["default"] == 32
     assert input_properties["step_3_p"]["default"] == 1.0
-    assert "step_3_pad_if_needed" not in input_properties
-    assert "step_3_border_mode" not in input_properties
+    assert input_properties["step_3_pad_if_needed"]["type"]["name"] == "Boolean"
+    assert input_properties["step_3_border_mode"]["type"]["name"] == "Enum"
 
 
 @pytest.mark.unit
@@ -332,9 +914,9 @@ def test_augment_operator_resolves_selected_transform_parameter_schema() -> None
     assert input_properties["contrast_range"]["type"]["name"] == "Tuple"
     assert input_properties["contrast_range"]["default"] == [-0.2, 0.2]
     assert input_properties["p"]["default"] == 1.0
-    assert "brightness_by_max" not in input_properties
-    assert "ensure_safe_output" not in input_properties
-    assert "execution_scope" not in input_properties
+    assert input_properties["brightness_by_max"]["type"]["name"] == "Boolean"
+    assert input_properties["ensure_safe_output"]["type"]["name"] == "Boolean"
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["default"] == EXECUTION_SCOPE_CURRENT_VIEW
 
 
 @pytest.mark.unit
@@ -352,9 +934,14 @@ def test_augment_operator_resolves_random_crop_without_initial_required_errors()
     assert input_properties["width"]["required"] is False
     assert input_properties["width"]["default"] == 32
     assert input_properties["p"]["default"] == 1.0
-    assert "pad_if_needed" not in input_properties
-    assert "pad_position" not in input_properties
-    assert "border_mode" not in input_properties
+    assert input_properties["_pipeline_stage_advanced_1"]["view"]["label"] == "Advanced parameters"
+    assert input_properties["fill"]["type"]["name"] == "String"
+    assert input_properties["fill"]["default"] == "0.0"
+    assert input_properties["fill_mask"]["type"]["name"] == "String"
+    assert input_properties["fill_mask"]["default"] == "0.0"
+    assert input_properties["pad_if_needed"]["type"]["name"] == "Boolean"
+    assert input_properties["pad_position"]["type"]["name"] == "Enum"
+    assert input_properties["border_mode"]["type"]["name"] == "Enum"
 
 
 @pytest.mark.unit
@@ -537,11 +1124,14 @@ def test_augment_operator_renders_compact_readable_transform_parameters() -> Non
 
 
 @pytest.mark.unit
-def test_augment_operator_hides_supported_with_defaults_advanced_parameters() -> None:
+def test_augment_operator_renders_supported_with_defaults_advanced_json_parameters() -> None:
     operator = AugmentWithAlbumentationsX()
 
     class Context:
-        params = {"transform": "CoarseDropout"}
+        params = {
+            "transform": "CoarseDropout",
+            "fill": "[10, 20, 30]",
+        }
 
     input_json = operator.resolve_input(Context()).to_json()
     input_properties = _form_properties(input_json)
@@ -551,8 +1141,15 @@ def test_augment_operator_hides_supported_with_defaults_advanced_parameters() ->
     assert input_properties["hole_height_range"]["type"]["name"] == "Tuple"
     assert input_properties["hole_width_range"]["type"]["name"] == "Tuple"
     assert input_properties["p"]["default"] == 1.0
-    assert "fill" not in input_properties
-    assert "fill_mask" not in input_properties
+    assert input_properties["_pipeline_stage_advanced_1"]["view"]["label"] == "Advanced parameters"
+    assert input_properties["_pipeline_stage_advanced_1"]["view"]["description"] == (
+        "Optional JSON-backed parameters. Leave empty to use AlbumentationsX defaults."
+    )
+    assert input_properties["fill"]["type"]["name"] == "String"
+    assert input_properties["fill"]["default"] == "[10, 20, 30]"
+    assert input_properties["fill"]["view"]["label"] == "Fill"
+    assert input_properties["fill_mask"]["type"]["name"] == "String"
+    assert input_properties["fill_mask"]["default"] == ""
 
 
 @pytest.mark.unit
@@ -569,37 +1166,12 @@ def test_augment_operator_ignores_excluded_catalog_transform_selection() -> None
     assert input_properties["p"]["type"]["name"] == "Number"
     assert "method" not in input_properties
     assert "mean" not in input_properties
-    assert "execution_scope" not in input_properties
+    assert input_properties[EXECUTION_SCOPE_FIELD_NAME]["default"] == EXECUTION_SCOPE_CURRENT_VIEW
 
 
 @pytest.mark.unit
-def test_augment_operator_resolves_samples_grid_placement() -> None:
-    operator = AugmentWithAlbumentationsX()
-
-    class Context:
-        selected = ("sample-1",)
-
-    placement_json = operator.resolve_placement(Context()).to_json()
-    view_json = placement_json["view"]
-
-    assert placement_json["place"] == "samples-grid-actions"
-    assert isinstance(view_json, dict)
-    assert view_json["name"] == "Button"
-    assert view_json["label"] == "Augment with AlbumentationsX"
-    assert view_json["prompt"] is True
-    assert view_json["disabled"] is False
-
-
-@pytest.mark.unit
-def test_augment_operator_disables_samples_grid_placement_without_selection() -> None:
-    operator = AugmentWithAlbumentationsX()
-
-    placement_json = operator.resolve_placement(ctx=None).to_json()
-    view_json = placement_json["view"]
-
-    assert isinstance(view_json, dict)
-    assert view_json["disabled"] is True
-    assert view_json["title"] == "Select samples to augment."
+def test_augment_operator_leaves_toolbar_placement_to_frontend() -> None:
+    assert AugmentWithAlbumentationsX().resolve_placement(ctx=None) is None
 
 
 @pytest.mark.unit
@@ -621,10 +1193,16 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
         assert kwargs["dataset"] is Context.dataset
         assert kwargs["view"] is Context.view
         assert kwargs["selected_sample_ids"] == ("sample-1",)
-        assert kwargs["params"] == {"transform": "HorizontalFlip"}
+        assert kwargs["params"] == {
+            "transform": "HorizontalFlip",
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
+        }
         assert kwargs["storage_root"] is None
+        assert isinstance(kwargs["cancellation_checker"], FiftyOneCancellationChecker)
+        assert isinstance(kwargs["progress_reporter"], FiftyOneProgressReporter)
         return FixedAugmentationExecutionResult(
             run_key="albumentationsx-20260731T120000Z-test",
+            source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES,
             processed_count=1,
             created_count=1,
             skipped_count=0,
@@ -638,13 +1216,16 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
 
     monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
 
-    assert operator.execute(Context()) == {
+    result = operator.execute(Context())
+    assert {name: value for name, value in result.items() if name not in {"_editor_draft", "_result_details"}} == {
         "run_key": "albumentationsx-20260731T120000Z-test",
+        "source_scope": EXECUTION_SCOPE_SELECTED_SAMPLES,
         "processed_count": 1,
         "created_count": 1,
         "skipped_count": 0,
         "error_count": 0,
         "dry_run": False,
+        "execution_status": RUN_EXECUTION_STATUS_COMPLETED,
         "output_tag": "albumentationsx-output",
         "output_dir": "/tmp/outputs",
         "manifest_path": "/tmp/outputs/manifest.json",
@@ -655,7 +1236,523 @@ def test_augment_operator_execute_delegates_to_fixed_executor(monkeypatch) -> No
 
 
 @pytest.mark.unit
-def test_augment_operator_execute_applies_previous_run_preset_without_submitted_defaults(
+def test_augment_operator_execute_flattens_nested_annotation_fields(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+    heatmap_param = annotation_field_param_name("heatmap")
+
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ("sample-1",)
+        params = {
+            ANNOTATION_FIELD_GROUP_NAME: {heatmap_param: False},
+            "transform": "HorizontalFlip",
+        }
+
+    def fake_execute_fixed_augmentation(**kwargs):
+        assert ANNOTATION_FIELD_GROUP_NAME not in kwargs["params"]
+        assert kwargs["params"][heatmap_param] is False
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-test",
+            source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES,
+            processed_count=1,
+            created_count=0,
+            skipped_count=0,
+            error_count=0,
+            dry_run=True,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["processed_count"] == 1
+    assert result["error_count"] == 0
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_reports_reload_trigger_errors_with_debug_bundle(monkeypatch, caplog) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(name="reload-failure-dataset")
+        view = object()
+        selected = ("sample-1",)
+        params = {"transform": "HorizontalFlip"}
+
+        @classmethod
+        def trigger(cls, operator_name: str) -> None:
+            raise RuntimeError(f"{operator_name} failed")
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-test",
+            source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES,
+            processed_count=1,
+            created_count=1,
+            skipped_count=0,
+            error_count=0,
+            dry_run=False,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+    caplog.set_level(logging.DEBUG, logger=augment_operator_module.__name__)
+
+    result = operator.execute(Context())
+    errors_json = json.loads(str(result["errors_json"]))
+    debug_bundle_json = json.loads(str(result[DEBUG_BUNDLE_FIELD_NAME]))
+
+    assert result["error_count"] == 1
+    assert result["run_key"] == "albumentationsx-20260731T120000Z-test"
+    assert result["created_count"] == 1
+    assert result["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
+    assert errors_json[0]["code"] == "unexpected_runtime_error"
+    assert errors_json[0]["context"] == {
+        "error_type": "RuntimeError",
+        "cause": "reload_dataset failed",
+        "phase": "dataset_reload",
+        "source_scope": EXECUTION_SCOPE_SELECTED_SAMPLES,
+    }
+    assert debug_bundle_json["exception"] == {"type": "RuntimeError", "message": "reload_dataset failed"}
+    assert debug_bundle_json["pipeline_config"]["transforms"] == [{"name": "HorizontalFlip", "params": {"p": 1.0}}]
+    assert debug_bundle_json["operator_params"]["transform"] == "HorizontalFlip"
+    assert debug_bundle_json["dataset"]["name"] == "reload-failure-dataset"
+    assert "Unexpected augmentation operator error" in caplog.text
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_delegates_current_view_scope_without_selection(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ()
+        params = {
+            "transform": "HorizontalFlip",
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW,
+        }
+
+    def fake_execute_fixed_augmentation(**kwargs):
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["view"] is Context.view
+        assert kwargs["selected_sample_ids"] == ()
+        assert kwargs["params"][EXECUTION_SCOPE_FIELD_NAME] == EXECUTION_SCOPE_CURRENT_VIEW
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-current-view",
+            source_scope=EXECUTION_SCOPE_CURRENT_VIEW,
+            processed_count=2,
+            created_count=0,
+            skipped_count=0,
+            error_count=0,
+            dry_run=True,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["source_scope"] == EXECUTION_SCOPE_CURRENT_VIEW
+    assert result["processed_count"] == 2
+    assert result["error_count"] == 0
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_delegates_entire_dataset_scope_without_view(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ()
+        params = {
+            "transform": "HorizontalFlip",
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_ENTIRE_DATASET,
+        }
+
+    def fake_execute_fixed_augmentation(**kwargs):
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["view"] is None
+        assert kwargs["selected_sample_ids"] == ()
+        assert kwargs["params"][EXECUTION_SCOPE_FIELD_NAME] == EXECUTION_SCOPE_ENTIRE_DATASET
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-entire-dataset",
+            source_scope=EXECUTION_SCOPE_ENTIRE_DATASET,
+            processed_count=3,
+            created_count=0,
+            skipped_count=0,
+            error_count=0,
+            dry_run=True,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["source_scope"] == EXECUTION_SCOPE_ENTIRE_DATASET
+    assert result["processed_count"] == 3
+    assert result["error_count"] == 0
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_delegates_preview_for_selected_samples(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ("sample-1", "sample-2", "sample-3", "sample-4")
+        params = {
+            "transform": "HorizontalFlip",
+            PREVIEW_ONLY_FIELD_NAME: True,
+            "dry_run": False,
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW,
+        }
+        triggered: list[str] = []
+
+        @classmethod
+        def trigger(cls, operator_name: str):
+            cls.triggered.append(operator_name)
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise AssertionError("materialized executor should not run for preview")
+
+    def fake_execute_fixed_augmentation_preview(**kwargs):
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["view"] is Context.view
+        assert kwargs["selected_sample_ids"] == ("sample-1", "sample-2", "sample-3")
+        assert kwargs["params"] == {
+            "transform": "HorizontalFlip",
+            PREVIEW_ONLY_FIELD_NAME: True,
+            "dry_run": False,
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
+        }
+        return SimpleNamespace(
+            to_dict=lambda: {
+                "run_key": "",
+                "source_scope": EXECUTION_SCOPE_SELECTED_SAMPLES,
+                "processed_count": 3,
+                "created_count": 0,
+                "skipped_count": 0,
+                "error_count": 0,
+                "dry_run": False,
+                PREVIEW_ONLY_FIELD_NAME: True,
+                "output_tag": "",
+                "output_dir": "",
+                "manifest_path": "",
+                "fiftyone_run_key": "",
+                "errors": [],
+                "preview_count": 3,
+            }
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+    monkeypatch.setattr(
+        augment_operator_module,
+        "_execute_fixed_augmentation_preview",
+        fake_execute_fixed_augmentation_preview,
+    )
+
+    result = operator.execute(Context())
+
+    assert result[PREVIEW_ONLY_FIELD_NAME] is True
+    assert result["preview_count"] == 3
+    assert Context.triggered == []
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_rejects_named_preset_and_previous_run_conflict(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    operator = AugmentWithAlbumentationsX()
+    preset = _pipeline_preset()
+    FilePipelinePresetStore(storage_root=tmp_path).save_preset(preset)
+    dataset_name = "execute-conflicting-template-dataset"
+    manifest = _preset_manifest()
+    FileRunStore(dataset_name, storage_root=tmp_path).save_manifest(manifest)
+
+    class Context:
+        dataset = SimpleNamespace(name=dataset_name)
+        selected = ("sample-1",)
+        params = {
+            PIPELINE_PRESET_KEY_FIELD_NAME: preset.key,
+            PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            "transform": "HorizontalFlip",
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise AssertionError("backend should not run for invalid template source selection")
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["error_count"] == 1
+    assert result["created_count"] == 0
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = cast(dict[str, Any], errors[0])
+    assert first_error["code"] == PRESET_SOURCE_CONFLICT_CODE
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_rejects_duplicate_enabled_stage_orders(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        selected = ("sample-1",)
+        params = {
+            "pipeline_step_count": 2,
+            "transform": "HorizontalFlip",
+            "step_2_transform": "RandomBrightnessContrast",
+            "step_2_pipeline_stage_order": 1,
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise AssertionError("backend should not run for duplicate pipeline stage orders")
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["error_count"] == 1
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = cast(dict[str, Any], errors[0])
+    assert first_error["code"] == DUPLICATE_STAGE_ORDER_CODE
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_rejects_preview_dry_run_combination(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        view = object()
+        selected = ("sample-1",)
+        params = {
+            "transform": "HorizontalFlip",
+            PREVIEW_ONLY_FIELD_NAME: True,
+            "dry_run": True,
+        }
+
+    def fake_execute_fixed_augmentation_preview(**_kwargs):
+        raise AssertionError("preview backend should not run for invalid execution modes")
+
+    monkeypatch.setattr(
+        augment_operator_module,
+        "_execute_fixed_augmentation_preview",
+        fake_execute_fixed_augmentation_preview,
+    )
+
+    result = operator.execute(Context())
+
+    assert result["error_count"] == 1
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = cast(dict[str, Any], errors[0])
+    assert first_error["code"] == INVALID_EXECUTION_MODE_CODE
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_reports_preview_without_selected_samples(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = object()
+        selected = ()
+        params = {PREVIEW_ONLY_FIELD_NAME: True, EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW}
+
+    def fake_execute_fixed_augmentation_preview(**_kwargs):
+        raise AssertionError("preview executor should not run without selected samples")
+
+    monkeypatch.setattr(
+        augment_operator_module,
+        "_execute_fixed_augmentation_preview",
+        fake_execute_fixed_augmentation_preview,
+    )
+
+    result = operator.execute(Context())
+
+    assert result["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
+    assert result["error_count"] == 1
+    assert result[PREVIEW_ONLY_FIELD_NAME] is True
+    assert result["preview_count"] == 0
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = errors[0]
+    assert isinstance(first_error, dict)
+    assert first_error["code"] == PREVIEW_REQUIRES_SELECTION_ERROR_CODE
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_saves_named_preset_without_selected_samples(monkeypatch, tmp_path) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(name="save-preset-dataset")
+        selected = ()
+        params = {
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            SAVE_PRESET_ONLY_FIELD_NAME: True,
+            SAVE_PRESET_NAME_FIELD_NAME: "Portable training preset",
+            SAVE_PRESET_DESCRIPTION_FIELD_NAME: "Cross-dataset baseline.",
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            "outputs_per_sample": 2,
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise AssertionError("save-only preset flow must not run augmentation")
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["execution_status"] == PRESET_SAVED_EXECUTION_STATUS
+    assert result["created_count"] == 0
+    assert result["error_count"] == 0
+    preset_key = str(result["preset_key"])
+    assert preset_key and preset_key != "portable-training-preset"
+    assert result["preset_name"] == "Portable training preset"
+
+    preset = FilePipelinePresetStore(storage_root=tmp_path).load_preset(preset_key)
+    assert preset.description == "Cross-dataset baseline."
+    assert preset.pipeline == PipelineConfig(
+        transforms=(TransformConfig(name="HorizontalFlip", params={"p": 1.0}),),
+        outputs_per_sample=2,
+        options={"source": "catalog_mvp_pipeline"},
+    )
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_rejects_save_preset_only_without_name(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(name="save-preset-missing-name-dataset")
+        selected = ()
+        params = {
+            SAVE_PRESET_ONLY_FIELD_NAME: True,
+            "transform": "HorizontalFlip",
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise AssertionError("backend should not run for invalid save-preset-only params")
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["error_count"] == 1
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = cast(dict[str, Any], errors[0])
+    error_context = cast(dict[str, Any], first_error["context"])
+    assert first_error["code"] == INVALID_EXECUTION_MODE_CODE
+    assert error_context["reason"] == "save_preset_only_requires_preset_name"
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_saves_named_preset_and_runs_augmentation(monkeypatch, tmp_path) -> None:
+    operator = AugmentWithAlbumentationsX()
+    from albumentationsx_plugin.hosts.fiftyone.augmentation import runtime
+
+    preflight_calls = []
+
+    def fake_preflight(**kwargs):
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["selected_sample_ids"] == ("sample-1",)
+        assert not FilePipelinePresetStore(storage_root=tmp_path).list_presets()
+        preflight_calls.append(kwargs)
+
+    monkeypatch.setattr(runtime, "build_fixed_augmentation_runtime", fake_preflight)
+
+    class Context:
+        dataset = SimpleNamespace(name="save-preset-and-run-dataset")
+        view = object()
+        selected = ("sample-1",)
+        triggered: list[str] = []
+        params = {
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            SAVE_PRESET_NAME_FIELD_NAME: "Reusable crop",
+            SAVE_PRESET_DESCRIPTION_FIELD_NAME: "Crop baseline for multiple datasets.",
+            "transform": "RandomCrop",
+            "height": 32,
+            "width": 24,
+            "p": 1.0,
+            "outputs_per_sample": 1,
+        }
+
+        @classmethod
+        def trigger(cls, name: str) -> None:
+            cls.triggered.append(name)
+
+    def fake_execute_fixed_augmentation(**kwargs):
+        assert kwargs["dataset"] is Context.dataset
+        assert kwargs["view"] is Context.view
+        assert kwargs["selected_sample_ids"] == ("sample-1",)
+        assert kwargs["storage_root"] == str(tmp_path)
+        return FixedAugmentationExecutionResult(
+            run_key="albumentationsx-20260731T120000Z-reusable-crop",
+            source_scope=EXECUTION_SCOPE_SELECTED_SAMPLES,
+            processed_count=1,
+            created_count=1,
+            skipped_count=0,
+            error_count=0,
+            dry_run=False,
+            output_tag="albumentationsx-output",
+            output_dir="/tmp/outputs",
+            manifest_path="/tmp/manifest.json",
+            fiftyone_run_key="albumentationsx_20260731T120000Z_reusable_crop",
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert len(preflight_calls) == 1
+    assert result["run_key"] == "albumentationsx-20260731T120000Z-reusable-crop"
+    preset_key = str(result["preset_key"])
+    assert preset_key and preset_key != "reusable-crop"
+    assert result["preset_name"] == "Reusable crop"
+    assert pathlib.Path(str(result["preset_path"])).parts[-2:] == ("presets", f"{preset_key}.json")
+    assert Context.triggered == ["reload_dataset"]
+
+    preset = FilePipelinePresetStore(storage_root=tmp_path).load_preset(preset_key)
+    assert preset.description == "Crop baseline for multiple datasets."
+    assert preset.pipeline == PipelineConfig(
+        transforms=(
+            TransformConfig(
+                name="RandomCrop",
+                params={
+                    "pad_if_needed": False,
+                    "pad_position": "center",
+                    "border_mode": 0,
+                    "height": 32,
+                    "width": 24,
+                    "p": 1.0,
+                },
+            ),
+        ),
+        outputs_per_sample=1,
+        options={"source": "catalog_mvp_pipeline"},
+    )
+
+
+@pytest.mark.unit
+def test_augment_operator_executes_explicitly_loaded_run_snapshot(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -668,10 +1765,14 @@ def test_augment_operator_execute_applies_previous_run_preset_without_submitted_
         dataset = SimpleNamespace(name=dataset_name)
         view = object()
         selected = ("sample-1",)
-        params = {
+        params: dict[str, object] = {
             PREVIOUS_RUN_KEY_FIELD_NAME: manifest.run_key,
             STORAGE_ROOT_PARAM_NAME: str(tmp_path),
         }
+
+    Context.params = load_pipeline_draft(
+        Context.dataset, f"run:{manifest.run_key}", Context.params, storage_root=tmp_path
+    )
 
     def fake_execute_fixed_augmentation(**kwargs):
         params = kwargs["params"]
@@ -679,7 +1780,7 @@ def test_augment_operator_execute_applies_previous_run_preset_without_submitted_
         assert kwargs["view"] is Context.view
         assert kwargs["selected_sample_ids"] == ("sample-1",)
         assert kwargs["storage_root"] == str(tmp_path)
-        assert params[PREVIOUS_RUN_KEY_FIELD_NAME] == manifest.run_key
+        assert PREVIOUS_RUN_KEY_FIELD_NAME not in params
         assert params["pipeline_step_count"] == 2
         assert params["outputs_per_sample"] == 2
         assert params["transform"] == "RandomBrightnessContrast"
@@ -709,7 +1810,7 @@ def test_augment_operator_execute_applies_previous_run_preset_without_submitted_
 
 
 @pytest.mark.unit
-def test_augment_operator_execute_previous_run_preset_overrides_submitted_defaults(
+def test_augment_operator_execute_rejects_legacy_live_source(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -732,34 +1833,15 @@ def test_augment_operator_execute_previous_run_preset_overrides_submitted_defaul
         }
 
     def fake_execute_fixed_augmentation(**kwargs):
-        params = kwargs["params"]
-        assert params[PREVIOUS_RUN_KEY_FIELD_NAME] == manifest.run_key
-        assert params["pipeline_step_count"] == 2
-        assert params["outputs_per_sample"] == 2
-        assert params["transform"] == "RandomBrightnessContrast"
-        assert params["brightness_range"] == [0.1, 0.2]
-        assert params["contrast_range"] == [0.3, 0.4]
-        assert params["p"] == 0.8
-        assert params["step_2_transform"] == "RandomCrop"
-        assert params["step_2_height"] == 12
-        assert params["step_2_width"] == 10
-        return FixedAugmentationExecutionResult(
-            run_key="albumentationsx-20260731T120000Z-preset-copy",
-            processed_count=1,
-            created_count=0,
-            skipped_count=0,
-            error_count=0,
-            dry_run=True,
-            output_tag="albumentationsx-output",
-            output_dir="/tmp/outputs",
-        )
+        raise AssertionError("Legacy source parameters must not execute a hidden saved pipeline")
 
     monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
-
     result = operator.execute(Context())
-
-    assert result["run_key"] == "albumentationsx-20260731T120000Z-preset-copy"
-    assert result["error_count"] == 0
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first = errors[0]
+    assert isinstance(first, dict)
+    assert first["code"] == "pipeline_load_required"
 
 
 @pytest.mark.unit
@@ -805,7 +1887,7 @@ def test_augment_operator_execute_reports_empty_selection_without_backend_call(m
     class Context:
         dataset = object()
         selected = ()
-        params = {"dry_run": True}
+        params = {"dry_run": True, EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES}
 
     def fake_execute_fixed_augmentation(**_kwargs):
         raise AssertionError("backend should not run without selected samples")
@@ -821,6 +1903,9 @@ def test_augment_operator_execute_reports_empty_selection_without_backend_call(m
     first_error = errors[0]
     assert isinstance(first_error, dict)
     assert first_error["code"] == "no_selected_samples"
+    error_context = first_error["context"]
+    assert isinstance(error_context, dict)
+    assert error_context["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
 
 
 @pytest.mark.unit
@@ -849,3 +1934,105 @@ def test_augment_operator_execute_reports_missing_runtime_dependency(monkeypatch
         "missing_module": "albumentations",
         "package": "albumentationsx",
     }
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_reports_plugin_error_with_diagnostics(monkeypatch) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(name="diagnostics-dataset")
+        view = object()
+        selected = ("sample-1",)
+        params = {
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise HostAdapterError(
+            host="fiftyone",
+            message="Selected annotation field cannot be transformed safely by the requested pipeline.",
+            context={
+                "reason": "annotation_target_incompatible",
+                "field_name": "segmentation",
+                "target": "mask",
+                "transform_name": "HorizontalFlip",
+                "stage_number": 1,
+            },
+        )
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    result = operator.execute(Context())
+
+    assert result["error_count"] == 1
+    assert result["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
+    assert result["created_count"] == 0
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    first_error = errors[0]
+    assert isinstance(first_error, dict)
+    assert first_error["code"] == "host_adapter_error"
+    error_context = first_error["context"]
+    assert isinstance(error_context, dict)
+    assert error_context["reason"] == "annotation_target_incompatible"
+
+    errors_json = json.loads(str(result["errors_json"]))
+    pipeline_config_json = json.loads(str(result["pipeline_config_json"]))
+    operator_params_json = json.loads(str(result["operator_params_json"]))
+    debug_bundle_json = json.loads(str(result[DEBUG_BUNDLE_FIELD_NAME]))
+
+    assert errors_json[0]["context"]["field_name"] == "segmentation"
+    assert pipeline_config_json["transforms"] == [{"name": "HorizontalFlip", "params": {"p": 1.0}}]
+    assert operator_params_json["transform"] == "HorizontalFlip"
+    assert debug_bundle_json["errors"][0]["context"]["field_name"] == "segmentation"
+    assert debug_bundle_json["pipeline_config"]["transforms"] == [{"name": "HorizontalFlip", "params": {"p": 1.0}}]
+    assert debug_bundle_json["operator_params"]["transform"] == "HorizontalFlip"
+    assert debug_bundle_json["dataset"]["name"] == "diagnostics-dataset"
+    assert debug_bundle_json["execution"]["source_scope"] == EXECUTION_SCOPE_SELECTED_SAMPLES
+    assert debug_bundle_json["execution"]["selected_sample_count"] == 1
+    assert debug_bundle_json["exception"] == {
+        "type": "HostAdapterError",
+        "message": "Selected annotation field cannot be transformed safely by the requested pipeline.",
+    }
+
+
+@pytest.mark.unit
+def test_augment_operator_execute_reports_unexpected_error_with_debug_bundle(monkeypatch, caplog) -> None:
+    operator = AugmentWithAlbumentationsX()
+
+    class Context:
+        dataset = SimpleNamespace(name="unexpected-dataset")
+        view = object()
+        selected = ("sample-1",)
+        params = {
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_SELECTED_SAMPLES,
+        }
+
+    def fake_execute_fixed_augmentation(**_kwargs):
+        raise RuntimeError("backend exploded")
+
+    monkeypatch.setattr(augment_operator_module, "_execute_fixed_augmentation", fake_execute_fixed_augmentation)
+
+    with caplog.at_level(logging.DEBUG):
+        result = operator.execute(Context())
+
+    errors_json = json.loads(str(result["errors_json"]))
+    debug_bundle_json = json.loads(str(result[DEBUG_BUNDLE_FIELD_NAME]))
+
+    assert result["error_count"] == 1
+    assert errors_json[0]["code"] == "unexpected_runtime_error"
+    assert errors_json[0]["context"]["error_type"] == "RuntimeError"
+    assert debug_bundle_json["exception"] == {"type": "RuntimeError", "message": "backend exploded"}
+    output = operator.resolve_output(SimpleNamespace(params=Context.params, results=result))
+    assert output is not None
+    fields = _form_properties(output.to_json())
+    assert "backend exploded" in fields["_error_1"]["view"]["description"]
+    assert "Next:" in fields["_error_1"]["view"]["description"]
+    assert debug_bundle_json["operator_params"]["transform"] == "HorizontalFlip"
+    assert debug_bundle_json["dataset"]["name"] == "unexpected-dataset"
+    assert "Unexpected augmentation operator error" in caplog.text

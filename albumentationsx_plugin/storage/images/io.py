@@ -6,7 +6,7 @@ import tempfile
 from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
-from typing import TypeAlias, cast
+from typing import Any, TypeAlias, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -16,6 +16,7 @@ from albumentationsx_plugin.core import MediaIOError
 from albumentationsx_plugin.storage.images.constants import SUPPORTED_OUTPUT_EXTENSIONS
 
 RGBArray: TypeAlias = npt.NDArray[np.uint8]
+MaskArray: TypeAlias = npt.NDArray[Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +109,60 @@ def validate_rgb_array(image: object, *, filepath: str | PathLike[str] | None = 
     return cast(RGBArray, image)
 
 
+def validate_mask_array(mask: object, *, filepath: str | PathLike[str] | None = None) -> MaskArray:
+    """Return an integer 2D mask array or raise a structured media IO error."""
+
+    error_filepath = "<memory>" if filepath is None else str(filepath)
+    if not isinstance(mask, np.ndarray):
+        raise _media_error(
+            error_filepath,
+            "Mask data must be a NumPy array.",
+            reason="invalid_array_type",
+            actual_type=type(mask).__name__,
+        )
+
+    if mask.ndim != 2:
+        raise _media_error(
+            error_filepath,
+            "Mask data must have shape (height, width).",
+            reason="invalid_shape",
+            shape=_shape_context(mask),
+        )
+
+    height, width = mask.shape
+    if height <= 0 or width <= 0:
+        raise _media_error(
+            error_filepath,
+            "Mask data must have positive width and height.",
+            reason="invalid_shape",
+            shape=_shape_context(mask),
+        )
+
+    if not (mask.dtype == np.bool_ or np.issubdtype(mask.dtype, np.integer)):
+        raise _media_error(
+            error_filepath,
+            "Mask data must use an integer or boolean dtype.",
+            reason="invalid_dtype",
+            dtype=str(mask.dtype),
+            shape=_shape_context(mask),
+        )
+
+    min_value = int(np.min(mask))
+    max_value = int(np.max(mask))
+    if min_value < 0 or max_value > 65535:
+        raise _media_error(
+            error_filepath,
+            "Mask values must be in the range 0..65535.",
+            reason="invalid_value_range",
+            min_value=min_value,
+            max_value=max_value,
+            shape=_shape_context(mask),
+        )
+
+    dtype = np.uint8 if max_value <= 255 else np.uint16
+    return cast(MaskArray, np.asarray(mask, dtype=dtype))
+
+
 def write_rgb_image(
     image: object,
     output_root: str | PathLike[str],
@@ -140,6 +195,41 @@ def write_rgb_image(
         raise _media_error(
             output_path,
             "Output image could not be moved into place.",
+            reason="write_failed",
+            exception_type=type(error).__name__,
+        ) from error
+
+    return output_path
+
+
+def write_mask_image(
+    mask: object,
+    output_root: str | PathLike[str],
+    relative_path: str | PathLike[str],
+    *,
+    overwrite: bool = False,
+) -> Path:
+    """Validate and write a semantic segmentation mask PNG under `output_root`."""
+
+    array = validate_mask_array(mask)
+    output_path = _resolve_output_mask_path(output_root, relative_path)
+    if output_path.exists() and not overwrite:
+        raise _media_error(
+            output_path,
+            "Output mask already exists.",
+            reason="output_exists",
+            relative_path=str(relative_path),
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = _write_temporary_mask(array, output_path)
+    try:
+        temporary_path.replace(output_path)
+    except OSError as error:
+        temporary_path.unlink(missing_ok=True)
+        raise _media_error(
+            output_path,
+            "Output mask could not be moved into place.",
             reason="write_failed",
             exception_type=type(error).__name__,
         ) from error
@@ -188,6 +278,18 @@ def resolve_output_image_path(output_root: str | PathLike[str], relative_path: s
     return output_path
 
 
+def _resolve_output_mask_path(output_root: str | PathLike[str], relative_path: str | PathLike[str]) -> Path:
+    output_path = resolve_output_image_path(output_root, relative_path)
+    if output_path.suffix.lower() != ".png":
+        raise _media_error(
+            output_path,
+            "Output mask extension must be .png.",
+            reason="unsupported_mask_extension",
+            extension=output_path.suffix.lower(),
+        )
+    return output_path
+
+
 def _write_temporary_image(array: RGBArray, output_path: Path) -> Path:
     suffix = output_path.suffix.lower()
     image_format = "JPEG" if suffix in {".jpg", ".jpeg"} else "PNG"
@@ -207,6 +309,30 @@ def _write_temporary_image(array: RGBArray, output_path: Path) -> Path:
         raise _media_error(
             output_path,
             "Output image could not be written.",
+            reason="write_failed",
+            exception_type=type(error).__name__,
+        ) from error
+
+    return temporary_path
+
+
+def _write_temporary_mask(array: MaskArray, output_path: Path) -> Path:
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            prefix=f".{output_path.stem}.",
+            suffix=output_path.suffix.lower(),
+            dir=output_path.parent,
+            delete=False,
+        ) as file:
+            temporary_path = Path(file.name)
+        Image.fromarray(array).save(temporary_path, format="PNG")
+    except OSError as error:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise _media_error(
+            output_path,
+            "Output mask could not be written.",
             reason="write_failed",
             exception_type=type(error).__name__,
         ) from error

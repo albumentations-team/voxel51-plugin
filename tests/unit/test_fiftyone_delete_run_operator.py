@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import pathlib
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -10,6 +12,7 @@ import albumentationsx_plugin.hosts.fiftyone.operators.delete_run as delete_run_
 from albumentationsx_plugin.hosts.fiftyone.operators.delete_run import (
     CONFIRM_FIELD_NAME,
     OPERATOR_NAME,
+    RUN_KEY_FIELD_NAME,
     STORAGE_ROOT_PARAM_NAME,
     DeleteAlbumentationsXRun,
 )
@@ -57,13 +60,27 @@ def test_delete_run_operator_resolves_run_selector_confirmation_and_output(monke
         return ("albumentationsx-20260731T150000Z-first",)
 
     monkeypatch.setattr(delete_run_operator_module, "list_deletable_run_keys", fake_list_deletable_run_keys)
+    monkeypatch.setattr(
+        delete_run_operator_module,
+        "build_cleanup_preview",
+        lambda *a, **k: SimpleNamespace(
+            run_label="First",
+            created_at="2026-09-09",
+            sample_count=2,
+            file_count=3,
+            missing_sample_count=0,
+            missing_file_count=0,
+            run_dir="/tmp/run",
+            output_paths=("image.png",),
+        ),
+    )
 
     input_json = operator.resolve_input(Context()).to_json()
     output_json = operator.resolve_output(ctx=None).to_json()
     input_properties = input_json["type"]["properties"]
     output_properties = output_json["type"]["properties"]
 
-    assert input_json["view"]["label"] == "Delete AlbumentationsX Run"
+    assert input_json["view"]["label"] == "AlbumentationsX · Delete generated outputs"
     assert input_properties["run_key"]["type"]["name"] == "Enum"
     assert input_properties["run_key"]["default"] == "albumentationsx-20260731T150000Z-first"
     assert input_properties["run_key"]["view"]["name"] == "AutocompleteView"
@@ -76,40 +93,49 @@ def test_delete_run_operator_resolves_run_selector_confirmation_and_output(monke
 
 
 @pytest.mark.unit
-def test_delete_run_operator_resolves_samples_grid_placement() -> None:
+def test_delete_run_operator_falls_back_from_stale_param_run_key(monkeypatch) -> None:
     operator = DeleteAlbumentationsXRun()
 
-    placement_json = operator.resolve_placement(ctx=None).to_json()
-    view_json = placement_json["view"]
+    class Context:
+        dataset = object()
+        params = {RUN_KEY_FIELD_NAME: "albumentationsx-20260731T150000Z-deleted"}
 
-    assert placement_json["place"] == "samples-grid-actions"
-    assert isinstance(view_json, dict)
-    assert view_json["name"] == "Button"
-    assert view_json["label"] == "Delete AlbumentationsX Run"
-    assert view_json["prompt"] is True
-    assert view_json["disabled"] is True
+    monkeypatch.setattr(
+        delete_run_operator_module,
+        "list_deletable_run_keys",
+        lambda dataset, **kwargs: ("albumentationsx-20260731T150000Z-current",),
+    )
+
+    input_json = operator.resolve_input(Context()).to_json()
+    run_key_property = input_json["type"]["properties"][RUN_KEY_FIELD_NAME]
+
+    assert run_key_property["type"]["name"] == "Enum"
+    assert run_key_property["default"] == "albumentationsx-20260731T150000Z-current"
 
 
 @pytest.mark.unit
-def test_delete_run_operator_enables_samples_grid_placement_with_dataset_runs(monkeypatch) -> None:
+def test_delete_run_operator_resolves_empty_selector_without_confirmation(monkeypatch) -> None:
     operator = DeleteAlbumentationsXRun()
 
     class Context:
         dataset = object()
         params = {}
 
-    monkeypatch.setattr(
-        delete_run_operator_module,
-        "list_deletable_run_keys",
-        lambda dataset, **kwargs: ("albumentationsx-20260731T150000Z-run",),
-    )
+    monkeypatch.setattr(delete_run_operator_module, "list_deletable_run_keys", lambda dataset, **kwargs: ())
 
-    placement_json = operator.resolve_placement(Context()).to_json()
-    view_json = placement_json["view"]
+    input_json = operator.resolve_input(Context()).to_json()
+    input_properties = input_json["type"]["properties"]
 
-    assert isinstance(view_json, dict)
-    assert view_json["disabled"] is False
-    assert view_json["title"] is None
+    assert input_properties[RUN_KEY_FIELD_NAME]["type"]["name"] == "String"
+    assert "No deletable AlbumentationsX runs" in input_properties[RUN_KEY_FIELD_NAME]["view"]["description"]
+    assert CONFIRM_FIELD_NAME not in input_properties
+
+
+@pytest.mark.unit
+def test_delete_run_operator_is_an_unlisted_api_entry():
+    operator = DeleteAlbumentationsXRun()
+    assert operator.resolve_placement(ctx=None) is None
+    assert operator.config.unlisted is True
 
 
 @pytest.mark.unit
@@ -163,6 +189,40 @@ def test_delete_run_operator_execute_delegates_to_cleanup_service(monkeypatch) -
         "errors_json": "[]",
     }
     assert Context.triggered == ["reload_dataset"]
+
+
+@pytest.mark.unit
+def test_delete_run_operator_execute_ignores_reload_trigger_errors(monkeypatch, caplog) -> None:
+    operator = DeleteAlbumentationsXRun()
+
+    class Context:
+        dataset = object()
+        params = {
+            RUN_KEY_FIELD_NAME: "albumentationsx-20260731T150000Z-run",
+            CONFIRM_FIELD_NAME: True,
+        }
+
+        @classmethod
+        def trigger(cls, event_name: str) -> None:
+            raise RuntimeError(f"{event_name} failed")
+
+    def fake_cleanup_run(dataset: object, run_key: str, **kwargs) -> RunCleanupResult:
+        return RunCleanupResult(
+            run_key=run_key,
+            status="ok",
+            message="deleted",
+            deleted_sample_count=1,
+            deleted_file_count=1,
+            confirmed=True,
+        )
+
+    monkeypatch.setattr(delete_run_operator_module, "cleanup_run", fake_cleanup_run)
+    caplog.set_level(logging.DEBUG, logger=delete_run_operator_module.__name__)
+
+    result = operator.execute(Context())
+
+    assert result["status"] == "ok"
+    assert "Error while triggering FiftyOne dataset reload" in caplog.text
 
 
 @pytest.mark.unit

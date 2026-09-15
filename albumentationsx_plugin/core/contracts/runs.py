@@ -22,6 +22,24 @@ RUN_LABEL_SLUG_METADATA_KEY: Final[str] = "run_label_slug"
 RUN_CLEANED_AT_METADATA_KEY: Final[str] = "cleaned_at"
 RUN_CLEANUP_STATUS_CLEANED: Final[str] = "cleaned"
 RUN_CLEANUP_STATUS_METADATA_KEY: Final[str] = "cleanup_status"
+RUN_EXECUTION_CANCELLED_AT_METADATA_KEY: Final[str] = "cancelled_at"
+RUN_EXECUTION_STATUS_CANCELLED: Final[str] = "cancelled"
+RUN_EXECUTION_STATUS_COMPLETED: Final[str] = "completed"
+RUN_EXECUTION_STATUS_DRY_RUN: Final[str] = "dry_run"
+RUN_EXECUTION_STATUS_FAILED: Final[str] = "failed"
+RUN_EXECUTION_STATUS_PARTIAL: Final[str] = "partial"
+RUN_EXECUTION_STATUS_METADATA_KEY: Final[str] = "execution_status"
+RUN_EXECUTION_STATUS_PREVIEW: Final[str] = "preview"
+RUN_EXECUTION_STATUS_RUNNING: Final[str] = "running"
+
+
+def terminal_execution_status(
+    *, succeeded: int, errors: int, success_status: str = RUN_EXECUTION_STATUS_COMPLETED
+) -> str:
+    """Classify a finished operation; cancellation is handled by its caller."""
+    if errors:
+        return RUN_EXECUTION_STATUS_PARTIAL if succeeded else RUN_EXECUTION_STATUS_FAILED
+    return success_status
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +141,13 @@ __all__ = [
     "RUN_CLEANED_AT_METADATA_KEY",
     "RUN_CLEANUP_STATUS_CLEANED",
     "RUN_CLEANUP_STATUS_METADATA_KEY",
+    "RUN_EXECUTION_CANCELLED_AT_METADATA_KEY",
+    "RUN_EXECUTION_STATUS_CANCELLED",
+    "RUN_EXECUTION_STATUS_COMPLETED",
+    "RUN_EXECUTION_STATUS_DRY_RUN",
+    "RUN_EXECUTION_STATUS_METADATA_KEY",
+    "RUN_EXECUTION_STATUS_PREVIEW",
+    "RUN_EXECUTION_STATUS_RUNNING",
     "RUN_LABEL_FIELD_NAME",
     "RUN_LABEL_SLUG_METADATA_KEY",
     "RunManifest",

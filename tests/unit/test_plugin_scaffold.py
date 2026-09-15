@@ -41,6 +41,8 @@ def test_plugin_metadata_matches_package_version() -> None:
     assert manifest["type"] == "plugin"
     assert manifest["version"] == pyproject["project"]["version"] == albumentationsx_plugin.__version__
     assert pyproject["project"]["requires-python"] == ">=3.10"
+    assert pyproject["build-system"]["build-backend"] == "setuptools.build_meta"
+    assert pyproject["tool"]["setuptools"]["packages"]["find"]["include"] == ["albumentationsx_plugin*"]
     assert pyproject["tool"]["ruff"]["target-version"] == "py310"
     assert pyproject["tool"]["pyrefly"]["python-version"] == "3.10"
     assert "albumentationsx>=2.3.8,<3" in pyproject["project"]["dependencies"]
@@ -66,6 +68,9 @@ def test_plugin_manifest_declares_registered_operators() -> None:
 
     assert manifest["operators"] == [
         "augment_with_albumentationsx",
+        "analyze_albumentationsx_dataset_compatibility",
+        "show_albumentationsx_capabilities",
+        "manage_albumentationsx_presets",
         "view_albumentationsx_run",
         "delete_albumentationsx_run",
     ]
@@ -86,6 +91,9 @@ def test_root_entrypoint_registers_declared_operators() -> None:
     assert module.register(registrar) is None
     assert [operator.__name__ for operator in registrar.registered] == [
         "AugmentWithAlbumentationsX",
+        "AnalyzeAlbumentationsXCompatibility",
+        "ShowAlbumentationsXCapabilities",
+        "ManageAlbumentationsXPresets",
         "ViewAlbumentationsXRun",
         "DeleteAlbumentationsXRun",
     ]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+from typing import cast
 
 import numpy as np
 import pytest
@@ -11,6 +12,7 @@ from albumentationsx_plugin.albumentations_backend.fixed import (
     validate_fixed_pipeline_config,
 )
 from albumentationsx_plugin.core import (
+    MAX_PIPELINE_STEPS,
     InvalidParameterError,
     PipelineConfig,
     TransformConfig,
@@ -54,6 +56,56 @@ def test_horizontal_flip_pipeline_transforms_rgb_array_and_records_replay() -> N
 
 
 @pytest.mark.unit
+def test_horizontal_flip_pipeline_transforms_heatmap_image_sequence_target() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            "outputs_per_sample": 1,
+        }
+    )
+    pipeline = create_fixed_image_pipeline(config)
+    source = _rgb_array()
+    heatmaps = np.arange(20, dtype=np.float32).reshape(1, 4, 5, 1)
+
+    result = pipeline.apply(source, targets={"heatmaps": heatmaps})
+    result_heatmaps = cast(np.ndarray, result.targets["heatmaps"])
+
+    assert result_heatmaps.shape == heatmaps.shape
+    np.testing.assert_array_equal(result_heatmaps[0, :, :, 0], heatmaps[0, :, ::-1, 0])
+
+
+@pytest.mark.unit
+def test_reference_image_pipeline_uses_external_metadata_targets() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "transform": "HistogramMatching",
+            "blend_ratio": [1.0, 1.0],
+            "metadata_key": "ignored_user_value",
+            "p": 1.0,
+        }
+    )
+
+    assert config.transforms == (
+        TransformConfig(name="HistogramMatching", params={"blend_ratio": [1.0, 1.0], "p": 1.0}),
+    )
+
+    pipeline = create_fixed_image_pipeline(config)
+    source = _rgb_array(width=8, height=6)
+    reference = np.full_like(source, 220)
+
+    result = pipeline.apply(source, targets={"hm_metadata": [reference]})
+
+    assert result.image.shape == source.shape
+    assert result.replay["applied"] is True
+    transforms = result.replay["transforms"]
+    assert isinstance(transforms, list)
+    first_transform = transforms[0]
+    assert isinstance(first_transform, dict)
+    assert first_transform["__class_fullname__"] == "HistogramMatching"
+
+
+@pytest.mark.unit
 def test_fixed_pipeline_builds_ordered_transform_chain() -> None:
     config = build_fixed_pipeline_config(
         {
@@ -76,12 +128,24 @@ def test_fixed_pipeline_builds_ordered_transform_chain() -> None:
         TransformConfig(
             name="RandomBrightnessContrast",
             params={
+                "brightness_by_max": False,
+                "ensure_safe_output": False,
                 "p": 0.5,
                 "brightness_range": [-0.1, 0.1],
                 "contrast_range": [-0.2, 0.2],
             },
         ),
-        TransformConfig(name="RandomCrop", params={"p": 1.0, "height": 4, "width": 5}),
+        TransformConfig(
+            name="RandomCrop",
+            params={
+                "pad_if_needed": False,
+                "pad_position": "center",
+                "border_mode": 0,
+                "p": 1.0,
+                "height": 4,
+                "width": 5,
+            },
+        ),
     )
 
 
@@ -127,6 +191,8 @@ def test_random_brightness_contrast_config_uses_albumentationsx_range_params() -
         TransformConfig(
             name="RandomBrightnessContrast",
             params={
+                "brightness_by_max": False,
+                "ensure_safe_output": False,
                 "p": 1.0,
                 "brightness_range": [-0.1, 0.3],
                 "contrast_range": [-0.4, 0.2],
@@ -194,6 +260,123 @@ def test_fixed_pipeline_builds_catalog_backed_transform_configs() -> None:
 
 
 @pytest.mark.unit
+def test_fixed_pipeline_parses_advanced_json_fallback_parameters_before_config() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "transform": "RandomCrop",
+            "height": 4,
+            "width": 5,
+            "fill": "[1, 2, 3]",
+            "fill_mask": "",
+        }
+    )
+
+    assert config.transforms == (
+        TransformConfig(
+            name="RandomCrop",
+            params={
+                "pad_if_needed": False,
+                "pad_position": "center",
+                "border_mode": 0,
+                "height": 4,
+                "width": 5,
+                "fill": [1, 2, 3],
+                "p": 1.0,
+            },
+        ),
+    )
+
+
+@pytest.mark.unit
+def test_fixed_pipeline_rejects_invalid_advanced_json_fallback_parameters() -> None:
+    with pytest.raises(InvalidParameterError) as error:
+        build_fixed_pipeline_config(
+            {
+                "transform": "RandomCrop",
+                "height": 4,
+                "width": 5,
+                "fill": "[1,",
+            }
+        )
+
+    assert error.value.context["transform_name"] == "RandomCrop"
+    assert error.value.context["parameter_name"] == "fill"
+    assert error.value.context["reason_code"] == "invalid_json_parameter"
+    assert error.value.context["expected"] == "tuple[float, ...] | float"
+    assert error.value.context["received_value"] == "[1,"
+
+
+@pytest.mark.unit
+def test_fixed_pipeline_builds_more_than_three_stage_transform_chain() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "pipeline_step_count": 4,
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            "step_2_transform": "VerticalFlip",
+            "step_2_p": 0.9,
+            "step_3_transform": "ToGray",
+            "step_3_method": "average",
+            "step_3_p": 0.8,
+            "step_4_transform": "Blur",
+            "step_4_blur_range": [3, 3],
+            "step_4_p": 0.7,
+        }
+    )
+
+    assert config.transforms == (
+        TransformConfig(name="HorizontalFlip", params={"p": 1.0}),
+        TransformConfig(name="VerticalFlip", params={"p": 0.9}),
+        TransformConfig(name="ToGray", params={"num_output_channels": 3, "method": "average", "p": 0.8}),
+        TransformConfig(name="Blur", params={"blur_range": [3, 3], "p": 0.7}),
+    )
+
+
+@pytest.mark.unit
+def test_fixed_pipeline_orders_enabled_stage_slots_without_losing_settings() -> None:
+    config = build_fixed_pipeline_config(
+        {
+            "pipeline_step_count": 4,
+            "transform": "HorizontalFlip",
+            "pipeline_stage_order": 3,
+            "p": 1.0,
+            "step_2_pipeline_stage_enabled": False,
+            "step_2_transform": "RandomBrightnessContrast",
+            "step_2_brightness_range": [-0.5, 0.5],
+            "step_2_contrast_range": [-0.5, 0.5],
+            "step_2_p": 0.5,
+            "step_3_transform": "VerticalFlip",
+            "step_3_pipeline_stage_order": 1,
+            "step_3_p": 0.8,
+            "step_4_transform": "ToGray",
+            "step_4_pipeline_stage_order": 2,
+            "step_4_method": "average",
+            "step_4_p": 0.7,
+        }
+    )
+
+    assert config.transforms == (
+        TransformConfig(name="VerticalFlip", params={"p": 0.8}),
+        TransformConfig(name="ToGray", params={"num_output_channels": 3, "method": "average", "p": 0.7}),
+        TransformConfig(name="HorizontalFlip", params={"p": 1.0}),
+    )
+
+
+@pytest.mark.unit
+def test_fixed_pipeline_rejects_pipeline_with_no_enabled_stage() -> None:
+    with pytest.raises(InvalidParameterError) as error:
+        build_fixed_pipeline_config(
+            {
+                "pipeline_step_count": 2,
+                "pipeline_stage_enabled": False,
+                "step_2_pipeline_stage_enabled": False,
+            }
+        )
+
+    assert error.value.context["parameter_name"] == "pipeline_stages"
+
+
+@pytest.mark.unit
 def test_random_crop_validates_source_image_dimensions_before_execution() -> None:
     config = build_fixed_pipeline_config(
         {
@@ -220,7 +403,7 @@ def test_fixed_pipeline_rejects_unknown_transform_and_invalid_parameters() -> No
         build_fixed_pipeline_config({"outputs_per_sample": 4})
 
     with pytest.raises(InvalidParameterError) as step_count_error:
-        build_fixed_pipeline_config({"pipeline_step_count": 4})
+        build_fixed_pipeline_config({"pipeline_step_count": MAX_PIPELINE_STEPS + 1})
 
     with pytest.raises(InvalidParameterError) as range_error:
         build_fixed_pipeline_config(
@@ -254,3 +437,39 @@ def test_fixed_pipeline_rejects_unknown_transform_and_invalid_parameters() -> No
     assert range_error.value.context["parameter_name"] == "brightness_range"
     assert direct_probability_error.value.context["parameter_name"] == "p"
     assert unknown_param_error.value.context["unknown_parameters"] == ["legacy"]
+
+
+@pytest.mark.unit
+def test_crop_dimension_validation_follows_stage_order_and_ignores_zero_probability():
+    enlarged = build_fixed_pipeline_config(
+        {
+            "pipeline_step_count": 2,
+            "transform": "Resize",
+            "height": 12,
+            "width": 14,
+            "p": 1.0,
+            "step_2_transform": "RandomCrop",
+            "step_2_height": 10,
+            "step_2_width": 10,
+            "step_2_p": 1.0,
+        }
+    )
+    validate_fixed_pipeline_config(enlarged, image_shape=(4, 5, 3))
+    result = create_fixed_image_pipeline(enlarged).apply(np.zeros((4, 5, 3), dtype=np.uint8))
+    assert result.image.shape == (10, 10, 3)
+    skipped = build_fixed_pipeline_config({"transform": "RandomCrop", "height": 9999, "width": 9999, "p": 0.0})
+    assert create_fixed_image_pipeline(skipped).apply(np.zeros((4, 5, 3), dtype=np.uint8)).image.shape == (4, 5, 3)
+    with pytest.raises(InvalidParameterError):
+        build_fixed_pipeline_config(
+            {
+                "pipeline_step_count": 2,
+                "transform": "RandomCrop",
+                "height": 4,
+                "width": 4,
+                "p": 1.0,
+                "step_2_transform": "RandomCrop",
+                "step_2_height": 8,
+                "step_2_width": 8,
+                "step_2_p": 1.0,
+            }
+        )

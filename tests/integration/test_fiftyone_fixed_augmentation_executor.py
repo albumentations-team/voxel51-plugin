@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import io
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,9 +10,32 @@ from typing import Any, cast
 import fiftyone as fo
 import numpy as np
 import pytest
+from PIL import Image
 
-from albumentationsx_plugin.core import InvalidParameterError, MediaIOError, RunManifest
-from albumentationsx_plugin.hosts.fiftyone.augmentation import execute_fixed_augmentation
+from albumentationsx_plugin.core import (
+    RUN_EXECUTION_CANCELLED_AT_METADATA_KEY,
+    RUN_EXECUTION_STATUS_CANCELLED,
+    RUN_EXECUTION_STATUS_METADATA_KEY,
+    AugmentationCancelledError,
+    InvalidParameterError,
+    MediaIOError,
+    RunManifest,
+    TransformConfig,
+)
+from albumentationsx_plugin.hosts.fiftyone.annotations import (
+    SELECTED_LABEL_FIELDS_PARAM_NAME,
+    annotation_field_param_name,
+)
+from albumentationsx_plugin.hosts.fiftyone.augmentation import (
+    execute_fixed_augmentation,
+    execute_fixed_augmentation_preview,
+)
+from albumentationsx_plugin.hosts.fiftyone.execution_scope import (
+    EXECUTION_SCOPE_CURRENT_VIEW,
+    EXECUTION_SCOPE_ENTIRE_DATASET,
+    EXECUTION_SCOPE_FIELD_NAME,
+    EXECUTION_SCOPE_SELECTED_SAMPLES,
+)
 from albumentationsx_plugin.hosts.fiftyone.operators.delete_run import (
     STORAGE_ROOT_PARAM_NAME as DELETE_STORAGE_ROOT_PARAM_NAME,
 )
@@ -23,6 +48,13 @@ from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
 from albumentationsx_plugin.hosts.fiftyone.operators.view_run import (
     ViewAlbumentationsXRun,
 )
+from albumentationsx_plugin.hosts.fiftyone.preview_contract import (
+    PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON,
+    PREVIEW_FIELD_COMPARISON_IMAGE,
+    preview_field_name,
+)
+from albumentationsx_plugin.hosts.fiftyone.progress import AugmentationProgress
+from albumentationsx_plugin.hosts.fiftyone.run_cleanup import cleanup_run
 from albumentationsx_plugin.hosts.fiftyone.samples import (
     DEFAULT_OUTPUT_TAG,
     RUN_KEY_FIELD,
@@ -30,7 +62,7 @@ from albumentationsx_plugin.hosts.fiftyone.samples import (
     build_run_tag,
 )
 from albumentationsx_plugin.storage import FileRunStore
-from albumentationsx_plugin.storage.images import load_rgb_image, write_rgb_image
+from albumentationsx_plugin.storage.images import load_rgb_image, write_mask_image, write_rgb_image
 
 
 def _dataset_name() -> str:
@@ -49,6 +81,33 @@ def _write_source_image(root: Path, name: str, *, width: int = 5, height: int = 
     return write_rgb_image(_rgb_array(width=width, height=height), root, f"sources/{name}.png")
 
 
+def _segmentation_mask(width: int = 10, height: int = 8) -> np.ndarray:
+    mask = np.zeros((height, width), dtype=np.uint8)
+    mask[:, :3] = 1
+    mask[2:6, 4:7] = 2
+    return mask
+
+
+def _detection_instance_mask() -> np.ndarray:
+    return np.asarray(
+        [
+            [1, 0],
+            [1, 1],
+            [0, 1],
+            [1, 1],
+        ],
+        dtype=np.uint8,
+    )
+
+
+def _heatmap_map(width: int = 10, height: int = 8) -> np.ndarray:
+    return np.arange(width * height, dtype=np.float32).reshape(height, width) / 100.0
+
+
+def _write_source_mask(root: Path, name: str, *, width: int = 10, height: int = 8) -> Path:
+    return write_mask_image(_segmentation_mask(width=width, height=height), root, f"source-masks/{name}.png")
+
+
 def _sample(filepath: Path, *, width: int = 5, height: int = 4, tag: str = "source") -> fo.Sample:
     return fo.Sample(
         filepath=str(filepath),
@@ -58,8 +117,7 @@ def _sample(filepath: Path, *, width: int = 5, height: int = 4, tag: str = "sour
 
 
 def _annotated_sample(filepath: Path) -> fo.Sample:
-    mask = np.zeros((8, 10), dtype=np.uint8)
-    mask[:, :3] = 1
+    mask = _segmentation_mask()
     return fo.Sample(
         filepath=str(filepath),
         tags=["source"],
@@ -70,6 +128,7 @@ def _annotated_sample(filepath: Path) -> fo.Sample:
                 fo.Detection(
                     label="object",
                     bounding_box=[0.1, 0.25, 0.2, 0.5],
+                    mask=_detection_instance_mask(),
                     confidence=0.8,
                     attributes={"source": fo.CategoricalAttribute(value="manual")},
                 )
@@ -85,7 +144,29 @@ def _annotated_sample(filepath: Path) -> fo.Sample:
                 )
             ]
         ),
+        polylines=fo.Polylines(
+            polylines=[
+                fo.Polyline(
+                    label="lane",
+                    points=[[[0.2, 0.25], [0.4, 0.25], [0.4, 0.5]]],
+                    confidence=0.6,
+                    attributes={"source": fo.CategoricalAttribute(value="manual")},
+                    closed=False,
+                    filled=False,
+                )
+            ]
+        ),
+        heatmap=fo.Heatmap(map=_heatmap_map(), range=[0.0, 1.0], tags=["soft-target"]),
         segmentation=fo.Segmentation(mask=mask),
+    )
+
+
+def _file_backed_segmentation_sample(filepath: Path, mask_path: Path) -> fo.Sample:
+    return fo.Sample(
+        filepath=str(filepath),
+        tags=["source"],
+        metadata=fo.ImageMetadata(width=10, height=8, mime_type="image/png"),
+        segmentation=fo.Segmentation(mask_path=str(mask_path)),
     )
 
 
@@ -95,6 +176,31 @@ def _output_samples(dataset: fo.Dataset) -> list[Any]:
 
 def _load_sample(dataset: fo.Dataset, sample_id: str) -> Any:
     return cast(Any, dataset[sample_id])
+
+
+def _decode_preview_image(value: str) -> np.ndarray:
+    prefix = "data:image/png;base64,"
+    assert value.startswith(prefix)
+    with Image.open(io.BytesIO(base64.b64decode(value.removeprefix(prefix)))) as image:
+        return np.asarray(image.convert("RGB"), dtype=np.uint8)
+
+
+class _RecordingProgressReporter:
+    def __init__(self) -> None:
+        self.events: list[AugmentationProgress] = []
+
+    def report(self, progress: AugmentationProgress) -> None:
+        self.events.append(progress)
+
+
+class _CancelAfterFirstCreatedSample:
+    def __init__(self) -> None:
+        self.checks = 0
+
+    def raise_if_cancelled(self) -> None:
+        self.checks += 1
+        if self.checks >= 4:
+            raise AugmentationCancelledError(context={"reason": "test_cancelled"})
 
 
 @pytest.mark.integration
@@ -110,6 +216,7 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
             first_id: _load_sample(dataset, first_id).filepath,
             second_id: _load_sample(dataset, second_id).filepath,
         }
+        progress_reporter = _RecordingProgressReporter()
 
         result = execute_fixed_augmentation(
             dataset=dataset,
@@ -121,6 +228,7 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
                 "dry_run": False,
             },
             storage_root=tmp_path / "plugin-storage",
+            progress_reporter=progress_reporter,
         )
 
         assert result.processed_count == 2
@@ -148,6 +256,9 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
 
         manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
         assert manifest.run_key == result.run_key
+        assert result.source_scope == EXECUTION_SCOPE_SELECTED_SAMPLES
+        assert manifest.metadata[EXECUTION_SCOPE_FIELD_NAME] == EXECUTION_SCOPE_SELECTED_SAMPLES
+        assert manifest.metadata["source_count"] == 2
         assert set(manifest.created_sample_ids) == {str(sample.id) for sample in created}
         assert set(manifest.output_paths) == {
             Path(sample.filepath).relative_to(Path(result.output_dir)).as_posix() for sample in created
@@ -166,6 +277,258 @@ def test_fixed_augmentation_executor_creates_outputs_for_selected_samples(tmp_pa
         assert run_results.plugin_run_key == result.run_key
         assert run_results.manifest["run_key"] == result.run_key
         assert run_results.manifest_path == result.manifest_path
+        first_created_progress = next(event for event in progress_reporter.events if event.created_outputs == 1)
+        assert first_created_progress.processed_sources == 1
+        assert first_created_progress.total_sources == 2
+        final_progress = progress_reporter.events[-1]
+        assert final_progress.stage == "complete"
+        assert final_progress.processed_sources == 2
+        assert final_progress.total_sources == 2
+        assert final_progress.planned_outputs == 2
+        assert final_progress.created_outputs == 2
+        assert final_progress.skipped_sources == 0
+        assert final_progress.errors == 0
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_resolves_reference_image_external_inputs(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    storage_root = tmp_path / "plugin-storage"
+    try:
+        dataset = fo.Dataset(dataset_name)
+        first_path = _write_source_image(tmp_path, "domain-a", width=8, height=6)
+        second_path = write_rgb_image(np.full((6, 8, 3), 220, dtype=np.uint8), tmp_path, "sources/domain-b.png")
+        first_id = dataset.add_sample(_sample(first_path, width=8, height=6, tag="domain-a"))
+        second_id = dataset.add_sample(_sample(second_path, width=8, height=6, tag="domain-b"))
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(first_id, second_id),
+            params={
+                "transform": "HistogramMatching",
+                "blend_ratio": [1.0, 1.0],
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+            },
+            storage_root=storage_root,
+        )
+
+        assert result.processed_count == 2
+        assert result.created_count == 2
+        assert result.error_count == 0
+        created = _output_samples(dataset)
+        assert len(created) == 2
+        assert {sample.get_field(SOURCE_SAMPLE_ID_FIELD) for sample in created} == {first_id, second_id}
+
+        manifest = FileRunStore(dataset.name, storage_root=storage_root).load_manifest(result.run_key)
+        assert manifest.pipeline.transforms == (
+            TransformConfig(name="HistogramMatching", params={"blend_ratio": [1.0, 1.0], "p": 1.0}),
+        )
+        external_summary = cast(dict[str, Any], manifest.pipeline.options["external_inputs"])
+        assert external_summary["resolvers"] == ["reference_image_pool"]
+        assert external_summary["reference_image_pool"] == {
+            "policy": "all_other_sources_in_execution_scope",
+            "source_count": 2,
+        }
+
+        references_by_source = {}
+        for record in manifest.replay_records:
+            external_inputs = cast(dict[str, Any], record["external_inputs"])
+            assert external_inputs["policy"] == "all_other_sources_in_execution_scope"
+            requirement = cast(list[dict[str, Any]], external_inputs["requirements"])[0]
+            assert requirement["transform_name"] == "HistogramMatching"
+            assert requirement["metadata_key"] == "hm_metadata"
+            references_by_source[record["source_sample_id"]] = requirement["reference_source_sample_ids"]
+
+        assert references_by_source == {
+            first_id: [second_id],
+            second_id: [first_id],
+        }
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_rejects_reference_image_transform_with_single_source(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        sample_id = dataset.add_sample(_sample(_write_source_image(tmp_path, "lonely", width=8, height=6)))
+
+        with pytest.raises(InvalidParameterError) as error:
+            execute_fixed_augmentation(
+                dataset=dataset,
+                selected_sample_ids=(sample_id,),
+                params={
+                    "transform": "HistogramMatching",
+                    "p": 1.0,
+                    "outputs_per_sample": 1,
+                    "dry_run": False,
+                },
+                storage_root=tmp_path / "plugin-storage",
+            )
+
+        assert error.value.context["reason_code"] == "insufficient_reference_image_pool"
+        assert error.value.context["source_count"] == 1
+        assert error.value.context["required_min_source_count"] == 2
+        assert error.value.context["transform_names"] == ["HistogramMatching"]
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_persists_cancelled_partial_run_for_cleanup(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    storage_root = tmp_path / "plugin-storage"
+    try:
+        dataset = fo.Dataset(dataset_name)
+        first_path = _write_source_image(tmp_path, "first")
+        second_path = _write_source_image(tmp_path, "second", width=6, height=5)
+        first_id = dataset.add_sample(_sample(first_path, tag="first"))
+        second_id = dataset.add_sample(_sample(second_path, width=6, height=5, tag="second"))
+        source_filepaths = {
+            first_id: _load_sample(dataset, first_id).filepath,
+            second_id: _load_sample(dataset, second_id).filepath,
+        }
+        progress_reporter = _RecordingProgressReporter()
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(first_id, second_id),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+            },
+            storage_root=storage_root,
+            progress_reporter=progress_reporter,
+            cancellation_checker=_CancelAfterFirstCreatedSample(),
+        )
+
+        assert result.execution_status == RUN_EXECUTION_STATUS_CANCELLED
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        assert result.skipped_count == 0
+        assert result.error_count == 1
+        assert result.errors[0]["code"] == "augmentation_cancelled"
+        assert result.fiftyone_run_key in dataset.list_runs()
+        assert len(dataset) == 3
+        assert _load_sample(dataset, first_id).filepath == source_filepaths[first_id]
+        assert _load_sample(dataset, second_id).filepath == source_filepaths[second_id]
+
+        created = _output_samples(dataset)
+        assert len(created) == 1
+        manifest = FileRunStore(dataset.name, storage_root=storage_root).load_manifest(result.run_key)
+        assert manifest.metadata[RUN_EXECUTION_STATUS_METADATA_KEY] == RUN_EXECUTION_STATUS_CANCELLED
+        assert isinstance(manifest.metadata[RUN_EXECUTION_CANCELLED_AT_METADATA_KEY], str)
+        assert manifest.created_sample_ids == (str(created[0].id),)
+        assert len(manifest.output_paths) == 1
+        assert manifest.counters == {"processed": 1, "created": 1, "skipped": 0, "errors": 1, "outputs": 1}
+        output_path = Path(result.output_dir) / manifest.output_paths[0]
+        assert output_path.is_file()
+
+        final_progress = progress_reporter.events[-1]
+        assert final_progress.stage == "cancelled"
+        assert final_progress.processed_sources == 1
+        assert final_progress.created_outputs == 1
+        assert final_progress.errors == 1
+
+        cleanup = cleanup_run(cast(Any, dataset), result.run_key, confirmed=True, storage_root=storage_root)
+
+        assert cleanup.deleted_sample_count == 1
+        assert cleanup.deleted_file_count == 1
+        assert cleanup.custom_run_deleted is True
+        assert result.fiftyone_run_key not in dataset.list_runs()
+        assert not output_path.exists()
+        assert _load_sample(dataset, first_id).filepath == source_filepaths[first_id]
+        assert _load_sample(dataset, second_id).filepath == source_filepaths[second_id]
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_processes_current_view_scope(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        kept_path = _write_source_image(tmp_path, "kept")
+        skipped_path = _write_source_image(tmp_path, "skipped", width=6, height=5)
+        kept_id = dataset.add_sample(_sample(kept_path, tag="keep"))
+        skipped_id = dataset.add_sample(_sample(skipped_path, width=6, height=5, tag="skip"))
+        view = dataset.match_tags("keep")
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            view=view,
+            selected_sample_ids=(),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+                EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW,
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.source_scope == EXECUTION_SCOPE_CURRENT_VIEW
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        created = _output_samples(dataset)
+        assert len(created) == 1
+        assert created[0].get_field(SOURCE_SAMPLE_ID_FIELD) == kept_id
+        assert created[0].get_field(SOURCE_SAMPLE_ID_FIELD) != skipped_id
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        assert manifest.source_sample_ids == (kept_id,)
+        assert manifest.metadata[EXECUTION_SCOPE_FIELD_NAME] == EXECUTION_SCOPE_CURRENT_VIEW
+        assert manifest.metadata["source_count"] == 1
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_entire_dataset_scope_ignores_view(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        first_id = dataset.add_sample(_sample(_write_source_image(tmp_path, "first"), tag="keep"))
+        second_id = dataset.add_sample(_sample(_write_source_image(tmp_path, "second"), tag="skip"))
+        view = dataset.match_tags("keep")
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            view=view,
+            selected_sample_ids=(),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+                EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_ENTIRE_DATASET,
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.source_scope == EXECUTION_SCOPE_ENTIRE_DATASET
+        assert result.processed_count == 2
+        assert result.created_count == 2
+        created_source_ids = {sample.get_field(SOURCE_SAMPLE_ID_FIELD) for sample in _output_samples(dataset)}
+        assert created_source_ids == {first_id, second_id}
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        assert set(manifest.source_sample_ids) == {first_id, second_id}
+        assert manifest.metadata[EXECUTION_SCOPE_FIELD_NAME] == EXECUTION_SCOPE_ENTIRE_DATASET
+        assert manifest.metadata["source_count"] == 2
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)
@@ -314,6 +677,7 @@ def test_fixed_augmentation_executor_transforms_supported_annotations(tmp_path) 
         assert detection.confidence == pytest.approx(0.8)
         assert detection.attributes["source"].value == "manual"
         assert detection.bounding_box == pytest.approx([0.7, 0.25, 0.2, 0.5])
+        np.testing.assert_array_equal(np.asarray(detection.mask), _detection_instance_mask()[:, ::-1])
 
         assert len(output.keypoints.keypoints) == 1
         keypoint = output.keypoints.keypoints[0]
@@ -322,12 +686,314 @@ def test_fixed_augmentation_executor_transforms_supported_annotations(tmp_path) 
         assert keypoint.points[0] == pytest.approx([0.7, 0.375])
         assert keypoint.confidence == pytest.approx([0.9])
 
+        assert len(output.polylines.polylines) == 1
+        polyline = output.polylines.polylines[0]
+        assert polyline.label == "lane"
+        assert polyline.confidence == pytest.approx(0.6)
+        assert polyline.attributes["source"].value == "manual"
+        assert polyline.closed is False
+        assert polyline.filled is False
+        np.testing.assert_allclose(
+            np.asarray(polyline.points[0], dtype=np.float32),
+            np.asarray([[0.7, 0.25], [0.5, 0.25], [0.5, 0.5]], dtype=np.float32),
+        )
+
+        np.testing.assert_allclose(np.asarray(output.heatmap.map, dtype=np.float32), _heatmap_map()[:, ::-1])
+        assert output.heatmap.range == [0.0, 1.0]
+        assert output.heatmap.tags == ["soft-target"]
+
         np.testing.assert_array_equal(np.asarray(output.segmentation.mask), source_mask[:, ::-1])
 
         manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
-        annotations = manifest.metadata["annotations"]
+        annotations = cast(dict[str, Any], manifest.metadata["annotations"])
         assert isinstance(annotations, dict)
-        assert annotations["fields"] == ["detections", "ground_truth", "keypoints", "segmentation"]
+        assert annotations["fields"] == [
+            "ground_truth",
+            "detections",
+            "keypoints",
+            "polylines",
+            "heatmap",
+            "segmentation",
+        ]
+        assert annotations["runtime_target_requirements"] == {
+            "detections": ["bboxes", "mask"],
+            "keypoints": ["keypoints"],
+            "polylines": ["keypoints"],
+            "heatmap": ["image"],
+            "segmentation": ["mask"],
+        }
+        assert [field["field_name"] for field in annotations["transformed_fields"]] == [
+            "detections",
+            "keypoints",
+            "polylines",
+            "heatmap",
+            "segmentation",
+        ]
+        assert [field["field_name"] for field in annotations["copied_fields"]] == ["ground_truth"]
+        assert manifest.pipeline.target_fields == ("detections", "keypoints", "polylines", "heatmap", "segmentation")
+        assert manifest.pipeline.copy_fields == ("ground_truth",)
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_materializes_file_backed_segmentation_masks(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    storage_root = tmp_path / "plugin-storage"
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, "file-backed-segmentation", width=10, height=8)
+        source_mask_path = _write_source_mask(tmp_path, "file-backed-segmentation", width=10, height=8)
+        sample_id = dataset.add_sample(_file_backed_segmentation_sample(source_path, source_mask_path))
+        source_mask = _load_sample(dataset, sample_id).segmentation.get_mask()
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+            },
+            storage_root=storage_root,
+        )
+
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        assert result.error_count == 0
+        created = _output_samples(dataset)
+        assert len(created) == 1
+        output = created[0]
+        output_mask_path = Path(output.segmentation.mask_path)
+        assert output_mask_path.is_file()
+        assert output_mask_path != source_mask_path
+        assert output_mask_path.parent.name == "masks"
+        assert output_mask_path.is_relative_to(Path(result.output_dir))
+        np.testing.assert_array_equal(output.segmentation.get_mask(), source_mask[:, ::-1])
+
+        manifest = FileRunStore(dataset.name, storage_root=storage_root).load_manifest(result.run_key)
+        image_output_paths = tuple(path for path in manifest.output_paths if path.startswith("images/"))
+        mask_output_paths = tuple(path for path in manifest.output_paths if path.startswith("masks/"))
+        assert len(image_output_paths) == 1
+        assert mask_output_paths == (output_mask_path.relative_to(Path(result.output_dir)).as_posix(),)
+        assert manifest.counters == {
+            "processed": 1,
+            "created": 1,
+            "skipped": 0,
+            "errors": 0,
+            "outputs": 1,
+            "output_files": 2,
+        }
+        assert manifest.replay_records[0]["output_path"] == image_output_paths[0]
+        assert manifest.replay_records[0]["annotation_asset_paths"] == list(mask_output_paths)
+
+        cleanup = cleanup_run(cast(Any, dataset), result.run_key, confirmed=True, storage_root=storage_root)
+
+        assert cleanup.deleted_sample_count == 1
+        assert cleanup.deleted_file_count == 2
+        assert not output_mask_path.exists()
+        assert source_mask_path.exists()
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_preview_matches_materialized_deterministic_geometry(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, "annotated-preview", width=10, height=8)
+        sample_id = dataset.add_sample(_annotated_sample(source_path))
+        storage_root = tmp_path / "plugin-storage"
+        source_mask = np.asarray(_load_sample(dataset, sample_id).segmentation.mask)
+        params = {
+            "transform": "HorizontalFlip",
+            "p": 1.0,
+            "outputs_per_sample": 1,
+            "dry_run": False,
+        }
+
+        preview = execute_fixed_augmentation_preview(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params=params,
+        )
+
+        assert preview.source_scope == EXECUTION_SCOPE_SELECTED_SAMPLES
+        assert preview.processed_count == 1
+        assert preview.preview_count == 1
+        assert preview.error_count == 0
+        assert len(dataset) == 1
+        assert dataset.list_runs() == []
+        assert not storage_root.exists()
+
+        output = preview.outputs[0]
+        source_image = load_rgb_image(source_path).data
+        np.testing.assert_array_equal(_decode_preview_image(output.source_image), source_image)
+        np.testing.assert_array_equal(_decode_preview_image(output.output_image), source_image[:, ::-1, :])
+        comparison_image = _decode_preview_image(output.comparison_image)
+        assert comparison_image.shape[0] > source_image.shape[0]
+        assert comparison_image.shape[1] > source_image.shape[1] * 2
+        comparison_rows = {
+            str(row["field_name"]): row for row in cast(list[dict[str, Any]], output.annotation_comparison["fields"])
+        }
+        assert comparison_rows["ground_truth"]["status"] == "copied"
+        assert comparison_rows["detections"]["status"] == "transformed"
+        assert comparison_rows["detections"]["rendered_overlay"] is True
+        assert comparison_rows["segmentation"]["rendered_overlay"] is True
+        preview_payload = output.to_dict(slot_number=1)
+        assert str(preview_payload[preview_field_name(1, PREVIEW_FIELD_COMPARISON_IMAGE)]).startswith(
+            "data:image/png;base64,"
+        )
+        assert preview_field_name(1, PREVIEW_FIELD_ANNOTATION_COMPARISON_JSON) in preview_payload
+
+        preview_fields = cast(dict[str, Any], output.labels["fields"])
+        preview_detection = cast(list[dict[str, Any]], preview_fields["detections"]["detections"])[0]
+        assert preview_detection["bounding_box"] == pytest.approx([0.7, 0.25, 0.2, 0.5])
+        preview_detection_mask = np.asarray(preview_detection["mask"], dtype=np.uint8)
+        np.testing.assert_array_equal(preview_detection_mask, _detection_instance_mask()[:, ::-1])
+        preview_keypoint = cast(list[dict[str, Any]], preview_fields["keypoints"]["keypoints"])[0]
+        assert preview_keypoint["points"][0] == pytest.approx([0.7, 0.375])
+        preview_polyline = cast(list[dict[str, Any]], preview_fields["polylines"]["polylines"])[0]
+        np.testing.assert_allclose(
+            np.asarray(preview_polyline["points"][0], dtype=np.float32),
+            np.asarray([[0.7, 0.25], [0.5, 0.25], [0.5, 0.5]], dtype=np.float32),
+        )
+        preview_heatmap = np.asarray(cast(dict[str, Any], preview_fields["heatmap"])["map"], dtype=np.float32)
+        np.testing.assert_allclose(preview_heatmap, _heatmap_map()[:, ::-1])
+        preview_mask = np.asarray(cast(dict[str, Any], preview_fields["segmentation"])["mask"], dtype=np.uint8)
+        np.testing.assert_array_equal(preview_mask, source_mask[:, ::-1])
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params=params,
+            storage_root=storage_root,
+        )
+
+        assert result.created_count == 1
+        created = _output_samples(dataset)
+        assert len(created) == 1
+        np.testing.assert_array_equal(
+            _decode_preview_image(output.output_image), load_rgb_image(created[0].filepath).data
+        )
+        assert created[0].detections.detections[0].bounding_box == pytest.approx(preview_detection["bounding_box"])
+        np.testing.assert_array_equal(np.asarray(created[0].detections.detections[0].mask), preview_detection_mask)
+        assert created[0].keypoints.keypoints[0].points[0] == pytest.approx(preview_keypoint["points"][0])
+        np.testing.assert_allclose(
+            np.asarray(created[0].polylines.polylines[0].points[0], dtype=np.float32),
+            np.asarray(preview_polyline["points"][0], dtype=np.float32),
+        )
+        np.testing.assert_allclose(np.asarray(created[0].heatmap.map, dtype=np.float32), preview_heatmap)
+        np.testing.assert_array_equal(np.asarray(created[0].segmentation.mask), preview_mask)
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_uses_selected_annotation_fields(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, "annotated-selected", width=10, height=8)
+        sample_id = dataset.add_sample(_annotated_sample(source_path))
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params={
+                "transform": "HorizontalFlip",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+                annotation_field_param_name("detections"): False,
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        assert result.error_count == 0
+        output = _output_samples(dataset)[0]
+        assert output.ground_truth.label == "cat"
+        assert output.get_field("detections") is None
+        assert output.keypoints.keypoints[0].points[0] == pytest.approx([0.7, 0.375])
+        np.testing.assert_allclose(
+            np.asarray(output.polylines.polylines[0].points[0], dtype=np.float32),
+            np.asarray([[0.7, 0.25], [0.5, 0.25], [0.5, 0.5]], dtype=np.float32),
+        )
+        np.testing.assert_allclose(np.asarray(output.heatmap.map, dtype=np.float32), _heatmap_map()[:, ::-1])
+        np.testing.assert_array_equal(
+            np.asarray(output.segmentation.mask),
+            np.asarray(_load_sample(dataset, sample_id).segmentation.mask)[:, ::-1],
+        )
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        annotations = cast(dict[str, Any], manifest.metadata["annotations"])
+        assert annotations["fields"] == ["ground_truth", "keypoints", "polylines", "heatmap", "segmentation"]
+        assert [field["field_name"] for field in annotations["transformed_fields"]] == [
+            "keypoints",
+            "polylines",
+            "heatmap",
+            "segmentation",
+        ]
+        assert [field["field_name"] for field in annotations["copied_fields"]] == ["ground_truth"]
+        assert ("detections", "not_selected") in {
+            (field["field_name"], field["reason"]) for field in annotations["excluded_fields"]
+        }
+        assert manifest.pipeline.target_fields == ("keypoints", "polylines", "heatmap", "segmentation")
+        assert manifest.pipeline.copy_fields == ("ground_truth",)
+    finally:
+        if dataset_name in fo.list_datasets():
+            fo.delete_dataset(dataset_name)
+
+
+@pytest.mark.integration
+def test_fixed_augmentation_executor_copies_spatial_annotations_through_image_only_transforms(tmp_path) -> None:
+    dataset_name = _dataset_name()
+    try:
+        dataset = fo.Dataset(dataset_name)
+        source_path = _write_source_image(tmp_path, "annotated-image-only", width=10, height=8)
+        sample_id = dataset.add_sample(_annotated_sample(source_path))
+
+        result = execute_fixed_augmentation(
+            dataset=dataset,
+            selected_sample_ids=(sample_id,),
+            params={
+                "transform": "ToGray",
+                "method": "average",
+                "p": 1.0,
+                "outputs_per_sample": 1,
+                "dry_run": False,
+                SELECTED_LABEL_FIELDS_PARAM_NAME: ["detections", "polylines", "heatmap"],
+            },
+            storage_root=tmp_path / "plugin-storage",
+        )
+
+        assert result.processed_count == 1
+        assert result.created_count == 1
+        assert result.error_count == 0
+        output = _output_samples(dataset)[0]
+        detection = output.detections.detections[0]
+        assert detection.bounding_box == pytest.approx([0.1, 0.25, 0.2, 0.5])
+        np.testing.assert_array_equal(np.asarray(detection.mask), _detection_instance_mask())
+        np.testing.assert_allclose(
+            np.asarray(output.polylines.polylines[0].points[0], dtype=np.float32),
+            np.asarray([[0.2, 0.25], [0.4, 0.25], [0.4, 0.5]], dtype=np.float32),
+        )
+        np.testing.assert_allclose(np.asarray(output.heatmap.map, dtype=np.float32), _heatmap_map())
+
+        manifest = FileRunStore(dataset.name, storage_root=tmp_path / "plugin-storage").load_manifest(result.run_key)
+        annotations = cast(dict[str, Any], manifest.metadata["annotations"])
+        assert annotations["fields"] == ["detections", "polylines", "heatmap"]
+        assert annotations["transformed_fields"] == []
+        assert [field["field_name"] for field in annotations["copied_fields"]] == ["detections", "polylines", "heatmap"]
+        assert manifest.pipeline.target_fields == ()
+        assert manifest.pipeline.copy_fields == ("detections", "polylines", "heatmap")
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)
@@ -402,22 +1068,27 @@ def test_fixed_augmentation_executor_dry_run_does_not_write_outputs(tmp_path) ->
     dataset_name = _dataset_name()
     try:
         dataset = fo.Dataset(dataset_name)
-        sample_id = dataset.add_sample(_sample(_write_source_image(tmp_path, "source")))
+        dataset.add_sample(_sample(_write_source_image(tmp_path, "source"), tag="keep"))
+        dataset.add_sample(_sample(_write_source_image(tmp_path, "other"), tag="skip"))
+        view = dataset.match_tags("keep")
 
         result = execute_fixed_augmentation(
             dataset=dataset,
-            selected_sample_ids=(sample_id,),
+            view=view,
+            selected_sample_ids=(),
             params={
                 "transform": "HorizontalFlip",
                 "dry_run": True,
+                EXECUTION_SCOPE_FIELD_NAME: EXECUTION_SCOPE_CURRENT_VIEW,
             },
             storage_root=tmp_path / "plugin-storage",
         )
 
+        assert result.source_scope == EXECUTION_SCOPE_CURRENT_VIEW
         assert result.processed_count == 1
         assert result.created_count == 0
         assert result.error_count == 0
-        assert len(dataset) == 1
+        assert len(dataset) == 2
         assert not Path(result.output_dir).exists()
         assert result.manifest_path == ""
         assert not dataset.has_run(result.fiftyone_run_key)
@@ -453,7 +1124,7 @@ def test_fixed_augmentation_executor_rejects_invalid_params_before_writing(tmp_p
 
 
 @pytest.mark.integration
-def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_path) -> None:
+def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_path, monkeypatch) -> None:
     dataset_name = _dataset_name()
     try:
         dataset = fo.Dataset(dataset_name)
@@ -463,16 +1134,30 @@ def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_pat
         small_id = dataset.add_sample(
             _sample(_write_source_image(tmp_path, "small", width=4, height=4), width=4, height=4)
         )
+        progress_reporter = _RecordingProgressReporter()
+
+        from albumentationsx_plugin.hosts.fiftyone.augmentation import executor
+
+        prepare = executor._prepare_one_output
+
+        def fail_second_sample(**kwargs):
+            if kwargs["source"].sample_id == small_id:
+                # Runtime failures can still happen after successful preflight.
+                raise InvalidParameterError("RandomCrop", "height", "Sampled runtime failure")
+            return prepare(**kwargs)
+
+        monkeypatch.setattr(executor, "_prepare_one_output", fail_second_sample)
 
         result = execute_fixed_augmentation(
             dataset=dataset,
             selected_sample_ids=(large_id, small_id),
             params={
                 "transform": "RandomCrop",
-                "crop_width": 8,
-                "crop_height": 8,
+                "crop_width": 4,
+                "crop_height": 4,
             },
             storage_root=tmp_path / "plugin-storage",
+            progress_reporter=progress_reporter,
         )
 
         assert result.processed_count == 2
@@ -497,6 +1182,18 @@ def test_fixed_augmentation_executor_reports_partial_per_sample_failures(tmp_pat
         assert manifest_error_context["sample_id"] == small_id
         assert manifest_error_context["output_index"] == 0
         assert result.fiftyone_run_key in dataset.list_runs()
+        first_error_progress = next(event for event in progress_reporter.events if event.errors == 1)
+        assert first_error_progress.processed_sources == 2
+        assert first_error_progress.total_sources == 2
+        assert first_error_progress.skipped_sources == 0
+        final_progress = progress_reporter.events[-1]
+        assert final_progress.stage == "partial"
+        assert final_progress.processed_sources == 2
+        assert final_progress.total_sources == 2
+        assert final_progress.planned_outputs == 2
+        assert final_progress.created_outputs == 1
+        assert final_progress.skipped_sources == 1
+        assert final_progress.errors == 1
     finally:
         if dataset_name in fo.list_datasets():
             fo.delete_dataset(dataset_name)

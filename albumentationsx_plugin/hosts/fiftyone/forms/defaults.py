@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 from albumentationsx_plugin.core import DEFAULT_CROP_SIZE
+from albumentationsx_plugin.hosts.fiftyone.execution_scope import selected_sample_ids_from_context
 
 
 @runtime_checkable
@@ -50,6 +51,19 @@ def build_random_crop_defaults(ctx: Any | None) -> RandomCropDefaults | None:
     return RandomCropDefaults(width=width, height=height, help_text=help_text)
 
 
+def selected_sample_shapes(ctx: Any | None) -> tuple[tuple[str, tuple[int, int, int]], ...]:
+    """Read available selection metadata for cheap inline dimension checks.
+
+    Execution independently reads actual media; missing or stale metadata is
+    never a reason to skip execution preflight.
+    """
+    return tuple(
+        (str(_value_from(sample, "id")), (dimensions.height, dimensions.width, 3))
+        for sample in _selected_samples_from_context(ctx)
+        if (dimensions := _image_dimensions_from_sample(sample)) is not None
+    )
+
+
 def _selected_sample_dimensions(ctx: Any | None) -> tuple[_ImageDimensions, ...]:
     samples = _selected_samples_from_context(ctx)
     if not samples:
@@ -66,12 +80,14 @@ def _selected_sample_dimensions(ctx: Any | None) -> tuple[_ImageDimensions, ...]
 
 def _selected_samples_from_context(ctx: Any | None) -> tuple[object, ...]:
     selected_samples = _ctx_selected_samples(ctx)
-    if selected_samples:
+    # The App sends selected_samples as ID descriptors, not full documents.
+    # Fetch metadata from the collection when those descriptors omit it.
+    if selected_samples and all(_image_dimensions_from_sample(sample) is not None for sample in selected_samples):
         return selected_samples
 
-    selected_sample_ids = _selected_sample_ids(ctx)
+    selected_sample_ids = selected_sample_ids_from_context(ctx)
     if not selected_sample_ids:
-        return ()
+        return selected_samples
 
     collection = _sample_collection(ctx)
     if collection is None:
@@ -90,13 +106,6 @@ def _ctx_selected_samples(ctx: Any | None) -> tuple[object, ...]:
     selected_samples = getattr(ctx, "selected_samples", ()) if ctx is not None else ()
     if isinstance(selected_samples, Iterable) and not isinstance(selected_samples, str | bytes | Mapping):
         return tuple(selected_samples)
-    return ()
-
-
-def _selected_sample_ids(ctx: Any | None) -> tuple[str, ...]:
-    selected = getattr(ctx, "selected", ()) if ctx is not None else ()
-    if isinstance(selected, Iterable) and not isinstance(selected, str | bytes | Mapping):
-        return tuple(str(sample_id) for sample_id in selected)
     return ()
 
 

@@ -1,17 +1,23 @@
-# AlbumentationsX plugin for FiftyOne
+# AlbumentationsX for FiftyOne
 
 [![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg)](LICENSE)
 
-Build and apply AlbumentationsX augmentation pipelines directly in the
-[FiftyOne](https://docs.voxel51.com/plugins/index.html) App. The plugin writes
-new output samples, keeps supported annotations aligned with geometric changes,
-and leaves the selected source samples and files unchanged.
+Build augmentation pipelines in the FiftyOne App, preview their effects on
+images and annotations, and create new samples while keeping source data intact.
 
-## Install a published release
+| App action | Use it to |
+| --- | --- |
+| **AlbumentationsX · Augment images** | Edit transforms, preview, validate, create samples, or save a pipeline. |
+| **AlbumentationsX · Saved pipelines** | Reuse, import/export, edit, duplicate, or delete configurations. |
+| **AlbumentationsX · Run history** | Inspect results, reuse a run's pipeline, and review output deletion. |
 
-Install the plugin into the same Python environment as FiftyOne. Replace
-`<release-tag>` with a published GitHub tag, rather than installing an
-unreviewed branch tip.
+Read the [complete integration guide](docs/albumentationsx-fiftyone-integration.md)
+for installation, annotation support, and the full workflow.
+
+## Install
+
+Requirements: Python 3.10–3.14 and FiftyOne `>=1.19,<2`. Install the plugin and
+its dependencies in the environment that launches FiftyOne.
 
 ```bash
 python -m pip install "fiftyone>=1.19,<2"
@@ -20,105 +26,71 @@ fiftyone plugins requirements @albumentations/albumentationsx --install
 fiftyone plugins list --enabled --names-only
 ```
 
+Replace `<release-tag>` with an existing
+[published tag](https://github.com/albumentations-team/voxel51-plugin/releases).
 The final command should list `@albumentations/albumentationsx`.
+This branch prepares **0.1.2**; a candidate version in the source does not mean
+its GitHub Release is published. Follow the matching version's documentation.
 
-FiftyOne registers these operators:
+For manual ZIP installation, see [Release artifacts](docs/release-artifacts.md).
 
-```text
-@albumentations/albumentationsx/augment_with_albumentationsx
-@albumentations/albumentationsx/view_albumentationsx_run
-@albumentations/albumentationsx/delete_albumentationsx_run
-```
+## First augmentation
 
-## Run your first augmentation
+1. Open an image dataset and select one sample.
+2. Open **Augment images** using the **augment** toolbar button.
+3. Choose **Selected samples**, **HorizontalFlip**, and **Probability = 1**.
+4. Choose **Action → Preview** and inspect the annotated comparison.
+5. Click **Review and create samples**, review the scope, and submit
+   **Create augmented samples**.
+6. Inspect the generated samples, then open **View in history**.
+7. To remove these outputs, use **Review deletion of generated outputs**,
+   inspect its scope, and confirm.
 
-1. Open a FiftyOne dataset and select one or more image samples.
-2. Run **Augment with AlbumentationsX** from the App actions menu.
-3. Choose the ordered pipeline stages and their parameters, then run the
-   operator.
-4. Inspect the resulting samples tagged by the run key. Use **View
-   AlbumentationsX Run** to inspect the saved pipeline and **Delete
-   AlbumentationsX Run** to remove only that run's generated outputs.
+Preview creates no samples or files. Created outputs persist until explicitly
+deleted. The [quickstart](docs/albumentationsx-fiftyone-integration.md#quickstart)
+links to an optional small demo that works without downloading models or datasets.
 
-`Dry run` validates a configuration without creating samples or files.
+[![Preview a horizontal flip with COCO boxes, instance masks, and keypoints](docs/media/preview.gif)](docs/media/preview.gif)
 
-> [!NOTE]
-> Selecting `Previous run` loads its saved pipeline as a reusable template and
-> samples fresh randomness. Clear that field before editing the loaded pipeline.
+*Preview on two selected COCO images. Image geometry and selected annotations
+change together. Select the recording to view it at full size.*
+See [image credits](docs/albumentationsx-fiftyone-integration.md#demo-image-credits).
 
-## Current capabilities
+## Capabilities and limits
 
-- The form exposes 110 catalog-backed image transforms from the current locked
-  dependency set. The [capability report](docs/capability-report-v0.1.0.md)
-  records the complete transform-by-transform snapshot and exclusion reasons.
-- Form controls use compact captions, readable enum labels, and responsive
-  parameter groups instead of repeating defaults and constraints as prose.
-- A pipeline can contain up to three ordered stages.
-- The executable path keeps FiftyOne `Classification`, `Detections`,
-  `Keypoints`, and in-memory `Segmentation` annotations aligned with supported
-  transforms.
-- Every non-dry run stores its pipeline configuration and sampled replay
-  metadata. Generated samples and files can be inspected and cleaned up by run.
+- Up to ten ordered stages and one to three outputs per source.
+- Selected samples, current view, or the entire image dataset.
+- Preview with annotated comparisons; immediate and delegated creation.
+- Classification, detections and instance masks, keypoints, polylines, heatmaps,
+  and semantic segmentation, subject to
+  [annotation compatibility](docs/annotation-aware-execution.md).
+- Shared saved pipelines with editable loading and JSON/file import/export.
+- Searchable run history, provenance, and cleanup restricted to recorded outputs.
+- The locked AlbumentationsX 2.3.8 / albu-spec 0.0.6 catalog exposes 113 executable
+  transforms. Availability depends on the installed versions and selected targets.
+- Video, 3D, distributed execution, exact replay of earlier outputs, and unresolved
+  external-data transforms are outside the current workflow.
+- Preparation reads the chosen source scope before progress/cancellation
+  checkpoints. Reference-image transforms load the full pool and build
+  per-source reference metadata; use small selections for these workflows.
+  See [resource limits](docs/external-data-transforms.md#resource-limits).
 
-## Current limits
-
-- The plugin currently processes image samples. Video, 3D media, non-image
-  outputs, transforms that need external reference data, and unsafe output
-  types are excluded from the normal selector.
-- External mask-path variants and unsupported FiftyOne label classes are not
-  part of the annotation-aware execution path.
-- Some `supported_with_defaults` transforms use documented defaults until their
-  advanced controls are available in the form.
-- `Previous run` restores pipeline configuration; it does not reproduce each
-  earlier sample's random parameters.
-
-## Develop locally
-
-Contributors need Python 3.10 through 3.14,
-[uv](https://docs.astral.sh/uv/getting-started/installation/), and Git.
+## Develop and verify
 
 ```bash
 git clone https://github.com/albumentations-team/voxel51-plugin.git
 cd voxel51-plugin
+git switch dev
 uv sync --group dev
 uv run pre-commit install
-```
-
-For local development, point FiftyOne only at this checkout. A broad workspace
-directory makes FiftyOne recursively scan unrelated repositories for plugins.
-
-```bash
 export FIFTYONE_PLUGINS_DIR="$PWD"
 uv run fiftyone operators list
 ```
 
-Create the deterministic demo dataset and open it in the App:
-
-```bash
-uv run python scripts/create_demo_dataset.py create --overwrite
-uv run fiftyone app launch albumentationsx-demo
-```
-
-Clean up the demo dataset and its generated images when finished:
-
-```bash
-uv run python scripts/create_demo_dataset.py delete --delete-files
-```
-
-## Verify changes
-
-```bash
-uv sync --group dev
-uv lock --check
-uv run pre-commit run --all-files
-uv run pytest --cov-fail-under=85
-uv run pyrefly check
-```
-
-Targeted checks and the manual App release checklist are in
-[Verification](docs/verification.md). Implementation and architecture notes are
-listed in [Project documentation](docs/README.md).
+Keep `FIFTYONE_PLUGINS_DIR` scoped to this checkout to avoid scanning unrelated
+repositories. The installed plugin ZIP contains
+user documentation; contributor commands require the repository's scripts and tests.
 
 ## License
 
-This plugin is available under the [GNU Affero General Public License v3.0 only](LICENSE).
+[GNU Affero General Public License v3.0 only](LICENSE).
