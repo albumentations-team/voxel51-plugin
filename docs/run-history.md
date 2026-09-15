@@ -20,6 +20,12 @@ may remain visible after output deletion because its audit manifest is retained.
 Preview, validation, saved-pipeline creation, and failures rejected before
 persistence do not create history entries.
 
+[![Reuse a run's pipeline as an editable copy and execute it](media/reuse-pipeline-from-run-history.gif)](media/reuse-pipeline-from-run-history.gif)
+
+*Reuse from history (29 seconds). Review the source scope before creating a
+new run; loading a pipeline does not restore the old source selection.
+[Image credits](albumentationsx-fiftyone-integration.md#demo-image-credits).*
+
 ## Outcomes and availability
 
 | Outcome | Meaning |
@@ -114,6 +120,11 @@ not cancel or lock an active execution against later writes.
 1. Select the run and choose **Review deletion of generated outputs**.
 2. Review its label/date, generated sample/file counts, directory, and listed paths.
 3. Confirm deletion for that run and inspect the result.
+
+[![Review a run's outputs, confirm their deletion, and inspect the cleanup result](media/delete-run-from-history.gif)](media/delete-run-from-history.gif)
+
+*Cleanup in the App (17 seconds). The recording removes generated outputs
+from the selected run and leaves the source images available.*
 
 Cleanup deletes only `created_sample_ids` and `output_paths` recorded in the
 manifest, including generated mask files, then removes the matching FiftyOne

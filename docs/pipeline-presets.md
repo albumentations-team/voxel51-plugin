@@ -76,6 +76,11 @@ Saving creates no dataset samples. The result lets you return to the editor,
 preview, or review the scope before creating samples. Names and descriptions
 remain in the draft, but other UI actions do not implicitly save a pipeline.
 
+[![Save a named pipeline and inspect its settings and JSON](media/create-pipeline.gif)](media/create-pipeline.gif)
+
+*Save and inspect a configuration in the App (26 seconds;
+[image credits](albumentationsx-fiftyone-integration.md#demo-image-credits)).*
+
 The Python API continues to support `preview_only`, `dry_run`, and
 `save_preset_only` when `_editor_action` is absent, including its validation of
 conflicting modes and its explicit save-and-materialize behavior.
@@ -121,6 +126,16 @@ selector to inspect a different configuration. The recommended workflow is:
    **Duplicate saved pipeline** creates a new ID and keeps the source unchanged.
    Use **Edit a copy of this pipeline** to edit transforms in the augmentation
    editor, then choose a save mode explicitly.
+
+<details>
+<summary>Watch export, import, and editing (72 seconds)</summary>
+
+[![Export a complete pipeline JSON object, import it, and edit a copy](media/export-import-editing-pipeline.gif)](media/export-import-editing-pipeline.gif)
+
+Copy the complete **Importable pipeline JSON** object. After import, load an
+editable copy and review its annotation mapping and source scope before use.
+
+</details>
 
 Errors for malformed JSON, summary JSON, unsafe paths, missing/non-JSON files,
 invalid schemas and unsupported pipelines include a stable `reason` in

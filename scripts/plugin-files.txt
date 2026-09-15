@@ -135,6 +135,15 @@ docs/README.md
 docs/albumentationsx-fiftyone-integration.md
 docs/annotation-aware-execution.md
 docs/external-data-transforms.md
+docs/media/annotation-preview.png
+docs/media/apply-pipeline.gif
+docs/media/create-pipeline.gif
+docs/media/delete-run-from-history.gif
+docs/media/export-import-editing-pipeline.gif
+docs/media/preview.gif
+docs/media/reuse-pipeline-from-run-history.gif
+docs/media/two-steps.gif
+docs/media/validation-error.png
 docs/operator-api.md
 docs/pipeline-presets.md
 docs/release-artifacts.md

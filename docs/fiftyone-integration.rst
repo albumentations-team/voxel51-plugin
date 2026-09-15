@@ -84,7 +84,7 @@ chosen release with the CLI’s ``--overwrite`` option. Reinstall its
 requirements, restart the App, and validate a small saved pipeline before
 creating outputs. If the plugin is disabled, enable it with
 ``fiftyone plugins enable @albumentations/albumentationsx``. See `ZIP
-installation <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/release-artifacts.md#install-from-release-zip>`__
+installation <https://github.com/albumentations-team/voxel51-plugin/blob/cf08bb776d251933b33189b9bc01ed1c06d9c681/docs/release-artifacts.md#install-from-release-zip>`__
 for an alternative to the GitHub download helper.
 
 The wheel is the reusable Python package. The plugin ZIP also includes the
@@ -127,6 +127,13 @@ Preview and create
 does not save files, samples, manifests, or runs. It shows at most three
 selected sources, even when the execution scope is larger.
 
+.. figure:: /images/integrations/albumentationsx/preview.gif
+    :alt: Select COCO sources and preview HorizontalFlip with their annotations.
+    :width: 720px
+
+    Preview example (12 seconds): two selected COCO sources with detections,
+    instance masks, and keypoints. Select any recording to view it at full size.
+
 **Create one persistent output**
 
 1. From the preview, choose **Review and create samples**.
@@ -138,6 +145,13 @@ selected sources, even when the execution scope is larger.
 **Expected result:** one new sample and its output image, with source
 provenance. The source sample, file, and labels remain unchanged. Creation uses
 fresh randomness; a probabilistic pipeline can differ from its preview.
+
+.. figure:: /images/integrations/albumentationsx/apply-pipeline.gif
+    :alt: Apply an augmentation pipeline and inspect the generated COCO samples.
+    :width: 720px
+
+    Creation example (30 seconds): apply a two-stage pipeline and inspect the
+    generated images. Review the scope and output count before submitting.
 
 To remove the output after exploring, follow `Cleanup and data
 safety <#cleanup-and-data-safety>`__. If an output-only view hides the
@@ -168,10 +182,29 @@ Use **Load pipeline** to select a saved configuration or run, then explicitly
 click **Replace draft with selected pipeline**. Selecting a source alone keeps
 your edits. Loaded settings remain editable; **Reload and replace draft**
 discards subsequent changes. See `pipeline
-loading <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/pipeline-presets.md>`__.
+loading <https://github.com/albumentations-team/voxel51-plugin/blob/cf08bb776d251933b33189b9bc01ed1c06d9c681/docs/pipeline-presets.md>`__.
 
 The draft survives the continuation buttons and validation errors. Closing the
 editor or result ends it; use **Save pipeline** for later reuse.
+
+Example: flip, then rotate
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Set **Pipeline stages** to 2.
+2. Choose **HorizontalFlip** for stage 1, with **Execution order = 1** and
+   **Probability = 1**.
+3. Choose **RandomRotate90** for stage 2, with **Execution order = 2** and
+   **Probability = 1**. Leave the optional group settings at their defaults.
+4. Select the annotation fields, preview, and compare the before/after images.
+   The sampled rotation can differ between sources and previews, including a
+   zero-degree rotation.
+
+.. figure:: /images/integrations/albumentationsx/two-steps.gif
+    :alt: Add RandomRotate90 after HorizontalFlip and preview the two-stage pipeline.
+    :width: 720px
+
+    Two-stage example (19 seconds): add the rotation, then check that the
+    selected annotations follow the transformed objects.
 
 Example: brighten before flipping
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -295,6 +328,17 @@ Supported annotations
     * - ``Segmentation``
       - Masks transformed; file-backed outputs saved as plugin-owned PNGs
 
+Detection boxes remain axis-aligned rectangles after a rotation. Their position
+and size change to enclose the transformed object; the rectangle edges do not
+tilt. Masks and keypoint coordinates follow the image geometry.
+
+.. figure:: /images/integrations/albumentationsx/annotation-preview.png
+    :alt: Original and horizontally flipped COCO cyclist with aligned boxes, masks, and keypoints.
+    :width: 720px
+
+    A still from the preview recording: compare the cyclist, bicycle, instance
+    masks, and keypoints on both sides without waiting for the animation.
+
 A pure image-only color pipeline copies selected heatmaps unchanged. A mixed
 geometric plus color/intensity pipeline is blocked when it would apply color
 operations to a transformed heatmap. For example, ``RandomBrightnessContrast``
@@ -306,7 +350,7 @@ known derived geometry values that require recomputation. Source sample tags
 and custom sample fields are not copied. Generated samples contain source
 provenance instead. Unsupported values and omitted fields are reported. Read
 the `annotation and metadata
-policy <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/annotation-aware-execution.md>`__
+policy <https://github.com/albumentations-team/voxel51-plugin/blob/cf08bb776d251933b33189b9bc01ed1c06d9c681/docs/annotation-aware-execution.md>`__
 for missing keypoints, clipping, dynamic attributes, and file-backed masks.
 
 To resolve the mixed flip/color conflict, uncheck the heatmap field to omit it
@@ -332,7 +376,7 @@ images in the execution scope as references and require at least two sources.
 The implementation loads the full reference pool and constructs per-source
 reference lists/provenance. Those lists grow quadratically; use small
 selections. `External-data
-transforms <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/external-data-transforms.md>`__
+transforms <https://github.com/albumentations-team/voxel51-plugin/blob/cf08bb776d251933b33189b9bc01ed1c06d9c681/docs/external-data-transforms.md>`__
 explains this policy.
 
 Video, 3D, tensor/unsafe image outputs, unsupported label classes, and
@@ -353,6 +397,13 @@ Choose **Action → Save pipeline**, enter a name, and choose:
 
 The load picker never selects a replacement target. Other actions do not
 implicitly save a name retained in the draft.
+
+.. figure:: /images/integrations/albumentationsx/create-pipeline.gif
+    :alt: Save a named pipeline and inspect its importable JSON.
+    :width: 720px
+
+    Save and inspect (26 seconds): save a named configuration, then inspect
+    that pipeline's settings and complete JSON in **Saved pipelines**.
 
 Load and edit a saved pipeline
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -382,7 +433,17 @@ Imported IDs are retained. Replacing an existing ID requires explicit
 overwrite; equal names with different IDs remain separate. Presets store
 configuration, annotation mapping, and dependency metadata, without source IDs,
 generated paths, or sampled replay. See the `complete preset
-contract <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/pipeline-presets.md>`__.
+contract <https://github.com/albumentations-team/voxel51-plugin/blob/cf08bb776d251933b33189b9bc01ed1c06d9c681/docs/pipeline-presets.md>`__.
+
+.. dropdown:: Watch export, import, and editing (72 seconds)
+
+    .. figure:: /images/integrations/albumentationsx/export-import-editing-pipeline.gif
+        :alt: Export a pipeline as JSON, import it, and open an editable copy.
+        :width: 720px
+
+        Copy the complete **Importable pipeline JSON** object, import it, then
+        load an editable copy. Importing a saved configuration and creating
+        augmented samples are separate actions.
 
 .. _albumentations-last-transformation-info:
 .. _albumentationsx-history:
@@ -439,6 +500,13 @@ replay metadata, counters, and errors.
 Reuse loads configuration with fresh randomness. Exact reproduction of earlier
 sampled outputs is not implemented.
 
+.. figure:: /images/integrations/albumentationsx/reuse-pipeline-from-run-history.gif
+    :alt: Choose a previous run and reuse its pipeline in the augmentation editor.
+    :width: 720px
+
+    Reuse from history (29 seconds): open a run's pipeline as an editable copy,
+    review the current source scope, and execute it with fresh randomness.
+
 .. _albumentationsx-errors:
 
 Recover from errors
@@ -459,6 +527,19 @@ Correct an invalid crop without creating outputs
    fill values if your labels include masks.
 4. Submit validation once the form is valid, then preview. Inspect the crop and
    its selected annotations before choosing **Create augmented samples**.
+
+.. figure:: /images/integrations/albumentationsx/validation-error.png
+    :alt: Validation rejects an oversized crop and offers a return to the editor.
+    :width: 720px
+
+    Validation example: a 1024 × 1024 crop with padding disabled is rejected
+    for the smaller COCO sources. Read the error, return to the editor, and
+    reduce the crop dimensions or enable padding. No output samples or run
+    record are created.
+
+For these three COCO sources, changing both dimensions to **256**, keeping
+padding disabled, and validating again returns **Validation passed** for all
+three sources. Review the successful validation, then preview before creation.
 
 If an advanced parameter contains malformed JSON, correct the highlighted field
 and submit again. Use JSON syntax such as ``[0.3, 0.3]``, not Python tuples.
@@ -511,6 +592,13 @@ be cleaned. Completed cleanup retains the manifest; **Include cleaned runs**
 shows audit records. Preset deletion is independent of output cleanup.
 Already missing outputs count as skipped. A partial cleanup retains the custom
 run and reports file failures for inspection.
+
+.. figure:: /images/integrations/albumentationsx/delete-run-from-history.gif
+    :alt: Review and confirm deletion of a run's generated samples and files.
+    :width: 720px
+
+    Cleanup example (17 seconds): review the selected run, confirm the deletion,
+    and inspect the result. Source images and annotations remain available.
 
 .. _albumentationsx-sample-dataset:
 
@@ -684,6 +772,39 @@ enabling the plugin. Replace the dataset name with an existing image dataset:
 This query creates no samples or run. In a notebook with an active event loop,
 await the returned task before reading ``execution.result``. The `Python
 operator
-contract <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/operator-api.md>`__
+contract <https://github.com/albumentations-team/voxel51-plugin/blob/cf08bb776d251933b33189b9bc01ed1c06d9c681/docs/operator-api.md>`__
 documents flat parameters and legacy Python migration. UI labels do not change
 these six registered URIs.
+
+.. _albumentationsx-media-credits:
+
+Demo image credits
+------------------
+
+The recordings and screenshots use COCO 2017 validation photographs with
+instance annotations and person keypoints. They show annotation overlays,
+geometric augmentations, and cropped views of the App. The COCO source metadata
+identifies these photographs as
+`Creative Commons Attribution 2.0 <https://creativecommons.org/licenses/by/2.0/>`__.
+Photo rights remain with their original creators; the metadata supplies the
+following original image references:
+
+.. list-table::
+    :header-rows: 1
+    :widths: auto
+
+    * - COCO image
+      - Subject
+      - Original source
+    * - 130586
+      - Person outdoors
+      - `Flickr photograph <https://farm4.staticflickr.com/3587/3392836274_5d866f582b_z.jpg>`__
+    * - 261888
+      - Cyclist
+      - `Flickr photograph <https://farm5.staticflickr.com/4079/4918743472_0b684750c4_z.jpg>`__
+    * - 378116
+      - Surfer
+      - `Flickr photograph <https://farm6.staticflickr.com/5150/5619719330_f8c8934184_z.jpg>`__
+
+Images and annotations were obtained from the
+`official COCO downloads <https://cocodataset.org/#download>`__.

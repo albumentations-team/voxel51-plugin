@@ -2,7 +2,8 @@
 
 The App-ready artifact is `albumentationsx-fiftyone-plugin-v<version>.zip`.
 It contains the plugin manifest, entrypoint, runtime package, requirements, and
-user documentation. The wheel and source distribution install the Python package;
+user documentation with its compressed GIFs and screenshots. Original screen
+recordings are excluded. The wheel and source distribution install the Python package;
 use the plugin ZIP or FiftyOne download command to register the App integration.
 
 The release also supplies installation notes, a dependency-specific capability

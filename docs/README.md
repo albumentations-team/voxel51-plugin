@@ -4,6 +4,10 @@ Start with the [integration guide](albumentationsx-fiftyone-integration.md) for
 installation, a first preview, pipeline editing, creation, error recovery, and
 migration from the older community plugin.
 
+The guide includes COCO recordings for preview, pipeline editing, output
+creation, saving and sharing configurations, run reuse, and cleanup. Still
+images explain annotation alignment and crop validation errors.
+
 ## Detailed guides
 
 | Guide | When to use it |

@@ -50,6 +50,12 @@ Preview creates no samples or files. Created outputs persist until explicitly
 deleted. The [quickstart](docs/albumentationsx-fiftyone-integration.md#quickstart)
 links to an optional small demo that works without downloading models or datasets.
 
+[![Preview a horizontal flip with COCO boxes, instance masks, and keypoints](docs/media/preview.gif)](docs/media/preview.gif)
+
+*Preview on two selected COCO images. Image geometry and selected annotations
+change together. Select the recording to view it at full size.*
+See [image credits](docs/albumentationsx-fiftyone-integration.md#demo-image-credits).
+
 ## Capabilities and limits
 
 - Up to ten ordered stages and one to three outputs per source.

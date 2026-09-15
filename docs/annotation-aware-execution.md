@@ -46,6 +46,15 @@ The current FiftyOne adapter supports these dataset label fields:
 Supported label attributes, tags, labels, confidences, and indices are preserved
 where they can be represented as JSON-safe values.
 
+Detection boxes remain axis-aligned after rotation: their position and size
+change, but their edges do not tilt. Instance masks and keypoint coordinates
+follow the transformed image geometry.
+
+[![COCO cyclist before and after a horizontal flip, with boxes, masks, and keypoints](media/annotation-preview.png)](media/annotation-preview.png)
+
+*Compare the selected annotations on the original and flipped image.
+[Image credits](albumentationsx-fiftyone-integration.md#demo-image-credits).*
+
 Missing-point slots follow the [FiftyOne skeleton convention](https://docs.voxel51.com/user_guide/using_datasets.html#storing-keypoint-skeletons).
 Only missing keypoint coordinates receive this special JSON encoding. Non-finite
 geometry or built-in confidence values, partially missing coordinate pairs, out-of-range points, and

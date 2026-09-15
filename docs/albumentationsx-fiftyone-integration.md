@@ -84,6 +84,11 @@ Choose the label fields present in your dataset. COCO datasets may use
 does not save files, samples, manifests, or runs. It shows at most three
 selected sources, even when the execution scope is larger.
 
+[![Select COCO sources and preview HorizontalFlip with their annotations](media/preview.gif)](media/preview.gif)
+
+*Preview example (12 seconds): two selected COCO sources with detections,
+instance masks, and keypoints. Select any recording to view it at full size.*
+
 **Create one persistent output**
 
 1. From the preview, choose **Review and create samples**.
@@ -95,6 +100,11 @@ selected sources, even when the execution scope is larger.
 **Expected result:** one new sample and its output image, with source provenance.
 The source sample, file, and labels remain unchanged. Creation uses fresh
 randomness; a probabilistic pipeline can differ from its preview.
+
+[![Apply an augmentation pipeline and inspect the generated COCO samples](media/apply-pipeline.gif)](media/apply-pipeline.gif)
+
+*Creation example (30 seconds): apply a two-stage pipeline and inspect the
+generated images. Review the scope and output count before submitting.*
 
 To remove the output after exploring, follow
 [Cleanup and data safety](#cleanup-and-data-safety). If an output-only view
@@ -123,6 +133,22 @@ discards subsequent changes. See [pipeline loading](pipeline-presets.md).
 
 The draft survives the continuation buttons and validation errors. Closing the
 editor or result ends it; use **Save pipeline** for later reuse.
+
+### Example: flip, then rotate
+
+1. Set **Pipeline stages** to 2.
+2. Choose **HorizontalFlip** for stage 1, with **Execution order = 1** and
+   **Probability = 1**.
+3. Choose **RandomRotate90** for stage 2, with **Execution order = 2** and
+   **Probability = 1**. Leave the optional group settings at their defaults.
+4. Select the annotation fields, preview, and compare the before/after images.
+   The sampled rotation can differ between sources and previews, including a
+   zero-degree rotation.
+
+[![Add RandomRotate90 after HorizontalFlip and preview the two-stage pipeline](media/two-steps.gif)](media/two-steps.gif)
+
+*Two-stage example (19 seconds): add the rotation, then check that the selected
+annotations follow the transformed objects.*
 
 ### Example: brighten before flipping
 
@@ -218,6 +244,15 @@ See [cancellation](run-history.md#cancellation).
 | `Heatmap` | Geometry synchronized through image-like targets; transformed maps stored in memory |
 | `Segmentation` | Masks transformed; file-backed outputs saved as plugin-owned PNGs |
 
+Detection boxes remain axis-aligned rectangles after a rotation. Their position
+and size change to enclose the transformed object; the rectangle edges do not
+tilt. Masks and keypoint coordinates follow the image geometry.
+
+[![Original and horizontally flipped COCO cyclist with aligned boxes, masks, and keypoints](media/annotation-preview.png)](media/annotation-preview.png)
+
+*A still from the preview recording: compare the cyclist, bicycle, instance
+masks, and keypoints on both sides without waiting for the animation.*
+
 A pure image-only color pipeline copies selected heatmaps unchanged. A mixed
 geometric plus color/intensity pipeline is blocked when it would apply color
 operations to a transformed heatmap. For example, `RandomBrightnessContrast`
@@ -264,6 +299,11 @@ Choose **Action → Save pipeline**, enter a name, and choose:
 The load picker never selects a replacement target. Other actions do not
 implicitly save a name retained in the draft.
 
+[![Save a named pipeline and inspect its importable JSON](media/create-pipeline.gif)](media/create-pipeline.gif)
+
+*Save and inspect (26 seconds): save a named configuration, then inspect that
+pipeline's settings and complete JSON in **Saved pipelines**.*
+
 ### Load and edit a saved pipeline
 
 1. Open **Saved pipelines → Inspect saved pipeline** and select a pipeline.
@@ -289,6 +329,17 @@ Imported IDs are retained. Replacing an existing ID requires explicit overwrite;
 equal names with different IDs remain separate. Presets store configuration,
 annotation mapping, and dependency metadata, without source IDs, generated
 paths, or sampled replay. See the [complete preset contract](pipeline-presets.md).
+
+<details>
+<summary>Watch export, import, and editing (72 seconds)</summary>
+
+[![Export a pipeline as JSON, import it, and open an editable copy](media/export-import-editing-pipeline.gif)](media/export-import-editing-pipeline.gif)
+
+Copy the complete **Importable pipeline JSON** object, import it, then load an
+editable copy. Importing a saved configuration and creating augmented samples
+are separate actions.
+
+</details>
 
 ## Run history, outcomes, and provenance
 
@@ -329,6 +380,11 @@ paths, replay metadata, counters, and errors.
 Reuse loads configuration with fresh randomness. Exact reproduction of earlier
 sampled outputs is not implemented.
 
+[![Choose a previous run and reuse its pipeline in the augmentation editor](media/reuse-pipeline-from-run-history.gif)](media/reuse-pipeline-from-run-history.gif)
+
+*Reuse from history (29 seconds): open a run's pipeline as an editable copy,
+review the current source scope, and execute it with fresh randomness.*
+
 ## Recover from errors
 
 ### Correct an invalid crop without creating outputs
@@ -345,6 +401,16 @@ sampled outputs is not implemented.
    Review fill values if your labels include masks.
 4. Submit validation once the form is valid, then preview. Inspect the crop and its selected annotations
    before choosing **Create augmented samples**.
+
+[![Validation rejects a crop larger than the source image and offers a return to the editor](media/validation-error.png)](media/validation-error.png)
+
+*Validation example: a 1024 × 1024 crop with padding disabled is rejected for
+the smaller COCO sources. Read the error, return to the editor, and reduce the
+crop dimensions or enable padding. No output samples or run record are created.*
+
+For these three COCO sources, changing both dimensions to **256**, keeping
+padding disabled, and validating again returns **Validation passed** for all
+three sources. Review the successful validation, then preview before creation.
 
 If an advanced parameter contains malformed JSON, correct the highlighted field
 and submit again. Use JSON syntax such as `[0.3, 0.3]`, not Python tuples.
@@ -393,6 +459,11 @@ shows audit records. Preset deletion is independent of output cleanup.
 Already missing outputs count as skipped. A partial cleanup retains the custom
 run and reports file failures for inspection.
 See [cleanup details](run-history.md#cleanup).
+
+[![Review and confirm deletion of a run's generated samples and files](media/delete-run-from-history.gif)](media/delete-run-from-history.gif)
+
+*Cleanup example (17 seconds): review the selected run, confirm the deletion,
+and inspect the result. Source images and annotations remain available.*
 
 ## Optional standalone sample dataset
 
@@ -522,3 +593,22 @@ This query creates no samples or run. In a notebook with an active event loop,
 await the returned task before reading `execution.result`. The
 [Python operator contract](operator-api.md) documents flat parameters and
 legacy Python migration. UI labels do not change these six registered URIs.
+
+## Demo image credits
+
+The recordings and screenshots use COCO 2017 validation photographs with
+instance annotations and person keypoints. They show annotation overlays,
+geometric augmentations, and cropped views of the App. The COCO source metadata
+identifies these photographs as
+[Creative Commons Attribution 2.0](https://creativecommons.org/licenses/by/2.0/).
+Photo rights remain with their original creators; the metadata supplies the
+following original image references:
+
+| COCO image | Subject | Original source |
+| --- | --- | --- |
+| 130586 | Person outdoors | [Flickr photograph](https://farm4.staticflickr.com/3587/3392836274_5d866f582b_z.jpg) |
+| 261888 | Cyclist | [Flickr photograph](https://farm5.staticflickr.com/4079/4918743472_0b684750c4_z.jpg) |
+| 378116 | Surfer | [Flickr photograph](https://farm6.staticflickr.com/5150/5619719330_f8c8934184_z.jpg) |
+
+Images and annotations were obtained from the
+[official COCO downloads](https://cocodataset.org/#download).
