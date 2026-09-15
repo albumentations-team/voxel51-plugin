@@ -88,7 +88,7 @@ uv run fiftyone operators list
 
 Keep `FIFTYONE_PLUGINS_DIR` scoped to this checkout to avoid scanning unrelated
 repositories. Use the repository's
-[contributor documentation](https://github.com/albumentations-team/voxel51-plugin/tree/6bbde0947adb07c1fc970671561bc0fdca235ec2/docs)
+[contributor documentation](https://github.com/albumentations-team/voxel51-plugin/tree/6ad729936ecaddcad38355081286c3208b1d0f0f/docs)
 for architecture, demo scripts, the canonical verification gate, and release
 procedures. The installed plugin ZIP contains user documentation; contributor
 commands require a checkout.

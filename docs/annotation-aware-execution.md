@@ -154,7 +154,7 @@ requirements are stored in run annotation metadata for inspection.
 
 The commands in this section require the repository checkout and its test suite.
 
-Use the complete local gate in [Verification](https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/verification.md). The focused
+Use the complete local gate in [Verification](https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/verification.md). The focused
 annotation check is:
 
 ```bash

@@ -475,7 +475,7 @@ handle its printed source directory separately.
 
 For real COCO images or richer annotation/validation fixtures, repository
 contributors can follow the
-[demo dataset guide](https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/demo-dataset.md#coco-acceptance).
+[demo dataset guide](https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/demo-dataset.md#coco-acceptance).
 
 ## Troubleshooting
 
@@ -551,7 +551,7 @@ print(execution.result["transforms"])
 
 This query creates no samples or run. In a notebook with an active event loop,
 await the returned task before reading `execution.result`. The
-[Python operator contract](https://github.com/albumentations-team/voxel51-plugin/blob/6bbde0947adb07c1fc970671561bc0fdca235ec2/docs/operator-api.md) documents flat parameters and
+[Python operator contract](https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/operator-api.md) documents flat parameters and
 legacy Python migration. UI labels do not change these six registered URIs.
 
-Demo image sources and recording details: [media credits](https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/README.md).
+Demo image sources and recording details: [media credits](https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/media/README.md).

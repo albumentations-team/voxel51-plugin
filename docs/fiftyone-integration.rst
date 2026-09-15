@@ -84,7 +84,7 @@ chosen release with the CLI’s ``--overwrite`` option. Reinstall its
 requirements, restart the App, and validate a small saved pipeline before
 creating outputs. If the plugin is disabled, enable it with
 ``fiftyone plugins enable @albumentations/albumentationsx``. See `ZIP
-installation <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/release-artifacts.md#install-from-release-zip>`__
+installation <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/release-artifacts.md#install-from-release-zip>`__
 for an alternative to the GitHub download helper.
 
 The wheel is the reusable Python package. The plugin ZIP also includes the
@@ -183,7 +183,7 @@ Use **Load pipeline** to select a saved configuration or run, then explicitly
 click **Replace draft with selected pipeline**. Selecting a source alone keeps
 your edits. Loaded settings remain editable; **Reload and replace draft**
 discards subsequent changes. See `pipeline
-loading <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/pipeline-presets.md>`__.
+loading <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/pipeline-presets.md>`__.
 
 The draft survives the continuation buttons and validation errors. Closing the
 editor or result ends it; use **Save pipeline** for later reuse.
@@ -289,7 +289,7 @@ active grid. Preparation happens before output checkpoints, so progress and
 cancellation may not be immediate. Cancellation is best-effort; a hard process
 kill may prevent a final checkpoint. Retained partial outputs can be inspected
 and cleaned through history. See
-`cancellation <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/cancellation.md>`__.
+`cancellation <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/cancellation.md>`__.
 
 .. _albumentationsx-annotations:
 
@@ -328,7 +328,7 @@ known derived geometry values that require recomputation. Source sample tags
 and custom sample fields are not copied. Generated samples contain source
 provenance instead. Unsupported values and omitted fields are reported. Read
 the `annotation and metadata
-policy <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/annotation-aware-execution.md>`__
+policy <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/annotation-aware-execution.md>`__
 for missing keypoints, clipping, dynamic attributes, and file-backed masks.
 
 The example below uses a COCO photograph, its instance masks and keypoints,
@@ -368,7 +368,7 @@ images in the execution scope as references and require at least two sources.
 The implementation loads the full reference pool and constructs per-source
 reference lists/provenance. Those lists grow quadratically; use small
 selections. `External-data
-transforms <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/external-data-transforms.md>`__
+transforms <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/external-data-transforms.md>`__
 explains this policy.
 
 Video, 3D, tensor/unsafe image outputs, unsupported label classes, and
@@ -425,7 +425,7 @@ Imported IDs are retained. Replacing an existing ID requires explicit
 overwrite; equal names with different IDs remain separate. Presets store
 configuration, annotation mapping, and dependency metadata, without source IDs,
 generated paths, or sampled replay. See the `complete preset
-contract <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/pipeline-presets.md>`__.
+contract <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/pipeline-presets.md>`__.
 
 .. _albumentations-last-transformation-info:
 .. _albumentationsx-history:
@@ -560,7 +560,7 @@ File-backed generated masks participate in the same allowlist. Partial runs can
 be cleaned. Completed cleanup retains the manifest; **Include cleaned runs**
 shows audit records. Preset deletion is independent of output cleanup. See
 `cleanup
-details <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/run-cleanup-operator.md>`__.
+details <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/run-cleanup-operator.md>`__.
 
 .. figure:: /images/integrations/albumentationsx/cleanup.gif
     :alt: Confirm deletion, inspect the result, and return to the original COCO images.
@@ -626,7 +626,7 @@ handle its printed source directory separately.
 
 For real COCO images or richer annotation/validation fixtures, repository
 contributors can follow the `demo dataset
-guide <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/demo-dataset.md#coco-acceptance>`__.
+guide <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/demo-dataset.md#coco-acceptance>`__.
 
 .. _albumentationsx-troubleshooting:
 
@@ -745,9 +745,9 @@ enabling the plugin. Replace the dataset name with an existing image dataset:
 This query creates no samples or run. In a notebook with an active event loop,
 await the returned task before reading ``execution.result``. The `Python
 operator
-contract <https://github.com/albumentations-team/voxel51-plugin/blob/6bbde0947adb07c1fc970671561bc0fdca235ec2/docs/operator-api.md>`__
+contract <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/operator-api.md>`__
 documents flat parameters and legacy Python migration. UI labels do not change
 these six registered URIs.
 
 Demo image sources and recording details: `media
-credits <https://github.com/albumentations-team/voxel51-plugin/blob/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/README.md>`__.
+credits <https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/media/README.md>`__.

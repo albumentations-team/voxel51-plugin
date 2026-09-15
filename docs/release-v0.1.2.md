@@ -7,7 +7,7 @@ Changes are measured from the published **0.1.1** release to the candidate.
 Use the [verification record](release-preparation.md) for current evidence and
 remaining publication gates.
 
-[Watch the COCO workflow demos](https://github.com/albumentations-team/voxel51-plugin/tree/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media).
+[Watch the COCO workflow demos](https://github.com/albumentations-team/voxel51-plugin/tree/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/media).
 
 ## Highlights
 
