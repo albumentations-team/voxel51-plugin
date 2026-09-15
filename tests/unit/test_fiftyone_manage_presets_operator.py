@@ -15,6 +15,7 @@ from albumentationsx_plugin.hosts.fiftyone.operators.manage_presets import (
     ACTION_EXPORT,
     ACTION_FIELD_NAME,
     ACTION_IMPORT,
+    ACTION_INSPECT,
     ACTION_RENAME,
     CONFIRM_DELETE_FIELD_NAME,
     NEW_PRESET_NAME_FIELD_NAME,
@@ -69,7 +70,7 @@ def test_manage_presets_operator_resolves_export_form_and_output(tmp_path) -> No
         }
 
     input_json = operator.resolve_input(Context()).to_json()
-    output_json = operator.resolve_output(ctx=None).to_json()
+    output_json = operator.resolve_output(Context()).to_json()
     input_properties = input_json["type"]["properties"]
     output_properties = output_json["type"]["properties"]
 
@@ -83,6 +84,59 @@ def test_manage_presets_operator_resolves_export_form_and_output(tmp_path) -> No
     assert output_properties["importable_preset_json"]["type"]["name"] == "String"
     assert {"presets_json", "selected_preset_json", "exported_preset_json"}.isdisjoint(output_properties)
     assert output_properties["errors_json"]["type"]["name"] == "String"
+
+
+@pytest.mark.unit
+def test_manage_presets_operator_inspects_only_selected_pipeline_in_app(tmp_path) -> None:
+    first = _save_preset(tmp_path, "First pipeline")
+    selected = _save_preset(tmp_path, "Second pipeline")
+    operator = ManageAlbumentationsXPresets()
+
+    class Context:
+        params = {
+            STORAGE_ROOT_PARAM_NAME: str(tmp_path),
+            ACTION_FIELD_NAME: ACTION_INSPECT,
+            PRESET_KEY_FIELD_NAME: selected.key,
+        }
+
+    input_json = operator.resolve_input(Context()).to_json()
+    result = operator.execute(Context())
+    output_properties = operator.resolve_output(Context()).to_json()["type"]["properties"]
+    selector = input_json["type"]["properties"]["preset_key"]
+
+    assert input_json["view"]["submit_button_label"] == "Inspect saved pipeline"
+    assert set(selector["type"]["values"]) == {first.key, selected.key}
+    assert selector["default"] == selected.key
+    assert result["status"] == "ok"
+    assert result["message"] == "Inspecting saved pipeline 'Second pipeline'."
+    assert result["preset_key"] == selected.key
+    assert result["preset_name"] == selected.name
+    assert json.loads(str(result["importable_preset_json"])) == selected.to_dict()
+    assert {"presets", "preset_count", "presets_json", "selected_preset_json", "exported_preset_json"}.isdisjoint(
+        output_properties
+    )
+    assert {"preset_key", "preset_name", "preset_path", "importable_preset_json"} <= output_properties.keys()
+    # Existing Python callers can still read the library-wide summary.
+    assert result["preset_count"] == 2
+    assert {row["key"] for row in json.loads(str(result["presets_json"]))} == {first.key, selected.key}
+
+
+@pytest.mark.unit
+def test_manage_presets_operator_inspects_empty_library(tmp_path) -> None:
+    operator = ManageAlbumentationsXPresets()
+
+    class Context:
+        params = {STORAGE_ROOT_PARAM_NAME: str(tmp_path)}
+
+    result = operator.execute(Context())
+    output_properties = operator.resolve_output(Context()).to_json()["type"]["properties"]
+
+    assert result["status"] == "ok"
+    assert result["action"] == ACTION_INSPECT
+    assert result["message"] == "No saved pipelines were found."
+    assert result["preset_key"] == ""
+    assert result["importable_preset_json"] == ""
+    assert {"presets", "preset_count", "presets_json"}.isdisjoint(output_properties)
 
 
 @pytest.mark.unit

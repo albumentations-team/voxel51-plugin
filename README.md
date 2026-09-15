@@ -50,11 +50,6 @@ Preview creates no samples or files. Created outputs persist until explicitly
 deleted. The [quickstart](docs/albumentationsx-fiftyone-integration.md#quickstart)
 links to an optional small demo that works without downloading models or datasets.
 
-<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif" width="480" alt="Preview a COCO image with aligned annotations"></a>
-
-*Preview HorizontalFlip on COCO with detections and keypoints. Select the image
-to view it at full size.*
-
 ## Capabilities and limits
 
 - Up to ten ordered stages and one to three outputs per source.
@@ -87,11 +82,8 @@ uv run fiftyone operators list
 ```
 
 Keep `FIFTYONE_PLUGINS_DIR` scoped to this checkout to avoid scanning unrelated
-repositories. Use the repository's
-[contributor documentation](https://github.com/albumentations-team/voxel51-plugin/tree/6ad729936ecaddcad38355081286c3208b1d0f0f/docs)
-for architecture, demo scripts, the canonical verification gate, and release
-procedures. The installed plugin ZIP contains user documentation; contributor
-commands require a checkout.
+repositories. The installed plugin ZIP contains
+user documentation; contributor commands require the repository's scripts and tests.
 
 ## License
 

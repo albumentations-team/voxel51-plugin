@@ -4,10 +4,6 @@
 It is not a publication or final acceptance announcement.
 
 Changes are measured from the published **0.1.1** release to the candidate.
-Use the [verification record](release-preparation.md) for current evidence and
-remaining publication gates.
-
-[Watch the COCO workflow demos](https://github.com/albumentations-team/voxel51-plugin/tree/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/media).
 
 ## Highlights
 
@@ -57,7 +53,7 @@ remaining publication gates.
 - Runtime version metadata is included in isolated plugin installations.
 - Explicit ZIP input inventory excludes accidental local files and generated data.
 - Documentation follows current UI actions, correct run tags, and tag-aware asset names.
-- Contributor contracts and historical evidence are separated from installed user docs.
+- User documentation covers installation, workflows, annotations, API usage, and limitations.
 
 ## Compatibility and upgrade
 
@@ -65,8 +61,6 @@ remaining publication gates.
 - AlbumentationsX `>=2.3.8,<3`; albu-spec `>=0.0.6,<1`.
 - Locked catalog: AlbumentationsX 2.3.8, albu-spec 0.0.6; 113 executable
   transforms from 134 catalog entries.
-- CI targets and allowed dependency ranges are distinct from the environments
-  actually exercised in the verification record.
 
 Install the eventual published tag through the
 [integration guide](albumentationsx-fiftyone-integration.md#installation-and-upgrade).
@@ -97,10 +91,3 @@ There is no automatic migration of its saved transforms or runs.
 - Host cancellation detection is best-effort; hard termination may interrupt
   checkpoint persistence. Cleanup requires a finished or stopped execution.
 - Saved-pipeline reuse samples fresh randomness, including after preview.
-
-## Release handoff
-
-Attach the final capability report, install notes, and `SHA256SUMS` produced by
-the [artifact process](release-artifacts.md). Link the reviewed demos and upstream
-FiftyOne documentation PR. Publication follows fresh App/COCO acceptance,
-artifact installation, and required CI for the final candidate.

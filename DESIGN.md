@@ -4,7 +4,7 @@
 
 **Last reviewed:** 2026-09-15
 
-This document records the current product boundary, the decisions that protect user data, and the work that remains. It is not a historical task list. Detailed implementation notes live in [docs/](docs/README.md); the root [README](README.md) is the installation and usage guide.
+This document records the current product boundary, architecture, and decisions that protect user data. [docs/](docs/README.md) contains the user documentation.
 
 ## Product goal
 
@@ -116,6 +116,20 @@ The code keeps four boundaries explicit.
 | `hosts/fiftyone` | Operator registration, dynamic forms, selected-sample conversion, output samples, run inspection, and cleanup actions. |
 | `storage` | Plugin-owned paths, image writes, manifests, and containment-checked cleanup. |
 
+`core` must not import FiftyOne, Albumentations, or albu-spec. The backend must
+not import FiftyOne; storage must not import its UI/operator modules. Operators
+compose services without owning catalog parsing, pipeline construction, or
+cleanup path validation. Keep annotation conversion and editor state in the
+FiftyOne host layer, and retain legacy import facades only for compatibility.
+
+Metadata ownership stays with albu-spec: runtime class names, target declarations,
+parameter shapes/defaults, and dependency snapshots. The plugin owns editor policy,
+image-aware defaults, selected labels, output validation, and persistence.
+Metadata workarounds belong in the backend with reason codes and focused tests;
+reassess them after dependency updates. Do not duplicate the transform catalog or
+load arbitrary classes from unchecked names. Forms may validate constructors,
+but must not execute transforms on images or persist outputs while rendering.
+
 ## Decisions that constrain future work
 
 ### Keep the integration in Python
@@ -162,7 +176,7 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 | Non-persistent preview | Selected samples can be previewed in memory with source/augmented images, replay metadata, and transformed label JSON before creating persistent outputs. |
 | Preset lifecycle | Named shared presets can be saved from the augmentation form and managed with a dedicated App operator for inspect, export, import, rename, and delete actions. |
 | Safe cancellation semantics | Controlled cancellation/interruption marks materialized runs as `cancelled`, retains manifest-listed partial outputs, and keeps cleanup allowlist guarantees. |
-| Local verification | The repository has unit, integration, and smoke tests, deterministic demo datasets, headless operator user-scenario coverage, a supported-transform smoke helper, and a documented local verification gate. |
+| Local verification | The repository has unit, integration, and smoke tests, deterministic demo datasets, headless operator user-scenario coverage, and a supported-transform smoke helper. |
 | Publication automation | Release workflows verify the lockfile, full pre-commit configuration, and tests across Ubuntu, macOS, and Windows; Python 3.10–3.14 are required. |
 
 ## Extension boundaries
@@ -170,8 +184,8 @@ The plugin converts supported FiftyOne labels into named Albumentations targets 
 Additional label classes, donor-object/mosaic inputs, tensor outputs, video, and
 3D require explicit adapters, display rules, source-preservation tests, and App
 acceptance before they can be advertised as supported. The current limitations
-are documented in the integration guide. Release readiness follows the
-[verification checklist](docs/verification.md#release-app-acceptance).
+are documented in the integration guide. Release readiness requires automated
+checks and fresh App acceptance.
 
 ## Release and quality policy
 
@@ -182,8 +196,5 @@ are documented in the integration guide. Release readiness follows the
 ## References
 
 - [README: install, first run, limits, and local development](README.md)
-- [Architecture](docs/architecture.md)
-- [Capability report v0.1.0](docs/capability-report-v0.1.0.md)
 - [Annotation-aware execution](docs/annotation-aware-execution.md)
-- [Run manifest and cleanup contract](docs/run-manifest.md)
-- [Verification](docs/verification.md)
+- [Run history, storage, and cleanup](docs/run-history.md)

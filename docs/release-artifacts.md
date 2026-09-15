@@ -1,39 +1,15 @@
-# Release Artifacts
+# Install from release artifacts
 
-The release workflow builds reproducible artifacts for public tags. A release tag
-should publish these files as GitHub Release assets:
+The App-ready artifact is `albumentationsx-fiftyone-plugin-v<version>.zip`.
+It contains the plugin manifest, entrypoint, runtime package, requirements, and
+user documentation. The wheel and source distribution install the Python package;
+use the plugin ZIP or FiftyOne download command to register the App integration.
 
-- `fiftyone_albumentationsx_plugin-<version>-py3-none-any.whl`
-- `fiftyone_albumentationsx_plugin-<version>.tar.gz`
-- `albumentationsx-fiftyone-plugin-v<version>.zip`
-- `albumentationsx-fiftyone-plugin-v<version>-install.md`
-- `capability-report-<release-tag>.md`
-- `SHA256SUMS`
+The release also supplies installation notes, a dependency-specific capability
+report, and `SHA256SUMS`. Choose an existing published release; a candidate
+version in this branch does not mean that its release assets are available.
 
-The wheel and source distribution prove that the reusable Python package can be
-built. The FiftyOne plugin zip is the App-ready artifact: it contains
-`fiftyone.yml`, the root plugin entrypoint, runtime requirements, selected user
-documentation, and the `albumentationsx_plugin` package.
-
-## Build Locally
-
-Contributor commands below require a clean release branch or tag checkout,
-not the installed plugin directory:
-
-```bash
-uv sync --group dev
-uv lock --check
-uv run python scripts/verify_release_tag.py <release-tag>
-uv build
-uv run python scripts/report_transform_capabilities.py --output dist/capability-report-<release-tag>.md
-uv run python scripts/build_release_artifacts.py --tag <release-tag>
-```
-
-`scripts/verify_release_tag.py` accepts both `0.1.2` and `v0.1.2`. The tag must
-match `pyproject.toml`, `fiftyone.yml`, runtime `_version.py`, and the root
-`uv.lock` entry; Python compatibility must also agree.
-
-## Install From Release Zip
+## Install from release ZIP
 
 Prefer the normal FiftyOne GitHub download command for published tags:
 
@@ -65,29 +41,10 @@ fiftyone plugins list --enabled --names-only
 
 The final command should list `@albumentations/albumentationsx`.
 
-## Release CI
+Restart FiftyOne after installation and check that **augment**, **pipelines**,
+and **history** are available. Avoid enabling another copy of the plugin at the
+same time. For the first preview, follow the
+[integration quickstart](albumentationsx-fiftyone-integration.md#quickstart).
 
-The release workflow verifies every Python version claimed by `pyproject.toml`
-across Linux, macOS, and Windows before publishing artifacts. The publishing job
-then builds wheel, sdist, plugin zip, install notes, a capability report, and a
-checksum manifest, and uploads them to the GitHub Release for the tag.
-
-Manual FiftyOne App validation remains a release gate because CI cannot fully
-prove the browser App interaction path.
-
-## Distribution inventory
-
-`scripts/plugin-files.txt` is the reviewed list of ZIP inputs. Add every new
-runtime module or intended documentation asset to that list. The builder fails
-if any listed file is absent or is a symlink. Files created locally under package,
-documentation or sample-data directories cannot enter the archive implicitly.
-Historical audits, generated demo images, caches and the upstream RST source are
-excluded. Contributor procedures, historical reports, and source demo scripts
-are not bundled in the user ZIP. User-doc links
-resolve within the ZIP or point to the repository for source-only material.
-
-Both bare and `v`-prefixed tags are accepted. Artifact filenames use the normalized
-version; install URLs retain the exact publication tag. Update all four version
-sources together: project metadata, FiftyOne manifest, runtime `_version.py`, and
-the root package entry in `uv.lock`. Extracted ZIP tests run with Python site
-packages disabled so installed development metadata cannot mask a missing version.
+Bare and `v`-prefixed release tags use the same normalized artifact version in
+filenames. Download URLs must retain the exact published tag.

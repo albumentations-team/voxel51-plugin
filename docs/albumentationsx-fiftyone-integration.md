@@ -62,9 +62,8 @@ FiftyOne manifest and root registration entrypoint needed for App discovery.
 
 Open an image dataset in the FiftyOne App. If you do not have one, use the
 [standalone sample dataset](#optional-standalone-sample-dataset) below.
-The recordings use three COCO photographs with `detections` and `keypoints`
-fields. The standalone example instead uses rectangles and `ground_truth`;
-choose the label fields present in your dataset.
+Choose the label fields present in your dataset. COCO datasets may use
+`detections` and `keypoints`; the standalone example uses `ground_truth`.
 
 ### Preview and create
 
@@ -85,10 +84,6 @@ choose the label fields present in your dataset.
 does not save files, samples, manifests, or runs. It shows at most three
 selected sources, even when the execution scope is larger.
 
-<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/preview.gif" width="480" alt="HorizontalFlip preview on COCO with aligned detections and keypoints."></a>
-
-*HorizontalFlip preview on COCO with aligned detections and keypoints. Select the image to view it at full size.*
-
 **Create one persistent output**
 
 1. From the preview, choose **Review and create samples**.
@@ -100,10 +95,6 @@ selected sources, even when the execution scope is larger.
 **Expected result:** one new sample and its output image, with source provenance.
 The source sample, file, and labels remain unchanged. Creation uses fresh
 randomness; a probabilistic pipeline can differ from its preview.
-
-<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/create-outputs.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/create-outputs.gif" width="480" alt="Create one output and open its generated-sample view."></a>
-
-*Create one output and open its generated-sample view. Select the image to view it at full size.*
 
 To remove the output after exploring, follow
 [Cleanup and data safety](#cleanup-and-data-safety). If an output-only view
@@ -144,10 +135,6 @@ editor or result ends it; use **Save pipeline** for later reuse.
 4. Preview the selected image. It should become brighter without changing
    orientation. Return with **Back to editor** and inspect the retained settings.
 5. Set the flip probability to 1 and preview again to see both effects.
-
-<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/edit-pipeline.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/edit-pipeline.gif" width="480" alt="Edit two ordered stages, preview, and return with settings preserved."></a>
-
-*Edit two ordered stages, preview, and return with settings preserved. Select the image to view it at full size.*
 
 ## Scope, validation, and execution
 
@@ -215,7 +202,9 @@ Delegated execution reports progress and retains results without switching the
 active grid. Preparation happens before output checkpoints, so progress and
 cancellation may not be immediate. Cancellation is best-effort; a hard process
 kill may prevent a final checkpoint. Retained partial outputs can be inspected
-and cleaned through history. See [cancellation](cancellation.md).
+and cleaned through history. Closing an App dialog is not a reliable way to stop
+a background worker; confirm that execution has stopped before cleanup.
+See [cancellation](run-history.md#cancellation).
 
 ## Supported annotations
 
@@ -242,15 +231,9 @@ instead. Unsupported values and omitted fields are reported. Read the
 [annotation and metadata policy](annotation-aware-execution.md) for missing
 keypoints, clipping, dynamic attributes, and file-backed masks.
 
-The example below uses a COCO photograph, its instance masks and keypoints,
-mask-derived polylines, and an illustrative gradient heatmap. A mixed
-HorizontalFlip + RandomBrightnessContrast pipeline cannot safely transform the
-selected heatmap. Uncheck **heatmap** to omit it, then preview the remaining
-annotations. For geometry-only processing, keep the heatmap selected instead.
-
-![Compatibility warning for the selected heatmap](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/compatibility-warning.png)
-
-![Successful preview with detections, keypoints, and mask-derived polylines](https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/annotation-preview.jpg)
+To resolve the mixed flip/color conflict, uncheck the heatmap field to omit it
+and preview the remaining annotations. To keep transforming the heatmap, remove
+the color/intensity stage and use a geometry-only pipeline.
 
 ## Transform coverage and reference images
 
@@ -283,16 +266,12 @@ implicitly save a name retained in the draft.
 
 ### Load and edit a saved pipeline
 
-1. Open **Saved pipelines → Inspect saved pipelines** and select a pipeline.
+1. Open **Saved pipelines → Inspect saved pipeline** and select a pipeline.
 2. Choose **Edit a copy of this pipeline**. Review its annotation mapping and
    execution scope for the current dataset.
 3. Change a parameter and preview. The saved original remains unchanged until
    you explicitly save an update. You can also rename, edit details, duplicate,
    or delete configurations in **Saved pipelines**.
-
-<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/save-reuse.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/save-reuse.gif" width="480" alt="Save a pipeline, load its independent copy, and edit the flip probability."></a>
-
-*Save a pipeline, load its independent copy, and edit the flip probability. Select the image to view it at full size.*
 
 ### Export and import
 
@@ -349,10 +328,6 @@ paths, replay metadata, counters, and errors.
 
 Reuse loads configuration with fresh randomness. Exact reproduction of earlier
 sampled outputs is not implemented.
-
-<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/inspect-run.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/inspect-run.gif" width="480" alt="Inspect completed counters and reuse the run pipeline."></a>
-
-*Inspect completed counters and reuse the run pipeline. Select the image to view it at full size.*
 
 ## Recover from errors
 
@@ -415,11 +390,9 @@ recorded generated sample IDs. It leaves sources and unrelated files intact.
 File-backed generated masks participate in the same allowlist. Partial runs can
 be cleaned. Completed cleanup retains the manifest; **Include cleaned runs**
 shows audit records. Preset deletion is independent of output cleanup.
-See [cleanup details](run-cleanup-operator.md).
-
-<a href="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/cleanup.gif"><img src="https://raw.githubusercontent.com/albumentations-team/voxel51-plugin/2f8aa79c4acad7d5efa41e8554161b15828ec9ee/docs/media/cleanup.gif" width="480" alt="Confirm deletion, inspect the result, and return to the original COCO images."></a>
-
-*Confirm deletion, inspect the result, and return to the original COCO images. Select the image to view it at full size.*
+Already missing outputs count as skipped. A partial cleanup retains the custom
+run and reports file failures for inspection.
+See [cleanup details](run-history.md#cleanup).
 
 ## Optional standalone sample dataset
 
@@ -472,10 +445,6 @@ python albumentationsx_quickstart.py
 The script prints the unique dataset name and source directory. Run cleanup
 removes only plugin-generated outputs. If you later remove this demo dataset,
 handle its printed source directory separately.
-
-For real COCO images or richer annotation/validation fixtures, repository
-contributors can follow the
-[demo dataset guide](https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/demo-dataset.md#coco-acceptance).
 
 ## Troubleshooting
 
@@ -551,7 +520,5 @@ print(execution.result["transforms"])
 
 This query creates no samples or run. In a notebook with an active event loop,
 await the returned task before reading `execution.result`. The
-[Python operator contract](https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/operator-api.md) documents flat parameters and
+[Python operator contract](operator-api.md) documents flat parameters and
 legacy Python migration. UI labels do not change these six registered URIs.
-
-Demo image sources and recording details: [media credits](https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/media/README.md).

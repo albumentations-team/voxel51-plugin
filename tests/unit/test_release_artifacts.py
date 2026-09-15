@@ -53,12 +53,18 @@ def test_release_artifact_contents_version_links_and_checksums(release_root, tmp
             "albumentationsx_plugin/_version.py",
             "README.md",
             "docs/albumentationsx-fiftyone-integration.md",
+            "docs/operator-api.md",
+            "docs/run-history.md",
         } <= names
-        assert not {"DESIGN.md", "docs/verification.md", "docs/release-v0.1.0.md", "sample_data/README.md"} & names
+        assert "DESIGN.md" not in names
         for asset in ["albumentations.svg", "albumentations-white.svg", "toolbar.js"]:
             assert f"albumentationsx_plugin/hosts/fiftyone/assets/{asset}" in names
         assert not any(
-            "audits/" in name or "/generated/" in name or "__pycache__" in name or name.endswith(".rst")
+            name.startswith(".github/")
+            or "audits/" in name
+            or "/generated/" in name
+            or "__pycache__" in name
+            or name.endswith(".rst")
             for name in names
         )
         for name in names:

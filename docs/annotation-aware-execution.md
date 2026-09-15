@@ -1,4 +1,4 @@
-# Annotation-Aware Execution
+# Annotation support and output metadata
 
 This guide describes annotation-aware execution through the FiftyOne
 augmentation workflow. Geometry is delegated to Albumentations target handling; the
@@ -122,46 +122,3 @@ additional target handling that the adapter does not provide.
 Unsupported label fields are excluded from generated output samples. The run
 manifest stores excluded fields and reason codes under `metadata.annotations` so
 the behavior is inspectable instead of silent.
-
-## Runtime Flow
-
-The FiftyOne sample adapter resolves supported label fields from the dataset
-schema and serializes labels into `AugmentationInput.metadata`. The fixed
-executor converts that payload into Albumentations target arrays before calling
-the backend runner:
-
-```text
-FiftyOne labels -> annotation payload -> Albumentations targets
-Albumentations targets -> transformed payload -> FiftyOne output labels
-```
-
-The backend runner remains host-neutral. It only receives target names such as
-`bboxes`, `keypoints`, `masks`, and `heatmaps`, configures `ReplayCompose`, and
-returns the transformed target values. FiftyOne-specific reconstruction stays
-in `hosts/fiftyone/annotations/`. File-backed semantic mask results are
-materialized under the plugin-owned run directory and listed in the manifest
-cleanup allowlist.
-
-Compatibility checks run in two passes. The first pass uses the dataset schema
-to reject selected label fields whose declared target type is incompatible with
-the requested transform chain. The second pass uses the serialized source
-annotation payloads. This catches value-dependent requirements, such as a
-`Detections` field that normally needs `bboxes` targets but also needs `mask`
-targets when any selected detection carries an instance mask. Runtime target
-requirements are stored in run annotation metadata for inspection.
-
-## Contributor verification
-
-The commands in this section require the repository checkout and its test suite.
-
-Use the complete local gate in [Verification](https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/verification.md). The focused
-annotation check is:
-
-```bash
-uv run pytest tests/integration/test_fiftyone_fixed_augmentation_executor.py::test_fixed_augmentation_executor_transforms_supported_annotations
-uv run pytest tests/integration/test_fiftyone_fixed_augmentation_executor.py::test_fixed_augmentation_executor_materializes_file_backed_segmentation_masks
-uv run pytest tests/integration/test_fiftyone_fixed_augmentation_executor.py::test_fixed_augmentation_preview_matches_materialized_deterministic_geometry
-uv run pytest tests/integration/test_demo_dataset_workflow.py tests/smoke/test_mvp_demo_workflow.py
-uv run pytest tests/unit/test_fiftyone_annotation_conversion.py
-uv run pytest tests/unit/test_fiftyone_annotation_fields.py tests/unit/test_fiftyone_augment_operator.py
-```

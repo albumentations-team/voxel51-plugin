@@ -1,4 +1,4 @@
-# Saved pipelines and run history
+# Saved pipelines
 
 A **pipeline** is an ordered list of transforms and their parameters. A **saved
 pipeline** is a named, reusable configuration. A **run** records one execution:
@@ -88,9 +88,8 @@ them. Updates and renames keep the ID and `created_at`, and update `updated_at`.
 Updates also retain existing tags and custom metadata.
 
 Existing files migrate in place: legacy slug IDs and filenames remain valid,
-including `preset.json`. No files are bulk-renamed and existing `saved:<key>`
-references continue to work after a rename or update. `build_preset_key(name)`
-remains a legacy compatibility helper, not the allocator for new pipelines.
+including `preset.json`. Existing `saved:<key>` references continue to work
+after a rename or update.
 Previously overwritten configurations cannot be recovered by this change.
 The `PipelinePreset` JSON
 schema remains version `1`; annotation selection is backward-compatible
@@ -99,7 +98,10 @@ transform catalog. Saved pipelines exclude source IDs, output IDs and paths,
 run cleanup allowlists, and per-output replay records.
 
 **Saved pipelines** provides inspect, export, import, edit details, duplicate,
-rename, and delete actions. The recommended workflow is:
+rename, and delete actions. **Inspect saved pipeline** shows the selected
+pipeline's name, ID, server path, and complete **Importable pipeline JSON**,
+including its transform parameters. Choose another entry in the saved pipeline
+selector to inspect a different configuration. The recommended workflow is:
 
 1. **Export saved pipeline**: choose a pipeline and copy the entire
    **Importable pipeline JSON** object. The overview table is only a summary.
@@ -155,8 +157,4 @@ Metadata edits use `action="edit"`, `preset_key=<ID>` and the object returned by
 Python callers can explicitly copy a configuration with
 `hosts.fiftyone.pipeline_loading.load_pipeline_draft(dataset, source, params,
 storage_root=...)`, where `source` is `saved:<key>` or `run:<key>`. Edit the
-returned flat params and pass them to the augmentation operator. The App packs
-that snapshot into its own nested form group before opening the editor. This
-isolates it from delayed updates to a replaced prompt, so actual checkbox/input
-values match the configuration rather than relying on schema defaults. See [verification](https://github.com/albumentations-team/voxel51-plugin/blob/6ad729936ecaddcad38355081286c3208b1d0f0f/docs/verification.md) for the complete gate and smoke
-scenarios.
+returned flat params and pass them to the augmentation operator.

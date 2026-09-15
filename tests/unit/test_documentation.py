@@ -32,23 +32,6 @@ def test_readme_documents_installation_and_current_limits() -> None:
     assert "DESIGN.md" not in readme
 
 
-@pytest.mark.unit
-def test_verification_doc_is_the_complete_local_gate_source() -> None:
-    verification = (ROOT / "docs" / "verification.md").read_text(encoding="utf-8")
-    checklist = (ROOT / "docs" / "pr-checklist.md").read_text(encoding="utf-8")
-
-    for command in (
-        "uv sync --group dev",
-        "uv lock --check",
-        "uv run pre-commit run --all-files",
-        "uv run pytest --cov-fail-under=85",
-        "uv run pyrefly check",
-        "node --test tests/frontend/test_toolbar.cjs",
-    ):
-        assert command in verification
-    assert "[Verification](verification.md)" in checklist
-
-
 def _load_yaml(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as file:
         value = yaml.safe_load(file)

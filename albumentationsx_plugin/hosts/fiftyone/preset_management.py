@@ -306,7 +306,7 @@ def _inspect_presets(
     return _success_payload(
         store,
         action=ACTION_INSPECT,
-        message=_inspect_message(presets),
+        message=f"Inspecting saved pipeline '{selected.name}'." if selected else "No saved pipelines were found.",
         preset=selected,
         selected_preset_json=_preset_json(selected) if selected is not None else "",
     )
@@ -524,13 +524,6 @@ def _pipeline_summary(preset: PipelinePreset) -> str:
 
 def _preset_json(preset: PipelinePreset | None) -> str:
     return json_dump(preset.to_dict()) if preset is not None else ""
-
-
-def _inspect_message(presets: tuple[PipelinePreset, ...]) -> str:
-    count = len(presets)
-    if count == 1:
-        return "Found 1 saved pipeline."
-    return f"Found {count} saved pipelines."
 
 
 def _required_text(raw_value: object, message: str) -> str:
