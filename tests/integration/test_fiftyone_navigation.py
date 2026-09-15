@@ -34,7 +34,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def navigation_context(tmp_path):
     path = write_rgb_image(np.arange(720, dtype=np.uint8).reshape(12, 20, 3), tmp_path, "source.png")
-    dataset = fo.Dataset(f"vox75-navigation-{uuid4().hex}")
+    dataset = fo.Dataset(f"run-navigation-{uuid4().hex}")
     try:
         ids = dataset.add_samples([fo.Sample(filepath=str(path), tags=["source"]) for _ in range(2)])
         events = []

@@ -44,7 +44,7 @@ def test_coco_missing_keypoints_through_operator_preview_dry_run_and_materializa
     image[:, : width // 2, 0] = 255
     source_path = write_rgb_image(image, tmp_path, "sources/coco-pose.png")
     source_bytes = source_path.read_bytes()
-    dataset = fo.Dataset(f"vox-68-coco-{uuid.uuid4().hex}")
+    dataset = fo.Dataset(f"coco-keypoints-{uuid.uuid4().hex}")
     storage_root = tmp_path / "runs"
     try:
         source_id = dataset.add_sample(

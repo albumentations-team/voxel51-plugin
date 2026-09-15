@@ -26,7 +26,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def result_context(tmp_path):
     path = write_rgb_image(np.arange(240, dtype=np.uint8).reshape(8, 10, 3), tmp_path, "source.png")
-    dataset = fo.Dataset(f"vox74-results-{uuid4().hex}")
+    dataset = fo.Dataset(f"run-outcomes-{uuid4().hex}")
     try:
         ids = dataset.add_samples([fo.Sample(filepath=str(path), tags=["source"]) for _ in range(3)])
         ctx = SimpleNamespace(dataset=dataset, view=dataset, selected=ids, params={})

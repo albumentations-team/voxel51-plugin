@@ -21,7 +21,7 @@ pytestmark = pytest.mark.integration
 def test_editor_saved_pipeline_lifecycle_preserves_source_and_rejects_unconfirmed_update(tmp_path):
     source = write_rgb_image(np.arange(720, dtype=np.uint8).reshape(12, 20, 3), tmp_path, "source.png")
     original_bytes = source.read_bytes()
-    dataset = fo.Dataset(f"vox49-lifecycle-{uuid4().hex}")
+    dataset = fo.Dataset(f"preset-lifecycle-{uuid4().hex}")
     try:
         sample_id = dataset.add_sample(fo.Sample(filepath=str(source), tags=["source"]))
         ctx = SimpleNamespace(

@@ -18,9 +18,9 @@ from albumentationsx_plugin.storage.paths import (
 
 @pytest.mark.unit
 def test_build_run_key_is_readable_unique_and_safe() -> None:
-    run_key = build_run_key(now=datetime(2026, 7, 31, 12, 30, 5, tzinfo=timezone.utc), suffix="VOX 10 / first")
+    run_key = build_run_key(now=datetime(2026, 7, 31, 12, 30, 5, tzinfo=timezone.utc), suffix="Demo 10 / first")
 
-    assert run_key == "albumentationsx-20260731T123005Z-VOX-10-first"
+    assert run_key == "albumentationsx-20260731T123005Z-Demo-10-first"
 
 
 @pytest.mark.unit
